@@ -2,6 +2,7 @@
 
 import { ArrowRight, Loader2, Plane, Ship, Truck, X, type LucideIcon } from "lucide-react";
 import { ClientPicker } from "@/components/clients/ClientPicker";
+import { LocationPicker } from "@/components/enquiries/LocationPicker";
 import { CargoDimensionsField, emptyPackageLine, type PackageLineInput } from "@/components/enquiries/CargoDimensionsField";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -307,11 +308,11 @@ export function EnquiryForm({
         </Section>
 
         {/* 3 · Route */}
-        <Section title="Route" hint="Origin and destination, and where to collect the cargo.">
+        <Section title="Route" hint="Pick a port or airport (search by name, code or country), or type any place.">
           <div className="grid items-end gap-3 sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]">
-            <Input label="From" required value={form.from} onChange={(e) => patch({ from: e.target.value })} placeholder="City or port of origin" />
+            <LocationPicker id="enq-from" label="From" required mode={form.mode} value={form.from} onChange={(from) => patch({ from })} placeholder="Origin port, airport or city" />
             <ArrowRight className="mb-3 hidden size-4 text-muted-foreground sm:block" aria-hidden />
-            <Input label="To" required value={form.to} onChange={(e) => patch({ to: e.target.value })} placeholder="City or port of destination" />
+            <LocationPicker id="enq-to" label="To" required mode={form.mode} value={form.to} onChange={(to) => patch({ to })} placeholder="Destination port, airport or city" />
           </div>
           <Textarea
             id="enq-collection-address"
