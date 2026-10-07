@@ -2,6 +2,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { enquiryRef, enquiryStatuses, type EnquiryStatus } from "@/types/enquiry";
 
+import { num } from "@/lib/decimal";
 /** Orders, enquiries and money for one client. Callers check access to the client first. */
 
 export const CLIENT_HISTORY_PAGE_SIZE = 10;
@@ -98,8 +99,8 @@ export async function getClientOrdersPage(clientId: number, page: unknown) {
     page: current,
     pageSize: CLIENT_HISTORY_PAGE_SIZE,
     rows: rows.map((r): ClientOrderRow => {
-      const amount = r.amount.toNumber();
-      const paid = r.paid_total.toNumber();
+      const amount = num(r.amount);
+      const paid = num(r.paid_total);
       const voided = r.status === "cancelled" || r.status === "revision_requested";
       const balance = voided ? 0 : Math.max(amount - paid, 0);
       return {

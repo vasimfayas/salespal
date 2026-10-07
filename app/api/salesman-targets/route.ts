@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { canAccessSalesman, getTokenUserId, isRole } from "@/lib/scoping";
 import { parseDateOnly, todayUtc } from "@/lib/salesman-targets";
 
+import { num } from "@/lib/decimal";
 /** Managers assign a target amount and period to a salesman on their team. */
 export async function POST(request: NextRequest) {
   const token = await getToken({ req: request, secret: process.env.NEXTAUTH_SECRET });
@@ -37,5 +38,5 @@ export async function POST(request: NextRequest) {
 
   revalidatePath("/dashboard/manager/team");
   revalidatePath("/dashboard/admin/salesmen");
-  return NextResponse.json({ target: { ...target, amount: target.amount.toNumber() } }, { status: 201 });
+  return NextResponse.json({ target: { ...target, amount: num(target.amount) } }, { status: 201 });
 }

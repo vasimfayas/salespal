@@ -6,6 +6,7 @@ import { isRole } from "@/lib/scoping";
 import { orderModes } from "@/types/order";
 import { containerTypes } from "@/types/shipping-rate";
 
+import { num } from "@/lib/decimal";
 export async function PATCH(request: NextRequest, context: { params: Promise<{ id: string }> }) {
   const token = await getToken({ req: request, secret: process.env.NEXTAUTH_SECRET });
   if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -24,7 +25,7 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
   const container = body.container ?? existing.container;
   if (!containerTypes.includes(container)) return NextResponse.json({ error: "Invalid container type" }, { status: 400 });
 
-  let price = existing.price.toNumber();
+  let price = num(existing.price);
   if (body.price !== undefined) {
     price = Number(body.price);
     if (!Number.isFinite(price) || price < 0) return NextResponse.json({ error: "Invalid price" }, { status: 400 });
@@ -46,7 +47,7 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
   });
 
   revalidateTag("shipping-rates", { expire: 0 });
-  return NextResponse.json({ rate: { ...rate, price: rate.price.toNumber() } });
+  return NextResponse.json({ rate: { ...rate, price: num(rate.price) } });
 }
 
 export async function DELETE(request: NextRequest, context: { params: Promise<{ id: string }> }) {

@@ -1,5 +1,6 @@
 import type { Prisma } from "@prisma/client";
 
+import { num } from "@/lib/decimal";
 /** Include this on order queries so `serializeOrder` can compute what has been paid. */
 export const orderPaymentsInclude = {
   payments: {
@@ -35,11 +36,11 @@ export function serializeOrder<
   T extends { amount: Prisma.Decimal; advance_amount: Prisma.Decimal; paid_total?: Prisma.Decimal; payments?: PaymentRow[] }
 >(order: T) {
   const { paid_total, ...rest } = order;
-  const amount = order.amount.toNumber();
-  const advance_amount = order.advance_amount.toNumber();
+  const amount = num(order.amount);
+  const advance_amount = num(order.advance_amount);
   const payments = (order.payments ?? []).map((p) => ({
     id: p.id,
-    amount: p.amount.toNumber(),
+    amount: num(p.amount),
     paid_on: p.paid_on.toISOString().slice(0, 10),
     method: p.method,
     reference: p.reference,
@@ -49,7 +50,7 @@ export function serializeOrder<
   const paid_amount = advance_amount + payments.reduce((sum, p) => sum + p.amount, 0);
   return {
     ...rest,
-    ...(paid_total !== undefined && { paid_total: paid_total.toNumber() }),
+    ...(paid_total !== undefined && { paid_total: num(paid_total) }),
     amount,
     advance_amount,
     payments,

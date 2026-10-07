@@ -9,6 +9,7 @@ import { revalidateEnquiryPages } from "@/lib/enquiries";
 import type { EnquiryStatus } from "@/types/enquiry";
 import type { OrderStatus } from "@/types/order";
 
+import { num } from "@/lib/decimal";
 /**
  * Enquiry → order workflow.
  *
@@ -158,7 +159,7 @@ export async function applyEnquiryAction(
     });
     if (revised) {
       const amount = prevCost + prevProfit;
-      if (revised.paid_total.toNumber() > amount + 0.005) {
+      if (num(revised.paid_total) > amount + 0.005) {
         throw new FlowError(`Order #${String(revised.id).padStart(5, "0")} already has ${revised.paid_total.toFixed(2)} paid, more than the revised amount`);
       }
       await tx.order.update({
@@ -247,7 +248,7 @@ export async function applyOrderAction(orderId: number, action: OrderAction, bod
     if (action === "deliver" && (!order.job_no || !order.invoice_date)) {
       throw new FlowError("Add the job no and invoice date before marking it delivered");
     }
-    if (action === "complete" && !isFullyPaid(order.paid_total.toNumber(), order.amount.toNumber())) {
+    if (action === "complete" && !isFullyPaid(num(order.paid_total), num(order.amount))) {
       throw new FlowError("Record the full payment before completing the order");
     }
 
@@ -319,13 +320,13 @@ export async function updateOrderDetails(
       if (dueDate < invoiceDate) throw new FlowError("Due date cannot be before the invoice date", 400);
     }
 
-    let amount = order.amount.toNumber();
+    let amount = num(order.amount);
     if (order.enquiry) {
       const cost = money(body.actual_cost, "actual cost");
       const profit = money(body.actual_profit, "actual profit", { allowNegative: true });
       amount = cost + profit;
       if (amount < 0) throw new FlowError("Cost + profit cannot be negative", 400);
-      if (order.paid_total.toNumber() > amount + 0.005) throw new FlowError("Order amount cannot be less than what has already been paid", 400);
+      if (num(order.paid_total) > amount + 0.005) throw new FlowError("Order amount cannot be less than what has already been paid", 400);
       await tx.enquiry.update({ where: { id: order.enquiry.id }, data: { actual_cost: cost, actual_profit: profit } });
     }
 

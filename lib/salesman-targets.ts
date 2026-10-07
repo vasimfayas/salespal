@@ -4,6 +4,7 @@ import { Prisma } from "@prisma/client";
 import type { SalesmanTargetRow, SalesmanTargetView, TargetState } from "@/types/salesman-target";
 
 
+import { num } from "@/lib/decimal";
 export function todayUtc() {
   const now = new Date();
   return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
@@ -56,7 +57,7 @@ export async function getSalesmenWithTargets(user: { id: number; role_id: number
 
   return salesmen.map((salesman) => {
     const history: SalesmanTargetView[] = salesman.salesmanTargets.map((target) => {
-      const amount = target.amount.toNumber();
+      const amount = num(target.amount);
       const achieved = achievedByTarget.get(target.id) ?? 0;
       return {
         id: target.id,

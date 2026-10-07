@@ -8,6 +8,7 @@ import { revalidateEnquiryPages } from "@/lib/enquiries";
 import { orderPaymentMethods } from "@/types/order";
 import { syncOrderPayments } from "@/lib/order-payments";
 
+import { num } from "@/lib/decimal";
 /**
  * Records a payment collected against an order. Allowed for accountants (orders of their companies)
  * and for the salesman who raised the enquiry the order was converted from.
@@ -40,8 +41,8 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
     return NextResponse.json({ error: "Cannot record a payment on a cancelled or revised order" }, { status: 409 });
   }
 
-  const paid = order.advance_amount.toNumber() + order.payments.reduce((sum, p) => sum + p.amount.toNumber(), 0);
-  const balance = order.amount.toNumber() - paid;
+  const paid = num(order.advance_amount) + order.payments.reduce((sum, p) => sum + num(p.amount), 0);
+  const balance = num(order.amount) - paid;
   if (amount > balance + 0.001) {
     return NextResponse.json({ error: `Payment exceeds the balance due (${balance.toFixed(2)})` }, { status: 400 });
   }

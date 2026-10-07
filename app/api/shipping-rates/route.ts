@@ -6,6 +6,7 @@ import { isRole } from "@/lib/scoping";
 import { orderModes } from "@/types/order";
 import { containerTypes } from "@/types/shipping-rate";
 
+import { num } from "@/lib/decimal";
 export async function GET(request: NextRequest) {
   const token = await getToken({ req: request, secret: process.env.NEXTAUTH_SECRET });
   if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -14,7 +15,7 @@ export async function GET(request: NextRequest) {
     include: { updatedBy: { select: { name: true } } },
     orderBy: [{ location: "asc" }, { port: "asc" }],
   });
-  return NextResponse.json({ rates: rates.map((rate) => ({ ...rate, price: rate.price.toNumber() })) });
+  return NextResponse.json({ rates: rates.map((rate) => ({ ...rate, price: num(rate.price) })) });
 }
 
 export async function POST(request: NextRequest) {
@@ -55,5 +56,5 @@ export async function POST(request: NextRequest) {
   });
 
   revalidateTag("shipping-rates", { expire: 0 });
-  return NextResponse.json({ rate: { ...rate, price: rate.price.toNumber() } }, { status: 201 });
+  return NextResponse.json({ rate: { ...rate, price: num(rate.price) } }, { status: 201 });
 }

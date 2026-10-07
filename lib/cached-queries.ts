@@ -5,6 +5,7 @@ import { Prisma } from "@prisma/client";
 import type { OrderStatsScope } from "@/lib/scoping";
 import { serializeCompanyDocument } from "@/lib/company-documents";
 
+import { num } from "@/lib/decimal";
 /* ═══════════════════════════════════════════════════════
    Salesman Dashboard — split into independent cached queries
    so each <Suspense> boundary can stream independently.
@@ -440,7 +441,7 @@ export const getShippingRates = unstable_cache(
       include: { updatedBy: { select: { name: true } } },
       orderBy: [{ location: "asc" }, { port: "asc" }],
     });
-    return rates.map((rate) => ({ ...rate, price: rate.price.toNumber() }));
+    return rates.map((rate) => ({ ...rate, price: num(rate.price) }));
   },
   ["shipping-rates"],
   { revalidate: 60, tags: ["shipping-rates"] }

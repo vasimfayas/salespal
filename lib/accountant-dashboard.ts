@@ -2,6 +2,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { literal } from "@/lib/list-params";
 
+import { num } from "@/lib/decimal";
 /** Credit orders raised without an enquiry have no agreed credit days. */
 export const DEFAULT_CREDIT_DAYS = 30;
 
@@ -126,7 +127,7 @@ export async function getAccountantDashboard(orgIds: number[]) {
     from: o.from,
     to: o.to,
     created_by: o.createdBy.name,
-    amount: o.amount.toNumber(),
+    amount: num(o.amount),
   }));
 
   return {
