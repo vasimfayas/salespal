@@ -18,7 +18,7 @@
  * The data follows the app's own rules (lib/enquiry-flow.ts, lib/client-status-flow.ts):
  * confirmed enquiries have an order; a cancelled order makes its enquiry lost; delivered / completed
  * orders carry a job no and invoice date; completed orders are paid in full; paid_total = advance +
- * payments; clients with an order are onboarded; every stage change has an enquiry event.
+ * payments; testing commit clients with an order are onboarded; every stage change has an enquiry event.
  */
 import { PrismaClient, Prisma } from "@prisma/client";
 import bcrypt from "bcryptjs";
@@ -304,11 +304,11 @@ async function main() {
     const hasDims = chance(0.85);
     const packages: CargoPackage[] = hasDims
       ? Array.from({ length: weighted([[1, 6], [2, 3], [3, 1]] as const) }, () => ({
-          length: round2(int(40, 240) * scale),
-          width: round2(int(30, 160) * scale),
-          height: round2(int(30, 200) * scale),
-          qty: int(1, mode === "air" ? 12 : 40),
-        }))
+        length: round2(int(40, 240) * scale),
+        width: round2(int(30, 160) * scale),
+        height: round2(int(30, 200) * scale),
+        qty: int(1, mode === "air" ? 12 : 40),
+      }))
       : [];
     const actualWeight = chance(0.9) ? int(80, mode === "air" ? 3000 : 22000) : null;
     const totals = cargoTotals(packages, unit, mode, actualWeight);
@@ -418,10 +418,10 @@ async function main() {
   orderPlans.forEach((o, i) => {
     const target =
       o.status === "completed" ? o.amount
-      : o.status === "delivered" ? round2(o.amount * pick([0, 0.3, 0.5, 0.7]))
-      : o.status === "transit" ? round2(o.amount * pick([0, 0, 0.2, 0.4]))
-      : o.status === "cancelled" ? round2(o.amount * pick([0, 0, 0.1]))
-      : 0;
+        : o.status === "delivered" ? round2(o.amount * pick([0, 0.3, 0.5, 0.7]))
+          : o.status === "transit" ? round2(o.amount * pick([0, 0, 0.2, 0.4]))
+            : o.status === "cancelled" ? round2(o.amount * pick([0, 0, 0.1]))
+              : 0;
     let remaining = round2(Math.max(0, target - o.advance));
     const parts = remaining > 0 ? weighted([[1, 6], [2, 3], [3, 1]] as const) : 0;
     let paidOn = o.invoice ?? o.created;
