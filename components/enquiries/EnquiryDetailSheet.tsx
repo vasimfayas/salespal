@@ -176,12 +176,12 @@ export function EnquiryDetailSheet({
                   <Field label="Mode">{titleCase(e.mode)}</Field>
                   {e.mode === "sea" && <Field label="Service type">{equipmentLabel(e) ?? dash}</Field>}
                   {e.gauge && <Field label="Gauge">{gaugeLabels[e.gauge as Gauge] ?? e.gauge}</Field>}
+                  {e.mode === "land" && <Field label="Truck type">{equipmentLabel(e) ?? dash}</Field>}
                   {e.reefer_temp !== null && (
                     <Field label="Reefer temperature">
                       <span className="tabular-nums">{formatTemp(e.reefer_temp)}</span>
                     </Field>
                   )}
-                  {e.mode === "land" && <Field label="Truck type">{equipmentLabel(e) ?? dash}</Field>}
                 </dl>
               </Section>
 

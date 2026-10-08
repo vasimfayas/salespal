@@ -1,7 +1,7 @@
 import { Prisma } from "@prisma/client";
 import { parseDateOnly } from "@/lib/salesman-targets";
 import { cargoTotals, DEFAULT_DIMENSION_UNIT, isDimensionUnit, MAX_PACKAGE_LINES, round3, type CargoPackage, type DimensionUnit } from "@/lib/freight";
-import { enquiryModes, enquiryPaymentModes, gauges, incoterms, isOpenTop, isReefer, jobRefs, REEFER_TEMP_MAX, REEFER_TEMP_MIN, seaServiceTypes, truckTypes, type JobRef } from "@/types/enquiry";
+import { enquiryModes, enquiryPaymentModes, gauges, incoterms, isOpenTop, jobRefs, needsReeferTemp, REEFER_TEMP_MAX, REEFER_TEMP_MIN, seaServiceTypes, truckTypes, type JobRef } from "@/types/enquiry";
 
 /** The shipment details of an enquiry (everything but client, figures and status). Shared by create and edit. */
 export type EnquiryDetails = {
@@ -30,7 +30,7 @@ export type EnquiryDetails = {
   /** Computed from the packing list. */
   cbm: number | null;
   service_type: string | null;
-  /** °C, reefer containers only. */
+  /** °C, reefer containers / reefer trucks only. */
   reefer_temp: number | null;
   /** ig | og, open top containers only. */
   gauge: string | null;
@@ -82,9 +82,9 @@ export function parseEnquiryDetails(body: Record<string, unknown>): { data: Enqu
   const isDg = Boolean(body.is_dg);
   const unNumber = isDg ? unNumbers(body.un_number) : null;
   const serviceType = body.mode === "sea" ? String(body.service_type ?? "") : null;
-  const reeferTemp = isReefer(serviceType) ? Number(body.reefer_temp) : null;
   const gauge = isOpenTop(serviceType) ? String(body.gauge ?? "") : null;
   const truckType = body.mode === "land" ? String(body.truck_type ?? "") : null;
+  const reeferTemp = needsReeferTemp(String(body.mode), serviceType, truckType) ? Number(body.reefer_temp) : null;
 
   if (!enquiryDate) return { error: "Invalid enquiry date" };
   if (!enquiryModes.includes(body.mode as never)) return { error: "Invalid mode of transport" };

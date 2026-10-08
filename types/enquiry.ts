@@ -35,11 +35,16 @@ export const seaContainerTypes = ["20dc", "40dc", "40hc", "20ot", "40ot", "20fr"
 export const seaOtherServiceTypes = ["lcl", "ro_ro", "break_bulk"] as const;
 export const seaServiceTypes = [...seaContainerTypes, ...seaOtherServiceTypes] as const;
 export type SeaServiceType = (typeof seaServiceTypes)[number];
-/** Reefer containers take a set temperature. */
+/** Reefer containers and reefer trucks take a set temperature. */
 export const REEFER_TEMP_MIN = -70;
 export const REEFER_TEMP_MAX = 40;
 export function isReefer(serviceType: string | null | undefined) {
   return serviceType === "20rf" || serviceType === "40rf";
+}
+
+/** Temperature-controlled: a sea reefer container or a road reefer trailer. */
+export function needsReeferTemp(mode: string, serviceType: string | null | undefined, truckType: string | null | undefined) {
+  return (mode === "sea" && isReefer(serviceType)) || (mode === "land" && truckType === "reefer");
 }
 
 export function formatTemp(celsius: number) {
@@ -225,7 +230,7 @@ export type EnquiryListItem = {
   cbm: number | null;
   /** Sea: container / cargo type. Land: truck type. */
   service_type: string | null;
-  /** °C, reefer containers only. */
+  /** °C, reefer containers / reefer trucks only. */
   reefer_temp: number | null;
   /** ig | og, open top containers only. */
   gauge: string | null;

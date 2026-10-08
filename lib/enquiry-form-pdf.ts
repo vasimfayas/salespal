@@ -210,7 +210,7 @@ export async function buildEnquiryFormPdf(enquiry: EnquiryListItem | null): Prom
     checks("gauge", "Open top (20'OT / 40'OT) — gauge", gauges.map((g) => ({ value: g, text: gaugeLabels[g] })), e?.gauge, 2, M, CW / 2 - 5);
     const after = y;
     y = top;
-    textField("sea.reefer_temp", "Reefer temperature, °C (20'RF / 40'RF)", M + CW / 2 + 5, CW / 2 - 5, num(e?.reefer_temp), 15);
+    textField("sea.reefer_temp", "Reefer temperature, °C (reefer container / truck)", M + CW / 2 + 5, CW / 2 - 5, num(e?.reefer_temp), 15);
     y = Math.min(after, top - 32);
   }
   fieldRow([{ name: "cargo.commodity", title: "Commodity / cargo description" }]);

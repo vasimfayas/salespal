@@ -314,6 +314,7 @@ async function main() {
     const totals = cargoTotals(packages, unit, mode, actualWeight);
 
     const serviceType = mode === "sea" ? weighted([...seaContainerTypes.map((t) => [t, t === "20dc" || t === "40dc" || t === "40hc" ? 6 : 1] as const), ...seaOtherServiceTypes.map((t) => [t, t === "lcl" ? 6 : 1] as const)]) : null;
+    const truckType = mode === "land" ? (chance(0.3) ? "ltl" : pick(ftlTruckTypes)) : null;
     const isDg = chance(0.05);
     const quoted = status !== "inquiry_received";
     const cost = quoted ? int(400, mode === "air" ? 9000 : 15000) : null;
@@ -340,9 +341,9 @@ async function main() {
       chargeable_weight: totals.chargeableWeight,
       cbm: totals.cbm,
       service_type: serviceType,
-      reefer_temp: serviceType === "20rf" || serviceType === "40rf" ? pick([-25, -18, -5, 2, 4, 8]) : null,
+      reefer_temp: serviceType === "20rf" || serviceType === "40rf" || truckType === "reefer" ? pick([-25, -18, -5, 2, 4, 8]) : null,
       gauge: serviceType === "20ot" || serviceType === "40ot" ? pick(gauges) : null,
-      truck_type: mode === "land" ? (chance(0.3) ? "ltl" : pick(ftlTruckTypes)) : null,
+      truck_type: truckType,
       provisional_cost: cost,
       provisional_profit: profit,
       notes: chance(0.15) ? pick(["Cargo ready next week.", "Client needs door delivery.", "Fragile items, handle with care.", "Commodity: electronics."]) : null,

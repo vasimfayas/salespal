@@ -215,6 +215,25 @@ export function EnquiryForm({
         ? truckTypeLabels[form.truck_type as keyof typeof truckTypeLabels]
         : null;
 
+  // Set temperature for a sea reefer container or a road reefer trailer.
+  const reeferTempField = (
+    <div className="animate-page-in sm:w-64">
+      <Input
+        id="enq-reefer-temp"
+        label="Reefer temperature, °C"
+        type="number"
+        required
+        min={REEFER_TEMP_MIN}
+        max={REEFER_TEMP_MAX}
+        step="0.1"
+        inputMode="decimal"
+        value={form.reefer_temp}
+        onChange={(e) => patch({ reefer_temp: e.target.value })}
+        placeholder="e.g. -18 frozen, 4 chilled"
+      />
+    </div>
+  );
+
   return (
     <form onSubmit={onSubmit} className="flex flex-col">
       {/* Header (pinned) */}
@@ -353,23 +372,7 @@ export function EnquiryForm({
                 options={seaOtherServiceTypes.map((t) => ({ value: t, label: seaServiceTypeCodes[t], hint: t === "lcl" ? "Less than container load" : undefined }))}
               />
             </div>
-            {isReefer(form.service_type) && (
-              <div className="animate-page-in sm:w-64">
-                <Input
-                  id="enq-reefer-temp"
-                  label="Reefer temperature, °C"
-                  type="number"
-                  required
-                  min={REEFER_TEMP_MIN}
-                  max={REEFER_TEMP_MAX}
-                  step="0.1"
-                  inputMode="decimal"
-                  value={form.reefer_temp}
-                  onChange={(e) => patch({ reefer_temp: e.target.value })}
-                  placeholder="e.g. -18 frozen, 4 chilled"
-                />
-              </div>
-            )}
+            {isReefer(form.service_type) && reeferTempField}
             {isOpenTop(form.service_type) && (
               <div className="animate-page-in">
                 <GroupLabel>Gauge</GroupLabel>
@@ -406,6 +409,7 @@ export function EnquiryForm({
                 options={sharedTruckTypes.map((t) => ({ value: t, label: "LTL", hint: "Less than truckload" }))}
               />
             </div>
+            {form.truck_type === "reefer" && reeferTempField}
           </Section>
         )}
 
