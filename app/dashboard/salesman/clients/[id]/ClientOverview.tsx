@@ -27,6 +27,7 @@ import { ClientSwitcher } from "@/components/clients/ClientSwitcher";
 
 import { buttonVariants } from "@/components/ui/Button";
 import { PremiumBadge, PremiumToggle } from "@/components/clients/ClientCategory";
+import { DepartmentTag } from "@/components/clients/DepartmentTag";
 // Definition of types
 type Client = {
   id: number;
@@ -51,6 +52,8 @@ type Client = {
   checklist_first_shipment: boolean;
   organization?: { name: string | null } | null;
   assignedSalesman?: { name: string | null } | null;
+  department?: string | null;
+  parent_client_id?: number | null;
 };
 
 type ClientTask = {
@@ -102,6 +105,7 @@ export function ClientOverview({ client: initialClient, initialTasks, backLink, 
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isAddTaskOpen, setIsAddTaskOpen] = useState(false);
 
+  const isDepartment = !!client.parent_client_id;
   // Client edit form state
   const [editForm, setEditForm] = useState({
     name: client.name,
@@ -109,6 +113,7 @@ export function ClientOverview({ client: initialClient, initialTasks, backLink, 
     contact_person_designation: client.contact_person_designation || "",
     mail_id: client.mail_id || "",
     contact_no: client.contact_no,
+    department: client.department || "",
     cr_no: client.cr_no || "",
     cr_expiry_date: client.cr_expiry_date
       ? new Date(client.cr_expiry_date).toISOString().slice(0, 10)
@@ -196,6 +201,7 @@ export function ClientOverview({ client: initialClient, initialTasks, backLink, 
           contact_no: editForm.contact_no,
           cr_no: editForm.cr_no || null,
           cr_expiry_date: editForm.cr_expiry_date || null,
+          department: editForm.department || null,
           notes: editForm.notes || null,
           location_coordinates: editForm.location_coordinates || null,
         }),
@@ -215,6 +221,7 @@ export function ClientOverview({ client: initialClient, initialTasks, backLink, 
         contact_no: editForm.contact_no,
         cr_no: editForm.cr_no || null,
         cr_expiry_date: editForm.cr_expiry_date || null,
+        department: editForm.department || null,
         notes: editForm.notes || null,
         location_coordinates: editForm.location_coordinates || null,
       }));
@@ -336,6 +343,7 @@ export function ClientOverview({ client: initialClient, initialTasks, backLink, 
             ) : (
               <PremiumBadge category={client.category} />
             )}
+            <DepartmentTag department={client.department} className="text-xs" />
           </div>
           <p className="mt-1.5 text-sm text-muted-foreground font-semibold">
             {client.organization?.name || "Independent"}
@@ -366,6 +374,7 @@ export function ClientOverview({ client: initialClient, initialTasks, backLink, 
                 contact_person_designation: client.contact_person_designation || "",
                 mail_id: client.mail_id || "",
                 contact_no: client.contact_no,
+                department: client.department || "",
                 cr_no: client.cr_no || "",
                 cr_expiry_date: client.cr_expiry_date
                   ? new Date(client.cr_expiry_date).toISOString().slice(0, 10)
@@ -675,6 +684,8 @@ export function ClientOverview({ client: initialClient, initialTasks, backLink, 
               id="edit-cr-no"
               value={editForm.cr_no}
               onChange={(e) => setEditForm({ ...editForm, cr_no: e.target.value })}
+              disabled={isDepartment}
+              hint={isDepartment ? "A department uses its company's CR. Change it on the company's main record." : undefined}
             />
             <Input
               label="CR Expiry Date"
@@ -682,6 +693,14 @@ export function ClientOverview({ client: initialClient, initialTasks, backLink, 
               type="date"
               value={editForm.cr_expiry_date}
               onChange={(e) => setEditForm({ ...editForm, cr_expiry_date: e.target.value })}
+              disabled={isDepartment}
+            />
+            <Input
+              label="Department (optional)"
+              id="edit-department"
+              value={editForm.department}
+              onChange={(e) => setEditForm({ ...editForm, department: e.target.value })}
+              placeholder="e.g. Logistics, Procurement"
             />
             <div className="flex flex-col gap-1">
               <label className="text-xs font-semibold text-foreground/85" htmlFor="edit-notes">

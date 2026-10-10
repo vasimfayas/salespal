@@ -86,17 +86,18 @@ export async function getSalesmanMonthlyReport(salesmanId: number, monthKey: str
     prisma.$queryRaw<{ mode: string; count: Num; confirmed: Num }[]>(Prisma.sql`
       SELECT e.mode, COUNT(*)::int AS count, COUNT(*) FILTER (WHERE e.status = 'confirmed')::int AS confirmed
       FROM enquiries e
-      WHERE e.created_by_id = ${salesmanId} AND e.enquiry_date >= ${S} AND e.enquiry_date < ${E}
+      -- Forms still with the client have placeholder mode / route.
+      WHERE e.created_by_id = ${salesmanId} AND e.enquiry_date >= ${S} AND e.enquiry_date < ${E} AND e.status <> 'sent_to_client'
       GROUP BY 1 ORDER BY 2 DESC`),
 
     prisma.$queryRaw<{ from: string; to: string; count: Num; confirmed: Num }[]>(Prisma.sql`
       SELECT e."from", e."to", COUNT(*)::int AS count, COUNT(*) FILTER (WHERE e.status = 'confirmed')::int AS confirmed
       FROM enquiries e
-      WHERE e.created_by_id = ${salesmanId} AND e.enquiry_date >= ${S} AND e.enquiry_date < ${E}
+      WHERE e.created_by_id = ${salesmanId} AND e.enquiry_date >= ${S} AND e.enquiry_date < ${E} AND e.status <> 'sent_to_client'
       GROUP BY 1, 2 ORDER BY 3 DESC, 4 DESC LIMIT 5`),
 
     prisma.$queryRaw<{ id: number; prefix: string | null; client: string; from: string; to: string; mode: string; value: Num; reason: string | null; lost_at: Date; by: string | null }[]>(Prisma.sql`
-      SELECT e.id, (SELECT org.prefix FROM organizations org WHERE org.id = c.org_id) AS prefix, c.name AS client, e."from", e."to", e.mode,
+      SELECT e.id, (SELECT org.prefix FROM organizations org WHERE org.id = e.org_id) AS prefix, c.name AS client, e."from", e."to", e.mode,
              (e.provisional_cost + e.provisional_profit)::float8 AS value,
              e.cancel_reason AS reason, e.cancelled_at AS lost_at, u.name AS by
       FROM enquiries e

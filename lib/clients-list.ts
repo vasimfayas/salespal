@@ -19,11 +19,20 @@ export const clientListSelect = {
   org_id: true,
   assigned_salesman_id: true,
   contact_person_designation: true,
+  department: true,
+  parent_client_id: true,
+  // Department rows show their company's CR.
+  parent: { select: { cr_no: true, cr_expiry_date: true } },
   organization: { select: { name: true } },
   assignedSalesman: { select: { name: true } },
 } satisfies Prisma.ClientSelect;
 
 export type ClientListRow = Prisma.ClientGetPayload<{ select: typeof clientListSelect }>;
+
+/** A department row has no CR of its own: show its company's. */
+export function withCompanyCr<T extends { cr_no: string | null; cr_expiry_date: Date | null; parent: { cr_no: string | null; cr_expiry_date: Date | null } | null }>(c: T): T {
+  return c.parent ? { ...c, cr_no: c.cr_no ?? c.parent.cr_no, cr_expiry_date: c.cr_expiry_date ?? c.parent.cr_expiry_date } : c;
+}
 
 /** Filters shared by the client tables: q, status, company, manager, salesman, date (+ day). */
 export function clientFilterWhere(params: SearchParams): Prisma.ClientWhereInput {
@@ -36,6 +45,8 @@ export function clientFilterWhere(params: SearchParams): Prisma.ClientWhereInput
         { contact_person_name: { contains: literal(q), mode: "insensitive" } },
         { mail_id: { contains: literal(q), mode: "insensitive" } },
         { cr_no: { contains: literal(q), mode: "insensitive" } },
+        { parent: { cr_no: { contains: literal(q), mode: "insensitive" } } },
+        { department: { contains: literal(q), mode: "insensitive" } },
         { contact_no: { contains: literal(q) } },
       ],
     });
@@ -62,7 +73,7 @@ export async function getClientsPage(scope: Prisma.ClientWhereInput, params: Sea
     prisma.client.findMany({ where, select: clientListSelect, orderBy: { id: "desc" }, ...paging(page) }),
     prisma.client.count({ where }),
   ]);
-  return { rows, total, page, pageSize: PAGE_SIZE };
+  return { rows: rows.map(withCompanyCr), total, page, pageSize: PAGE_SIZE };
 }
 
 /** { status: count } computed in the database — use instead of loading clients just to count them. */

@@ -1,5 +1,6 @@
 import type { PDFCheckBox, PDFDocument, PDFFont, PDFForm, PDFPage, PDFTextField } from "pdf-lib";
 import { cargoTotals, DEFAULT_DIMENSION_UNIT, dimensionUnitLabels, dimensionUnits, isDimensionUnit, volumetricRuleLabels } from "@/lib/freight";
+import { formatDate } from "@/lib/utils";
 import {
   enquiryModes,
   enquiryPaymentModes,
@@ -139,6 +140,13 @@ export async function buildEnquiryFormPdf(enquiry: EnquiryListItem | null): Prom
   ];
 
   // ── Header ──────────────────────────────────────────────────────────────
+  // The issuing company's logo above the title band, when it has one.
+  const logo = e?.company.logo_url ? await embedImage(doc, e.company.logo_url) : null;
+  if (logo) {
+    const scale = Math.min(40 / logo.height, 160 / logo.width);
+    page.drawImage(logo, { x: M, y: y - logo.height * scale, width: logo.width * scale, height: logo.height * scale });
+    y -= logo.height * scale + 10;
+  }
   page.drawRectangle({ x: M, y: y - 40, width: CW, height: 40, color: ACCENT });
   label("FREIGHT ENQUIRY FORM", M + 12, y - 25, 15, bold, rgb(1, 1, 1));
   if (e) {
@@ -321,12 +329,31 @@ export async function buildEnquiryFormPdf(enquiry: EnquiryListItem | null): Prom
     notes.setFontSize(9);
     y -= 72;
   }
-  section("Confirmation", 34);
-  fieldRow([
-    { name: "sign.name", title: "Name" },
-    { name: "sign.signature", title: "Signature" },
-    { name: "sign.date", title: "Date" },
-  ], 22);
+  // Signed by the client (from the emailed form): their name, drawn signature and the date; otherwise blank fields to sign.
+  const signed = e?.client_signature ?? null;
+  const signature = signed ? await embedImage(doc, signed.url) : null;
+  if (signed && signature) {
+    const boxH = 54;
+    section("Confirmation · signed by the client", boxH + 14);
+    const colW = (CW - 20) / 3;
+    textField("sign.name", "Name", M, colW, signed.name, 22);
+    const x = M + colW + 10;
+    label("Signature", x, y - 7);
+    page.drawRectangle({ x, y: y - 10 - boxH, width: colW, height: boxH, color: rgb(1, 1, 1), borderColor: LINE, borderWidth: 0.6 });
+    const scale = Math.min((colW - 8) / signature.width, (boxH - 8) / signature.height);
+    const w = signature.width * scale;
+    const h = signature.height * scale;
+    page.drawImage(signature, { x: x + (colW - w) / 2, y: y - 10 - boxH + (boxH - h) / 2, width: w, height: h });
+    textField("sign.date", "Date", x + colW + 10, colW, formatDate(signed.at), 22);
+    y -= boxH + 16;
+  } else {
+    section("Confirmation", 34);
+    fieldRow([
+      { name: "sign.name", title: "Name" },
+      { name: "sign.signature", title: "Signature" },
+      { name: "sign.date", title: "Date" },
+    ], 22);
+  }
 
   // ── Footer on every page ────────────────────────────────────────────────
   const pages = doc.getPages();
@@ -341,6 +368,18 @@ export async function buildEnquiryFormPdf(enquiry: EnquiryListItem | null): Prom
 }
 
 /** Builds the form and triggers a browser download. */
+/** Fetches and embeds a PNG / JPG (logo, signature); a missing or unreadable image is just left off the form. */
+async function embedImage(doc: PDFDocument, url: string) {
+  try {
+    const res = await fetch(url);
+    if (!res.ok) return null;
+    const bytes = await res.arrayBuffer();
+    return res.headers.get("content-type") === "image/png" ? await doc.embedPng(bytes) : await doc.embedJpg(bytes);
+  } catch {
+    return null;
+  }
+}
+
 export async function downloadEnquiryFormPdf(enquiry: EnquiryListItem | null) {
   const bytes = await buildEnquiryFormPdf(enquiry);
   const url = URL.createObjectURL(new Blob([bytes as BlobPart], { type: "application/pdf" }));

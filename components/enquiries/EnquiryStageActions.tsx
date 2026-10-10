@@ -2,14 +2,15 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { CheckCircle2, Handshake, PencilLine, Tag, XCircle } from "lucide-react";
+import { CheckCircle2, Handshake, PencilLine, Send, Tag, XCircle } from "lucide-react";
+import { SendToAgentDialog } from "@/components/enquiries/SendToAgentDialog";
 import { Button } from "@/components/ui/Button";
 import { Dialog, DialogBody, DialogContent, DialogFooter } from "@/components/ui/dialog";
 import { ReasonDialog } from "@/components/shared/ReasonDialog";
 import { formatAmount } from "@/lib/utils";
 import type { EnquiryListItem } from "@/types/enquiry";
 
-type Action = "quote" | "negotiate" | "revise" | "confirm" | "lose";
+type Action = "send_agent" | "quote" | "negotiate" | "revise" | "confirm" | "lose";
 
 async function stage(id: number, body: Record<string, unknown>) {
   const res = await fetch(`/api/enquiries/${id}/stage`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
@@ -27,8 +28,13 @@ function orderToReopen(enquiry: EnquiryListItem): number | null {
 /** Which stage moves are offered from each status (the server enforces the same table). */
 export function availableActions(status: string): Action[] {
   switch (status) {
+    // Waiting for the client to fill in the form; it can still be closed as lost.
+    case "sent_to_client":
+      return ["lose"];
+    // Get a rate from an agent by email, or quote it yourself.
     case "inquiry_received":
-      return ["quote", "lose"];
+    case "with_agent":
+      return ["send_agent", "quote", "lose"];
     case "quoted":
       return ["negotiate", "confirm", "lose"];
     case "negotiation":
@@ -40,12 +46,20 @@ export function availableActions(status: string): Action[] {
   }
 }
 
-/** The single most likely next step, shown inline in table rows. */
+/** Buttons shown inline in a table row: both ways to get a rate before quoting, else the single next step. */
+export function rowActions(status: string): Action[] {
+  if (status === "inquiry_received" || status === "with_agent") return ["send_agent", "quote"];
+  const next = primaryAction(status);
+  return next ? [next] : [];
+}
+
+/** The single most likely next step. */
 export function primaryAction(status: string): Action | null {
-  return ({ inquiry_received: "quote", quoted: "negotiate", negotiation: "revise", offer_revised: "confirm" } as Record<string, Action>)[status] ?? null;
+  return ({ inquiry_received: "quote", with_agent: "quote", quoted: "negotiate", negotiation: "revise", offer_revised: "confirm" } as Record<string, Action>)[status] ?? null;
 }
 
 const META: Record<Action, { label: string; icon: typeof Tag }> = {
+  send_agent: { label: "Send to agent", icon: Send },
   quote: { label: "Quote", icon: Tag },
   negotiate: { label: "On negotiations", icon: Handshake },
   revise: { label: "Offer revised", icon: PencilLine },
@@ -102,7 +116,7 @@ export function EnquiryStageActions({
           <Button
             key={action}
             size={size}
-            variant={lose ? "ghost" : action === "confirm" || only ? "primary" : "secondary"}
+            variant={lose ? "ghost" : action === "confirm" || (only && action !== "send_agent") ? "primary" : "secondary"}
             className={lose ? "text-danger-foreground hover:bg-danger-soft hover:text-danger-foreground" : undefined}
             loading={busy && action === "negotiate"}
             onClick={(e) => {
@@ -124,6 +138,12 @@ export function EnquiryStageActions({
           onDone(msg);
           router.refresh();
         }}
+      />
+      <SendToAgentDialog
+        enquiry={enquiry}
+        open={open === "send_agent"}
+        onClose={() => setOpen(null)}
+        onSent={() => router.refresh()}
       />
       <ConfirmDialog
         enquiry={enquiry}
@@ -176,7 +196,9 @@ function FiguresDialog({ enquiry, mode, onClose, onSaved }: { enquiry: EnquiryLi
 }
 
 function FiguresForm({ enquiry, mode, onClose, onSaved }: { enquiry: EnquiryListItem; mode: "quote" | "revise"; onClose: () => void; onSaved: (msg: string) => void }) {
-  const [cost, setCost] = useState(mode === "revise" ? String(enquiry.provisional_cost ?? "") : "");
+  // Agents' replies (cheapest first); a new quote starts from the cheapest.
+  const replies = enquiry.agent_requests.filter((r) => r.cost !== null).sort((a, b) => a.cost! - b.cost!);
+  const [cost, setCost] = useState(mode === "revise" ? String(enquiry.provisional_cost ?? "") : replies[0] ? String(replies[0].cost) : "");
   const [profit, setProfit] = useState(mode === "revise" ? String(enquiry.provisional_profit ?? "") : "");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -199,6 +221,29 @@ function FiguresForm({ enquiry, mode, onClose, onSaved }: { enquiry: EnquiryList
     >
       <DialogBody className="space-y-4">
         {error && <p role="alert" className="rounded-control bg-danger-soft px-3 py-2 text-sm text-danger-foreground">{error}</p>}
+        {mode === "quote" && replies.length > 0 && (
+          <div className="rounded-control border border-border p-3">
+            <p className="mb-2 text-xs font-medium text-muted-foreground">Agent rates — pick one as the cost</p>
+            <ul className="space-y-1.5">
+              {replies.map((r) => (
+                <li key={r.id}>
+                  <button
+                    type="button"
+                    onClick={() => setCost(String(r.cost))}
+                    aria-pressed={cost === String(r.cost)}
+                    className="flex w-full cursor-pointer items-start justify-between gap-3 rounded-control px-2 py-1.5 text-left text-sm hover:bg-subtle aria-pressed:bg-primary-soft"
+                  >
+                    <span className="min-w-0">
+                      <span className="block font-medium text-foreground">{r.agent}</span>
+                      {r.notes && <span className="block truncate text-xs text-muted-foreground">{r.notes}</span>}
+                    </span>
+                    <span className="shrink-0 font-semibold tabular-nums text-foreground">{formatAmount(r.cost!)}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
         <div className="grid gap-4 sm:grid-cols-2">
           <label className="block space-y-1.5">
             <span className="text-sm font-medium text-foreground">Provisional cost</span>

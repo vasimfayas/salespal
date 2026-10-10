@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { withCompanyCr } from "@/lib/clients-list";
 import { orderPaymentsInclude, serializeOrder } from "@/lib/order-serialize";
 import { unstable_cache } from "next/cache";
 import { Prisma } from "@prisma/client";
@@ -114,6 +115,7 @@ export const getCachedClientDetail = unstable_cache(
           },
           organization: true,
           assignedSalesman: { select: { name: true } },
+          parent: { select: { cr_no: true, cr_expiry_date: true } },
         },
       }),
       prisma.clientTask.findMany({
@@ -125,7 +127,7 @@ export const getCachedClientDetail = unstable_cache(
         orderBy: { due_date: "asc" },
       }),
     ]);
-    return { client, tasks };
+    return { client: client && withCompanyCr(client), tasks };
   },
   ["client-detail"],
   { revalidate: 15, tags: ["salesman-clients"] }
@@ -375,7 +377,8 @@ export const getOrderById = unstable_cache(
     const order = await prisma.order.findUnique({
       where: { id: orderId },
       include: {
-        client: { select: { id: true, name: true, org_id: true, organization: { select: { prefix: true } } } },
+        client: { select: { id: true, name: true, department: true, org_id: true } },
+        organization: { select: { prefix: true } },
         createdBy: { select: { id: true, name: true } },
         ...orderPaymentsInclude,
       },
@@ -393,7 +396,7 @@ export const getMonthlyOrderStats = unstable_cache(
     if (scope.role_id === 1) {
       whereClause = Prisma.sql`TRUE`;
     } else if (scope.role_id === 2) {
-      whereClause = scope.orgIds.length ? Prisma.sql`c.org_id IN (${Prisma.join(scope.orgIds)})` : Prisma.sql`FALSE`;
+      whereClause = scope.orgIds.length ? Prisma.sql`o.org_id IN (${Prisma.join(scope.orgIds)})` : Prisma.sql`FALSE`;
     } else if (scope.role_id === 3) {
       whereClause = Prisma.sql`o.created_by_id = ${scope.userId}`;
     } else {

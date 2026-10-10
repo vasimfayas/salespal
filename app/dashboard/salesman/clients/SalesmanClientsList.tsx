@@ -26,6 +26,8 @@ import { missingContactFields, statusRequiresContact } from "@/lib/client-contac
 import { buttonVariants } from "@/components/ui/Button";
 import { clientCategories, clientCategoryLabels } from "@/types/client";
 import { PremiumBadge } from "@/components/clients/ClientCategory";
+import { DepartmentTag } from "@/components/clients/DepartmentTag";
+import { CrNumberField, type CrMatch } from "@/components/clients/CrNumberField";
 type Client = {
   id: number;
   name: string;
@@ -41,6 +43,7 @@ type Client = {
   notes: string | null;
   created_at: Date | string;
   organization?: { name: string | null };
+  department?: string | null;
 };
 
 
@@ -90,6 +93,8 @@ export function SalesmanClientsList({ initialClients, total, page, pageSize, com
 
   // Modals state
   const [isAddOpen, setIsAddOpen] = useState(false);
+  // Set when the CR No matched an existing company and the user chose to add a department of it.
+  const [departmentOf, setDepartmentOf] = useState<CrMatch | null>(null);
   // Status change past Lead on a client with no contact details asks for them first
   const [contactPrompt, setContactPrompt] = useState<ContactPromptTarget | null>(null);
   const [expandedClientId, setExpandedClientId] = useState<number | null>(null);
@@ -103,6 +108,7 @@ export function SalesmanClientsList({ initialClients, total, page, pageSize, com
     contact_no: "",
     cr_no: "",
     cr_expiry_date: "",
+    department: "",
     status: "lead",
     notes: "",
     location_coordinates: "",
@@ -147,13 +153,14 @@ export function SalesmanClientsList({ initialClients, total, page, pageSize, com
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          name: addForm.name,
+          name: departmentOf ? departmentOf.name : addForm.name,
           contact_person_name: addForm.contact_person_name,
           contact_person_designation: addForm.contact_person_designation || null,
           mail_id: addForm.mail_id || null,
           contact_no: addForm.contact_no,
           cr_no: addForm.cr_no || null,
           cr_expiry_date: addForm.cr_expiry_date || null,
+          department: addForm.department || null,
           status: addForm.status,
           notes: addForm.notes || null,
           location_coordinates: addForm.location_coordinates || null,
@@ -175,11 +182,13 @@ export function SalesmanClientsList({ initialClients, total, page, pageSize, com
         contact_no: "",
         cr_no: "",
         cr_expiry_date: "",
+        department: "",
         status: "lead",
         notes: "",
         location_coordinates: "",
         org_id: defaultCompanyId(companies),
       });
+      setDepartmentOf(null);
       setIsAddOpen(false);
       router.refresh();
     } catch (err: any) {
@@ -423,6 +432,7 @@ export function SalesmanClientsList({ initialClients, total, page, pageSize, com
                           {client.name}
                         </Link>
                         <PremiumBadge category={client.category} compact className="ml-1.5 align-[-2px]" />
+                        <DepartmentTag department={client.department} className="mt-1 flex w-fit" />
                       </td>
                       <td className="px-4 py-3 font-semibold text-foreground">
                         {formatPhoneNumber(client.contact_no)}
@@ -604,15 +614,60 @@ export function SalesmanClientsList({ initialClients, total, page, pageSize, com
           )}
 
           <form onSubmit={handleAddSubmit} className="space-y-3.5">
-            <Input
-              label="Client Name"
-              type="text"
-              required
-              value={addForm.name}
-              onChange={(e) => setAddForm({ ...addForm, name: e.target.value })}
-              placeholder="e.g. Acme Corp"
-              className="text-xs"
+            <CrNumberField
+              value={addForm.cr_no}
+              onChange={(cr_no) => {
+                setAddForm({ ...addForm, cr_no });
+                setDepartmentOf(null);
+              }}
+              departmentOf={departmentOf}
+              onAddDepartment={(company) => {
+                setDepartmentOf(company);
+                // The department belongs to the existing company's branch.
+                setAddForm({ ...addForm, org_id: String(company.org_id) });
+              }}
+              onCancelDepartment={() => setDepartmentOf(null)}
             />
+
+            {departmentOf ? (
+              <Input
+                label="Department"
+                type="text"
+                required
+                value={addForm.department}
+                onChange={(e) => setAddForm({ ...addForm, department: e.target.value })}
+                placeholder="e.g. Logistics, Procurement"
+                className="text-xs"
+              />
+            ) : (
+              <>
+                <Input
+                  label="Client Name"
+                  type="text"
+                  required
+                  value={addForm.name}
+                  onChange={(e) => setAddForm({ ...addForm, name: e.target.value })}
+                  placeholder="e.g. Acme Corp"
+                  className="text-xs"
+                />
+                <Input
+                  label="Department (optional)"
+                  type="text"
+                  value={addForm.department}
+                  onChange={(e) => setAddForm({ ...addForm, department: e.target.value })}
+                  placeholder="e.g. Logistics, Procurement"
+                  hint="Only if this company is handled per department."
+                  className="text-xs"
+                />
+                <Input
+                  label="CR Expiry Date"
+                  type="date"
+                  value={addForm.cr_expiry_date}
+                  onChange={(e) => setAddForm({ ...addForm, cr_expiry_date: e.target.value })}
+                  className="text-xs"
+                />
+              </>
+            )}
 
             <Input
               label={statusRequiresContact(addForm.status) ? "Contact Person" : "Contact Person (optional for leads)"}
@@ -660,23 +715,6 @@ export function SalesmanClientsList({ initialClients, total, page, pageSize, com
             />
 
             <Input
-              label="CR No"
-              type="text"
-              value={addForm.cr_no}
-              onChange={(e) => setAddForm({ ...addForm, cr_no: e.target.value })}
-              placeholder="Commercial registration number"
-              className="text-xs"
-            />
-
-            <Input
-              label="CR Expiry Date"
-              type="date"
-              value={addForm.cr_expiry_date}
-              onChange={(e) => setAddForm({ ...addForm, cr_expiry_date: e.target.value })}
-              className="text-xs"
-            />
-
-            <Input
               label="Location Coordinates"
               type="text"
               value={addForm.location_coordinates}
@@ -708,7 +746,9 @@ export function SalesmanClientsList({ initialClients, total, page, pageSize, com
               </select>
             </div>
 
-            <CompanySelect id="add-company" companies={companies} value={addForm.org_id} onChange={(org_id) => setAddForm({ ...addForm, org_id })} />
+            {!departmentOf && (
+              <CompanySelect id="add-company" companies={companies} value={addForm.org_id} onChange={(org_id) => setAddForm({ ...addForm, org_id })} />
+            )}
 
             <div className="flex flex-col gap-1">
               <label

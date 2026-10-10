@@ -12,6 +12,7 @@ import { RotateCcw, Search, ChevronDown, Navigation, Building, User, Mail, Calen
 import { buttonVariants } from "@/components/ui/Button";
 import { clientCategories, clientCategoryLabels } from "@/types/client";
 import { PremiumToggle } from "@/components/clients/ClientCategory";
+import { DepartmentTag } from "@/components/clients/DepartmentTag";
 type Client = {
   id: number;
   name: string;
@@ -28,6 +29,7 @@ type Client = {
   org_id: number;
   assigned_salesman_id: number;
   organization?: { name: string | null } | null;
+  department?: string | null;
   assignedSalesman?: { name: string | null } | null;
 };
 
@@ -285,6 +287,7 @@ export function ClientTable({
                             <PremiumToggle clientId={client.id} clientName={client.name} category={client.category} />
                           </span>
                         </span>
+                        <DepartmentTag department={client.department} className="mt-1 flex w-fit" />
                         {client.contact_person_name && (
                           <span className="block text-[10px] text-muted-foreground/80 font-medium mt-0.5">
                             Attn: {client.contact_person_name}

@@ -9,9 +9,22 @@ import type { ClientDocumentItem } from "@/types/client";
 export const CLIENT_DOCUMENT_EDITOR_ROLES = [1, 2, 3];
 export const MAX_CLIENT_DOCUMENTS_PER_UPLOAD = 10;
 
+/**
+ * Documents are company-wide: they live on the company's main client row and every department sees them.
+ * Reads also include anything attached to the department row itself.
+ */
+export function documentClientIds(client: { id: number; parent_client_id: number | null }) {
+  return client.parent_client_id ? [client.parent_client_id, client.id] : [client.id];
+}
+
+/** The client (if the user can see it), where its new documents go, and which rows' documents it shows. */
 export async function findScopedClient(token: ScopedToken, clientId: number) {
   if (!Number.isInteger(clientId)) return null;
-  return prisma.client.findFirst({ where: { AND: [{ id: clientId }, await clientScopeWhere(token)] }, select: { id: true } });
+  const client = await prisma.client.findFirst({
+    where: { AND: [{ id: clientId }, await clientScopeWhere(token)] },
+    select: { id: true, parent_client_id: true },
+  });
+  return client && { id: client.id, documentOwnerId: client.parent_client_id ?? client.id, documentClientIds: documentClientIds(client) };
 }
 
 export function canDeleteClientDocument(user: { id: number; role_id: number }, doc: { uploaded_by_id: number }) {
@@ -42,10 +55,10 @@ export function serializeClientDocument(doc: {
   };
 }
 
-/** Newest first. The caller has already checked access to the client. */
-export async function getClientDocuments(clientId: number) {
+/** Newest first, for the rows from documentClientIds(). The caller has already checked access to the client. */
+export async function getClientDocuments(clientIds: number[]) {
   const docs = await prisma.clientDocument.findMany({
-    where: { client_id: clientId },
+    where: { client_id: { in: clientIds } },
     include: { uploadedBy: { select: { name: true } } },
     orderBy: [{ created_at: "desc" }, { id: "desc" }],
   });

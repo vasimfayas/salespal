@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import { getSalesPalSession } from "@/lib/auth";
 import { getManagerSalesmanIds } from "@/lib/scoping";
 import { prisma } from "@/lib/prisma";
+import { withCompanyCr } from "@/lib/clients-list";
 import { ClientOverview } from "@/app/dashboard/salesman/clients/[id]/ClientOverview";
 import ClientOverviewLoading from "@/app/dashboard/salesman/clients/[id]/loading";
 import { redirect } from "next/navigation";
@@ -9,7 +10,7 @@ import { getClientHistory } from "@/lib/client-history";
 import { ClientHistory } from "@/components/clients/ClientHistory";
 import { ClientHistorySkeleton } from "@/components/clients/ClientHistorySkeleton";
 import { ClientDocumentsCard } from "@/components/clients/ClientDocumentsCard";
-import { getClientDocuments } from "@/lib/client-documents";
+import { documentClientIds, getClientDocuments } from "@/lib/client-documents";
 
 type SearchParams = Promise<{ o_page?: string; e_page?: string }>;
 
@@ -54,7 +55,7 @@ async function ClientDetailContent({
   const managerId = session.user.id;
   const salesmanIds = await getManagerSalesmanIds(managerId);
 
-  const client = await prisma.client.findFirst({
+  const found = await prisma.client.findFirst({
     where: { id: clientId, assigned_salesman_id: { in: salesmanIds } },
     include: {
       logs: {
@@ -64,8 +65,10 @@ async function ClientDetailContent({
       },
       organization: true,
       assignedSalesman: { select: { name: true } },
+      parent: { select: { cr_no: true, cr_expiry_date: true } },
     },
   });
+  const client = found && withCompanyCr(found);
 
   if (!client) {
     return (
@@ -98,7 +101,7 @@ async function ClientDetailContent({
       documents={
         <ClientDocumentsCard
           clientId={clientId}
-          documents={await getClientDocuments(clientId)}
+          documents={await getClientDocuments(documentClientIds(client))}
           currentUser={{ id: Number(session.user.id), role_id: session.user.role_id }}
         />
       }

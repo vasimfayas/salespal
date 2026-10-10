@@ -53,7 +53,9 @@ export type OrderListItem = {
   due_date?: string | Date | null;
   created_at: string | Date;
   updated_at: string | Date;
-  client?: { name: string; organization?: { prefix: string | null } | null };
+  client?: { name: string };
+  /** The company the order is under (its enquiry's); its prefix starts enquiry IDs (SPA → SPA-ENQ-00012). */
+  organization?: { prefix: string | null } | null;
   createdBy?: { name: string };
   /** Set when an order was cancelled or sent back for revision. */
   closed_reason?: string | null;

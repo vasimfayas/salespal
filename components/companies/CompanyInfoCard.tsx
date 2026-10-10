@@ -1,5 +1,6 @@
-import { Building, Download, Eye, FileText, FolderDown, Mail, MapPin, Phone } from "lucide-react";
+import { Download, Eye, FileText, FolderDown, Mail, MapPin, Phone } from "lucide-react";
 import { DocumentExpiryBadge } from "@/components/companies/DocumentExpiryBadge";
+import { CompanyLogo } from "@/components/companies/CompanyLogo";
 import { formatDate, cn } from "@/lib/utils";
 import type { CompanyProfile } from "@/lib/company-documents";
 import { findCrDocument, formatFileSize } from "@/types/company";
@@ -16,9 +17,7 @@ export function CompanyInfoCard({ company }: { company: CompanyProfile }) {
     <section aria-label={`${company.name} company details`} className="overflow-hidden rounded-card border border-border bg-card shadow-card">
       <div className="flex flex-col gap-4 border-b border-border p-5 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex min-w-0 items-start gap-3">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary text-white">
-            <Building size={18} aria-hidden />
-          </div>
+          <CompanyLogo url={company.logo_url} name={company.name} />
           <div className="min-w-0 space-y-1.5">
             <h2 className="flex items-center gap-2 text-lg font-semibold tracking-tight text-foreground">
               {company.name}

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect } from "react";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { LogOut } from "lucide-react";
 import { useNavigation } from "@/components/layout/NavigationContext";
@@ -34,13 +34,14 @@ function Brand({ compact = false }: { compact?: boolean }) {
 /** Grouped nav links; shared by the desktop sidebar and the mobile drawer. */
 function SidebarNav({ compact }: { compact: boolean }) {
   const pathname = usePathname();
+  const search = useSearchParams().toString();
   const { data: session } = useSession();
   const { startNavigation } = useNavigation();
   const { pendingHref, setPendingHref, isLoggingOut, logout } = useShell();
   const roleId = session?.user.role_id ?? 0;
   const groups = getNavGroups(roleId);
   // If we have a pending navigation, use that for instant highlight
-  const activePath = pendingHref ?? pathname;
+  const activePath = pendingHref ?? (search ? `${pathname}?${search}` : pathname);
 
   return (
     <>
@@ -117,13 +118,15 @@ function SidebarNav({ compact }: { compact: boolean }) {
 /** Desktop: collapsible rail. Mobile: slide-in drawer. */
 export function Sidebar() {
   const pathname = usePathname();
+  // Query too: shortcut links (Blacklist, Premium Clients) only change the search params.
+  const search = useSearchParams().toString();
   const { expanded, mobileOpen, setMobileOpen, setPendingHref } = useShell();
 
   /* Close the drawer on navigation & clear pending state */
   useEffect(() => {
     setMobileOpen(false);
     setPendingHref(null);
-  }, [pathname, setMobileOpen, setPendingHref]);
+  }, [pathname, search, setMobileOpen, setPendingHref]);
 
   return (
     <>
@@ -165,7 +168,7 @@ export function MobileTabBar() {
       aria-label="Quick navigation"
       className="fixed inset-x-0 bottom-0 z-40 flex h-16 items-stretch justify-around border-t border-border bg-card/95 px-1 pb-[env(safe-area-inset-bottom)] backdrop-blur-md md:hidden"
     >
-      {getNavItems(roleId).map((item) => {
+      {getNavItems(roleId).filter((item) => !item.href.includes("?")).map((item) => {
         const active = isNavActive(item.href, activePath, roleId);
         const Icon = item.icon;
         return (

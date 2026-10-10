@@ -34,7 +34,7 @@ export default async function AccountantOrdersPage({ searchParams }: { searchPar
 }
 
 async function AccountantOrdersSection({ orgIds, params }: { orgIds: number[]; params: SearchParams }) {
-  const data = await getOrdersPage({ client: { org_id: { in: orgIds } } }, params);
+  const data = await getOrdersPage({ org_id: { in: orgIds } }, params);
 
   return <OrderList data={data} role="accountant" />;
 }

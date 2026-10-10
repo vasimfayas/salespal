@@ -35,7 +35,7 @@ function scopeSql(scope: Scope, alias: string) {
 
 function unionSql(scope: Scope) {
   return Prisma.sql`
-    SELECT t.id, t.description, t.due_date, t.status, false AS is_client_task, t.client_id, cl.name AS client_name,
+    SELECT t.id, t.description, t.due_date, t.status, false AS is_client_task, t.client_id, CASE WHEN cl.department IS NULL THEN cl.name ELSE cl.name || ' · ' || cl.department END AS client_name,
            t.assigned_to_id, t.created_by_id, a.name AS assigned_name, cb.name AS created_name, t.enquiry_id, e.status AS enquiry_status,
            eo.prefix AS enquiry_prefix, t.outcome,
            CASE WHEN t.category = 'lead_follow_up' THEN 'lead_follow_up'
@@ -48,12 +48,11 @@ function unionSql(scope: Scope) {
     JOIN users a ON a.id = t.assigned_to_id
     JOIN users cb ON cb.id = t.created_by_id
     LEFT JOIN enquiries e ON e.id = t.enquiry_id
-    LEFT JOIN clients ec ON ec.id = e.client_id
-    LEFT JOIN organizations eo ON eo.id = ec.org_id
+    LEFT JOIN organizations eo ON eo.id = e.org_id
     LEFT JOIN clients cl ON cl.id = t.client_id
     WHERE ${scopeSql(scope, "t")}
     UNION ALL
-    SELECT ct.id, ct.description, ct.due_date, ct.status, true, ct.client_id, cl.name,
+    SELECT ct.id, ct.description, ct.due_date, ct.status, true, ct.client_id, CASE WHEN cl.department IS NULL THEN cl.name ELSE cl.name || ' · ' || cl.department END,
            ct.assigned_to_id, ct.created_by_id, a.name, cb.name, NULL::int, NULL::text, NULL::text, NULL::text, 'general'
     FROM client_tasks ct
     JOIN users a ON a.id = ct.assigned_to_id

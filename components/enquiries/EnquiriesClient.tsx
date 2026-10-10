@@ -7,7 +7,8 @@ import type { EnquiryPage } from "@/lib/enquiries";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { orderHref, orderNo, type AppRole } from "@/lib/record-links";
-import { ArrowRight, BellRing, ChevronRight, ClipboardList, MessageSquareText, Pencil, Plus } from "lucide-react";
+import { ArrowRight, BellRing, ChevronRight, ClipboardList, MessageSquareText, Pencil, Plus, Send } from "lucide-react";
+import { SendToClientDialog } from "@/components/enquiries/SendToClientDialog";
 import { EnquiryDetailSheet } from "@/components/enquiries/EnquiryDetailSheet";
 import { EnquiryPdfButton } from "@/components/enquiries/EnquiryPdfButton";
 import { packageLinesPayload } from "@/components/enquiries/CargoDimensionsField";
@@ -16,7 +17,7 @@ import { StatusBadge } from "@/components/shared/StatusBadge";
 import { Button, buttonVariants } from "@/components/ui/Button";
 import { SimpleTooltip } from "@/components/ui/tooltip";
 import { FollowUpModal } from "@/components/enquiries/EnquiryFollowUpModals";
-import { EnquiryStageActions, primaryAction } from "@/components/enquiries/EnquiryStageActions";
+import { EnquiryStageActions, rowActions } from "@/components/enquiries/EnquiryStageActions";
 import { Modal } from "@/components/ui/Modal";
 import { Toast } from "@/components/ui/Toast";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -34,8 +35,11 @@ import {
 } from "@/types/enquiry";
 
 import { PremiumBadge } from "@/components/clients/ClientCategory";
-/** Anything short of Confirmed can still be corrected. */
-const canEditEnquiry = (e: EnquiryListItem) => e.status !== "confirmed";
+/** Anything short of Confirmed can still be corrected, except a form the client is still filling in. */
+const canEditEnquiry = (e: EnquiryListItem) => e.status !== "confirmed" && e.status !== "sent_to_client";
+
+/** Shown in place of the route while the client hasn't filled in the form yet. */
+const AwaitingClient = () => <span className="text-sm italic text-muted-foreground">Waiting for the client to fill in the form</span>;
 
 const FILTERS: { value: EnquiryStatus | "all"; label: string }[] = [
   { value: "all", label: "All" },
@@ -51,8 +55,11 @@ export function EnquiriesClient({
   role,
   canCreate,
   canFollowUp = false,
+  companies = [],
 }: {
   data: EnquiryPage;
+  /** Companies the user can raise enquiries under (salesmen / managers). */
+  companies?: { id: number; name: string }[];
   /** Decides where order links go (see lib/record-links.ts). */
   role: AppRole;
   canCreate: boolean;
@@ -71,6 +78,9 @@ export function EnquiriesClient({
   const [editing, setEditing] = useState<EnquiryListItem | null>(null);
   const [form, setForm] = useState(emptyEnquiryForm);
   const [client, setClient] = useState<{ id: number; name: string } | null>(null);
+  // Company the new enquiry is raised under; "" = the client's company.
+  const [orgId, setOrgId] = useState("");
+  const [sendOpen, setSendOpen] = useState(false);
 
 
   const [saving, setSaving] = useState(false);
@@ -149,6 +159,7 @@ export function EnquiriesClient({
     const data = await post("/api/enquiries", {
       ...form,
       client_id: client.id,
+      org_id: orgId ? Number(orgId) : null,
       packages: packageLinesPayload(form.packages),
       credit_days: form.payment_mode === "credit" ? Number(form.credit_days) : null,
       // Both empty → "Inquiry received" (quote later); both filled → "Quoted".
@@ -195,12 +206,18 @@ export function EnquiriesClient({
         />
         <EnquiryPdfButton enquiry={null} label="Blank form" className="h-9 rounded-xl" />
         {canCreate && (
+          <Button size="sm" variant="secondary" onClick={() => setSendOpen(true)}>
+            <Send /> Send to client
+          </Button>
+        )}
+        {canCreate && (
           <button
             onClick={() => {
               setError(null);
               setEditing(null);
               setForm(emptyEnquiryForm());
               setClient(null);
+              setOrgId("");
               setCreateOpen(true);
             }}
             className={buttonVariants({ size: "sm" })}
@@ -275,16 +292,22 @@ export function EnquiriesClient({
                         {e.job_ref && <span className="block truncate text-xs text-muted-foreground">{e.job_ref} · {jobRefNames[e.job_ref as JobRef] ?? ""}</span>}
                       </td>
                       <td className="px-4 py-3 align-top">
-                        <span className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
-                          {e.mode}
-                          {e.is_dg && <DgBadge unNumber={e.un_number} />}
-                        </span>
-                        <span className="flex min-w-0 items-center gap-1 text-foreground">
-                          <span className="truncate">{e.from}</span>
-                          <ArrowRight size={12} className="shrink-0 text-muted-foreground" aria-label="to" />
-                          <span className="truncate">{e.to}</span>
-                        </span>
-                        {shipmentSpec(e) && <span className="block truncate text-xs tabular-nums text-muted-foreground">{shipmentSpec(e)}</span>}
+                        {e.status === "sent_to_client" ? (
+                          <AwaitingClient />
+                        ) : (
+                          <>
+                            <span className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
+                              {e.mode}
+                              {e.is_dg && <DgBadge unNumber={e.un_number} />}
+                            </span>
+                            <span className="flex min-w-0 items-center gap-1 text-foreground">
+                              <span className="truncate">{e.from}</span>
+                              <ArrowRight size={12} className="shrink-0 text-muted-foreground" aria-label="to" />
+                              <span className="truncate">{e.to}</span>
+                            </span>
+                            {shipmentSpec(e) && <span className="block truncate text-xs tabular-nums text-muted-foreground">{shipmentSpec(e)}</span>}
+                          </>
+                        )}
                       </td>
                       <td className="hidden px-4 py-3 text-right align-top tabular-nums xl:table-cell">
                         {e.provisional_cost === null ? (
@@ -305,8 +328,8 @@ export function EnquiriesClient({
                       </td>
                       <td className="px-4 py-3 text-right align-top" onClick={(ev) => ev.stopPropagation()}>
                         <div className="flex items-center justify-end gap-1">
-                          {canFollowUp && primaryAction(e.status) && !e.follow_up_due && (
-                            <EnquiryStageActions enquiry={e} only={[primaryAction(e.status)!]} onDone={flash} />
+                          {canFollowUp && rowActions(e.status).length > 0 && !e.follow_up_due && (
+                            <EnquiryStageActions enquiry={e} only={rowActions(e.status)} onDone={flash} />
                           )}
                           {canFollowUp && isActiveEnquiry(e.status) && e.follow_up_due && (
                             <Button
@@ -355,14 +378,20 @@ export function EnquiriesClient({
                     </div>
                     <StatusBadge status={e.status} />
                   </div>
-                  <p className="mt-2 flex min-w-0 items-center gap-1 text-sm text-muted-foreground">
-                    <span className="text-[11px] font-semibold uppercase">{e.mode}</span>
-                    {e.is_dg && <DgBadge unNumber={e.un_number} />}
-                    <span aria-hidden>·</span>
-                    <span className="truncate">{e.from}</span>
-                    <ArrowRight size={12} className="shrink-0" aria-label="to" />
-                    <span className="truncate">{e.to}</span>
-                  </p>
+                  {e.status === "sent_to_client" ? (
+                    <p className="mt-2">
+                      <AwaitingClient />
+                    </p>
+                  ) : (
+                    <p className="mt-2 flex min-w-0 items-center gap-1 text-sm text-muted-foreground">
+                      <span className="text-[11px] font-semibold uppercase">{e.mode}</span>
+                      {e.is_dg && <DgBadge unNumber={e.un_number} />}
+                      <span aria-hidden>·</span>
+                      <span className="truncate">{e.from}</span>
+                      <ArrowRight size={12} className="shrink-0" aria-label="to" />
+                      <span className="truncate">{e.to}</span>
+                    </p>
+                  )}
                   {shipmentSpec(e) && <p className="mt-0.5 text-xs tabular-nums text-muted-foreground">{shipmentSpec(e)}</p>}
                   <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
                     <span>{formatDate(e.enquiry_date)}</span>
@@ -398,6 +427,13 @@ export function EnquiriesClient({
         }}
       />
 
+      <SendToClientDialog
+        open={sendOpen}
+        onClose={() => setSendOpen(false)}
+        companies={companies}
+        onSent={() => router.refresh()}
+      />
+
       {/* Create / edit enquiry */}
       <Modal onClose={() => setCreateOpen(false)} open={createOpen} size="xl" className="p-0">
         <EnquiryForm
@@ -406,6 +442,9 @@ export function EnquiriesClient({
           editing={editing}
           client={client}
           setClient={setClient}
+          companies={companies}
+          orgId={orgId}
+          setOrgId={setOrgId}
           error={error}
           saving={saving}
           onSubmit={submitCreate}

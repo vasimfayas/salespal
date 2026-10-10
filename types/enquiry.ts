@@ -159,11 +159,13 @@ export const incotermNames: Record<Incoterm, string> = {
   DDP: "Delivered Duty Paid",
 };
 
-export const enquiryStatuses = ["inquiry_received", "quoted", "negotiation", "offer_revised", "confirmed", "lost"] as const;
+export const enquiryStatuses = ["sent_to_client", "inquiry_received", "with_agent", "quoted", "negotiation", "offer_revised", "confirmed", "lost"] as const;
 export type EnquiryStatus = (typeof enquiryStatuses)[number];
 
 export const enquiryStatusLabels: Record<EnquiryStatus, string> = {
+  sent_to_client: "Sent to client",
   inquiry_received: "Inquiry received",
+  with_agent: "With agent",
   quoted: "Quoted",
   negotiation: "On negotiations",
   offer_revised: "Offer revised",
@@ -172,7 +174,7 @@ export const enquiryStatusLabels: Record<EnquiryStatus, string> = {
 };
 
 /** Stages still being worked: they get 30-day follow-up tasks and can be marked lost. */
-export const ACTIVE_ENQUIRY_STATUSES: readonly EnquiryStatus[] = ["inquiry_received", "quoted", "negotiation", "offer_revised"];
+export const ACTIVE_ENQUIRY_STATUSES: readonly EnquiryStatus[] = ["sent_to_client", "inquiry_received", "with_agent", "quoted", "negotiation", "offer_revised"];
 
 export function isActiveEnquiry(status: string) {
   return (ACTIVE_ENQUIRY_STATUSES as readonly string[]).includes(status);
@@ -212,8 +214,8 @@ export type EnquiryListItem = {
   ref: string;
   client_id: number;
   client_name: string;
-  /** The client's company: name, enquiry-ID prefix, export office number. */
-  company: { name: string; prefix: string | null; export_office_no: string | null };
+  /** The company the enquiry is raised under: name, enquiry-ID prefix, export office number, logo. */
+  company: { id: number; name: string; prefix: string | null; export_office_no: string | null; logo_url: string | null };
   /** standard | premium */
   client_category: string;
   enquiry_date: string; // YYYY-MM-DD
@@ -270,4 +272,10 @@ export type EnquiryListItem = {
   follow_up_due: boolean;
   /** Stage history, newest first. */
   events: EnquiryEventItem[];
+  /** "Send to client": where the fillable form link went, and its path (/enquiry-form/<token>). */
+  client_form: { email: string | null; sent_at: string | null; path: string } | null;
+  /** "Send to agent" rate requests, newest first: the agent's cost once they reply, and their link (/agent-quote/<token>). */
+  agent_requests: { id: number; agent: string; email: string; sent_at: string; cost: number | null; notes: string | null; replied_at: string | null; path: string }[];
+  /** Set once the client submitted the form: who signed, when, and the signature image. */
+  client_signature: { name: string; at: string; url: string } | null;
 };

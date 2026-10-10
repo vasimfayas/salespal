@@ -38,7 +38,7 @@ export async function ensureEnquiryFollowUpTasks(userId: number) {
   const today = todayUtc();
   const due = await prisma.enquiry.findMany({
     where: { created_by_id: userId, ...dueForFollowUp(today) },
-    select: { id: true, enquiry_date: true, client: { select: { name: true, organization: { select: { prefix: true } } } } },
+    select: { id: true, enquiry_date: true, client: { select: { name: true } }, organization: { select: { prefix: true } } },
   });
 
   let created = 0;
@@ -59,7 +59,7 @@ export async function ensureEnquiryFollowUpTasks(userId: number) {
         enquiry_id: enquiry.id,
         assigned_to_id: userId,
         created_by_id: userId,
-        description: `Follow up on enquiry ${enquiryRef(enquiry.id, enquiry.client.organization.prefix)} for ${enquiry.client.name} — still active after ${days} days. Add a follow-up comment, move it to the next stage, or mark it lost with a reason.`,
+        description: `Follow up on enquiry ${enquiryRef(enquiry.id, enquiry.organization.prefix)} for ${enquiry.client.name} — still active after ${days} days. Add a follow-up comment, move it to the next stage, or mark it lost with a reason.`,
         due_date: today,
         status: "pending",
         notification: true,

@@ -19,7 +19,7 @@ export async function GET(request: NextRequest, context: Params) {
   if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const client = await findScopedClient(token, Number((await context.params).id));
   if (!client) return NextResponse.json({ error: "Client not found" }, { status: 404 });
-  return NextResponse.json({ documents: await getClientDocuments(client.id) });
+  return NextResponse.json({ documents: await getClientDocuments(client.documentClientIds) });
 }
 
 /**
@@ -53,11 +53,11 @@ export async function POST(request: NextRequest, context: Params) {
 
   const stored = [];
   try {
-    for (const file of files) stored.push(await storeUploadedFile(`clients/${client.id}`, file));
+    for (const file of files) stored.push(await storeUploadedFile(`clients/${client.documentOwnerId}`, file));
     const docs = await prisma.$transaction(
       stored.map((s) =>
         prisma.clientDocument.create({
-          data: { client_id: client.id, description: description.slice(0, 200), expiry_date: expiry, uploaded_by_id: getTokenUserId(token), ...s },
+          data: { client_id: client.documentOwnerId, description: description.slice(0, 200), expiry_date: expiry, uploaded_by_id: getTokenUserId(token), ...s },
           include: { uploadedBy: { select: { name: true } } },
         }),
       ),

@@ -5,7 +5,7 @@ import { getClientHistory } from "@/lib/client-history";
 import { ClientHistory } from "@/components/clients/ClientHistory";
 import { ClientHistorySkeleton } from "@/components/clients/ClientHistorySkeleton";
 import { ClientDocumentsCard } from "@/components/clients/ClientDocumentsCard";
-import { getClientDocuments } from "@/lib/client-documents";
+import { documentClientIds, getClientDocuments } from "@/lib/client-documents";
 import { ClientOverview } from "./ClientOverview";
 import ClientOverviewLoading from "./loading";
 import { redirect } from "next/navigation";
@@ -73,7 +73,7 @@ async function ClientDetailContent({
       documents={
         <ClientDocumentsCard
           clientId={clientId}
-          documents={await getClientDocuments(clientId)}
+          documents={await getClientDocuments(documentClientIds(client))}
           currentUser={{ id: Number(session.user.id), role_id: session.user.role_id }}
         />
       }

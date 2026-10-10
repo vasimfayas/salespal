@@ -25,14 +25,14 @@ export function monthPeriod(offset = 0, date = new Date()): Period {
 
 /**
  * Performance per salesman for [from, to). Salesmen with nothing in the period get zeros.
- * With `orgId`, only orders from that company's clients count.
+ * With `orgId`, only that company's orders count.
  */
 export async function getPerformance(salesmanIds: number[], { from, to }: Period, { orgId }: { orgId?: number | null } = {}): Promise<Map<number, Performance>> {
   const result = new Map<number, Performance>(salesmanIds.map((id) => [id, { ...EMPTY_PERFORMANCE }]));
   if (salesmanIds.length === 0) return result;
   const ids = Prisma.join(salesmanIds);
   const voided = Prisma.join([...VOID_ORDER_STATUSES]);
-  const inOrg = orgId ? Prisma.sql`AND c.org_id = ${orgId}` : Prisma.empty;
+  const inOrg = orgId ? Prisma.sql`AND o.org_id = ${orgId}` : Prisma.empty;
 
   const rows = await prisma.$queryRaw<{ id: number; orders: number; value: number; new_clients: number }[]>(Prisma.sql`
     WITH placed AS (

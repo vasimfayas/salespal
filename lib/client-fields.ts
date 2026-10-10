@@ -1,3 +1,5 @@
+import { prisma } from "@/lib/prisma";
+
 export function normalizeCrNo(value: unknown): string | null | undefined {
     if (value === undefined) return undefined;
     if (value === null) return null;
@@ -21,4 +23,16 @@ export function parseCrExpiryDate(value: unknown):
     }
 
     return { valid: true, value: date };
+}
+/** True when the company (its main row or one of its departments) already has this department name. */
+export async function departmentTaken(companyId: number, department: string, exceptClientId?: number) {
+    const taken = await prisma.client.findFirst({
+        where: {
+            OR: [{ id: companyId }, { parent_client_id: companyId }],
+            department: { equals: department, mode: "insensitive" },
+            ...(exceptClientId ? { id: { not: exceptClientId } } : {}),
+        },
+        select: { id: true },
+    });
+    return !!taken;
 }

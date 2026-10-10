@@ -16,55 +16,60 @@ model Role {
 }
 
 model Organization {
-  id          Int               @id @default(autoincrement())
-  name        String            @unique
-  address     String?
-  phone       String?
-  email       String?
+  id               Int               @id @default(autoincrement())
+  name             String            @unique
+  address          String?
+  phone            String?
+  email            String?
   /// Short code used in enquiry IDs, e.g. "SPA" → SPA-ENQ-00012. Uppercase A–Z / 0–9, 2–6 chars.
-  prefix           String?       @unique
+  prefix           String?           @unique
   /// Export office (registration) number.
   export_office_no String?
-  created_at  DateTime          @default(now())
-  managers    ManagerOrg[]
-  accountants AccountantOrg[]
-  documents   CompanyDocument[]
-  clients     Client[]
+  /// Company logo (PNG / JPG) under uploads/companies/<id>/logo/; shown in the app and on enquiry PDFs.
+  logo_path        String?
+  created_at       DateTime          @default(now())
+  managers         ManagerOrg[]
+  accountants      AccountantOrg[]
+  documents        CompanyDocument[]
+  clients          Client[]
+  enquiries        Enquiry[]
+  orders           Order[]
 
   @@map("organizations")
 }
 
 model User {
-  id                       Int               @id @default(autoincrement())
+  id                       Int                   @id @default(autoincrement())
   name                     String
   role_id                  Int
-  email                    String            @unique
+  email                    String                @unique
   password                 String
   phone                    String?
-  role                     Role              @relation(fields: [role_id], references: [id])
-  managerOrgs              ManagerOrg[]      @relation("ManagerOrganizations")
-  accountantOrgs           AccountantOrg[]   @relation("AccountantOrganizations")
-  uploadedCompanyDocuments CompanyDocument[] @relation("CompanyDocumentUploadedBy")
-  managerSalesmen          ManagerSalesman[] @relation("ManagerSalesmen")
-  salesmanManager          ManagerSalesman[] @relation("SalesmanManagers")
-  assignedClients          Client[]          @relation("AssignedClients")
-  assignedTasks            Task[]            @relation("AssignedTasks")
-  createdTasks             Task[]            @relation("CreatedTasks")
-  clientLogs               ClientLog[]       @relation("LogAuthor")
-  kpiLogs                  SalesmanKpiLog[]  @relation("SalesmanKpi")
-  assignedClientTasks      ClientTask[]      @relation("AssignedClientTasks")
-  createdClientTasks       ClientTask[]      @relation("CreatedClientTasks")
-  createdOrders            Order[]           @relation("OrderCreatedBy")
-  updatedShippingRates     ShippingRate[]    @relation("ShippingRateUpdatedBy")
-  salesmanTargets          SalesmanTarget[]  @relation("SalesmanTargets")
-  assignedTargets          SalesmanTarget[]  @relation("TargetsSetBy")
-  createdEnquiries         Enquiry[]         @relation("EnquiryCreatedBy")
-  cancelledEnquiries       Enquiry[]         @relation("EnquiryCancelledBy")
-  enquiryFollowUps         EnquiryFollowUp[] @relation("EnquiryFollowUpBy")
-  enquiryEvents            EnquiryEvent[]    @relation("EnquiryEventBy")
-  recordedPayments         OrderPayment[]    @relation("PaymentRecordedBy")
-  taskUpdates              TaskUpdate[]      @relation("TaskUpdateBy")
-  uploadedClientDocuments  ClientDocument[]  @relation("ClientDocumentUploadedBy")
+  role                     Role                  @relation(fields: [role_id], references: [id])
+  managerOrgs              ManagerOrg[]          @relation("ManagerOrganizations")
+  accountantOrgs           AccountantOrg[]       @relation("AccountantOrganizations")
+  uploadedCompanyDocuments CompanyDocument[]     @relation("CompanyDocumentUploadedBy")
+  managerSalesmen          ManagerSalesman[]     @relation("ManagerSalesmen")
+  salesmanManager          ManagerSalesman[]     @relation("SalesmanManagers")
+  assignedClients          Client[]              @relation("AssignedClients")
+  assignedTasks            Task[]                @relation("AssignedTasks")
+  createdTasks             Task[]                @relation("CreatedTasks")
+  clientLogs               ClientLog[]           @relation("LogAuthor")
+  kpiLogs                  SalesmanKpiLog[]      @relation("SalesmanKpi")
+  assignedClientTasks      ClientTask[]          @relation("AssignedClientTasks")
+  createdClientTasks       ClientTask[]          @relation("CreatedClientTasks")
+  createdOrders            Order[]               @relation("OrderCreatedBy")
+  updatedShippingRates     ShippingRate[]        @relation("ShippingRateUpdatedBy")
+  salesmanTargets          SalesmanTarget[]      @relation("SalesmanTargets")
+  assignedTargets          SalesmanTarget[]      @relation("TargetsSetBy")
+  createdEnquiries         Enquiry[]             @relation("EnquiryCreatedBy")
+  cancelledEnquiries       Enquiry[]             @relation("EnquiryCancelledBy")
+  enquiryFollowUps         EnquiryFollowUp[]     @relation("EnquiryFollowUpBy")
+  enquiryEvents            EnquiryEvent[]        @relation("EnquiryEventBy")
+  recordedPayments         OrderPayment[]        @relation("PaymentRecordedBy")
+  taskUpdates              TaskUpdate[]          @relation("TaskUpdateBy")
+  uploadedClientDocuments  ClientDocument[]      @relation("ClientDocumentUploadedBy")
+  agentRequestsSent        EnquiryAgentRequest[] @relation("EnquiryAgentRequestSentBy")
 
   @@map("users")
 }
@@ -153,32 +158,40 @@ model ManagerSalesman {
 }
 
 model Client {
-  id                           Int          @id @default(autoincrement())
+  id                           Int              @id @default(autoincrement())
   name                         String
   contact_person_name          String
   contact_no                   String
   location_coordinates         String?
   mail_id                      String?
-  cr_no                        String?      @unique
-  cr_expiry_date               DateTime?    @db.Date
+  cr_no                        String?          @unique
+  cr_expiry_date               DateTime?        @db.Date
   contact_person_designation   String?
   assigned_salesman_id         Int
   org_id                       Int
   notes                        String?
   status                       String
   /// standard | premium (see types/client.ts clientCategories). More categories can be added there.
-  category                     String       @default("standard")
-  checklist_kyc_verified       Boolean      @default(false)
-  checklist_agreement_signed   Boolean      @default(false)
-  checklist_rate_card_approved Boolean      @default(false)
-  checklist_integration_setup  Boolean      @default(false)
-  checklist_dispatch_confirmed Boolean      @default(false)
-  checklist_billing_verified   Boolean      @default(false)
-  checklist_portal_created     Boolean      @default(false)
-  checklist_first_shipment     Boolean      @default(false)
-  created_at                   DateTime     @default(now())
-  assignedSalesman             User         @relation("AssignedClients", fields: [assigned_salesman_id], references: [id])
-  organization                 Organization @relation(fields: [org_id], references: [id])
+  category                     String           @default("standard")
+  /// Department name when a company is handled per department ("Logistics", "Procurement").
+  /// Each department is its own client row with its own salesman, contact, enquiries and orders.
+  department                   String?
+  /// The company's main client row this department belongs to (null on main rows).
+  /// Department rows leave cr_no empty and show the parent's.
+  parent_client_id             Int?
+  checklist_kyc_verified       Boolean          @default(false)
+  checklist_agreement_signed   Boolean          @default(false)
+  checklist_rate_card_approved Boolean          @default(false)
+  checklist_integration_setup  Boolean          @default(false)
+  checklist_dispatch_confirmed Boolean          @default(false)
+  checklist_billing_verified   Boolean          @default(false)
+  checklist_portal_created     Boolean          @default(false)
+  checklist_first_shipment     Boolean          @default(false)
+  created_at                   DateTime         @default(now())
+  assignedSalesman             User             @relation("AssignedClients", fields: [assigned_salesman_id], references: [id])
+  organization                 Organization     @relation(fields: [org_id], references: [id])
+  parent                       Client?          @relation("ClientDepartments", fields: [parent_client_id], references: [id])
+  departments                  Client[]         @relation("ClientDepartments")
   logs                         ClientLog[]
   clientTasks                  ClientTask[]
   tasks                        Task[]
@@ -193,6 +206,7 @@ model Client {
   @@index([status])
   @@index([category])
   @@index([created_at])
+  @@index([parent_client_id])
   @@map("clients")
 }
 
@@ -212,24 +226,24 @@ model ClientLog {
 }
 
 model Task {
-  id             Int      @id @default(autoincrement())
+  id             Int          @id @default(autoincrement())
   assigned_to_id Int
   created_by_id  Int
   description    String
   due_date       DateTime
-  notification   Boolean  @default(false)
+  notification   Boolean      @default(false)
   status         String
   /// Optional user-chosen type: "order_follow_up" | "payment_follow_up". NULL = general.
   /// Enquiry follow-ups are identified by enquiry_id instead.
   category       String?
-  assignedTo     User     @relation("AssignedTasks", fields: [assigned_to_id], references: [id])
-  createdBy      User     @relation("CreatedTasks", fields: [created_by_id], references: [id])
+  assignedTo     User         @relation("AssignedTasks", fields: [assigned_to_id], references: [id])
+  createdBy      User         @relation("CreatedTasks", fields: [created_by_id], references: [id])
   /// Set on automatic follow-up tasks for enquiries left open for 30+ days.
   enquiry_id     Int?
-  enquiry        Enquiry? @relation(fields: [enquiry_id], references: [id], onDelete: Cascade)
+  enquiry        Enquiry?     @relation(fields: [enquiry_id], references: [id], onDelete: Cascade)
   /// The client a task is about (lead follow-ups). Its outcome updates this client.
   client_id      Int?
-  client         Client?  @relation(fields: [client_id], references: [id], onDelete: Cascade)
+  client         Client?      @relation(fields: [client_id], references: [id], onDelete: Cascade)
   /// Lead follow-up result: contacted | follow_up | rejected.
   outcome        String?
   /// When the task was closed (achieved / unsuccessful). Closed tasks are cleaned up after 6 months.
@@ -292,6 +306,8 @@ model ClientTask {
 model Order {
   id                Int            @id @default(autoincrement())
   client_id         Int
+  /// The company the order is under: its enquiry's company, else the client's.
+  org_id            Int
   mode              String
   description       String
   payment_mode      String
@@ -320,11 +336,13 @@ model Order {
   created_at        DateTime       @default(now())
   updated_at        DateTime       @updatedAt
   client            Client         @relation(fields: [client_id], references: [id], onDelete: Cascade)
+  organization      Organization   @relation(fields: [org_id], references: [id])
   createdBy         User           @relation("OrderCreatedBy", fields: [created_by_id], references: [id])
   enquiry           Enquiry?       @relation(fields: [enquiry_id], references: [id], onDelete: SetNull)
   payments          OrderPayment[]
 
   @@index([client_id])
+  @@index([org_id])
   @@index([created_by_id])
   @@index([status])
   @@index([created_at])
@@ -372,74 +390,88 @@ model OrderPayment {
 }
 
 model Enquiry {
-  id                 Int               @id @default(autoincrement())
-  client_id          Int
-  enquiry_date       DateTime          @db.Date
-  mode               String
-  from               String
-  to                 String
+  id                    Int                   @id @default(autoincrement())
+  client_id             Int
+  /// The company the enquiry is raised under (its ID prefix, export office, and who sees it). Defaults to the client's.
+  org_id                Int
+  enquiry_date          DateTime              @db.Date
+  mode                  String
+  from                  String
+  to                    String
   /// Where the cargo is picked up from (pickup / collection address). Optional.
-  collection_address String?
+  collection_address    String?
   /// Job reference / job type code (e.g. SEFL = Sea Export FCL). Null on enquiries raised before it was added.
-  job_ref            String?
+  job_ref               String?
   /// Incoterms 2020 rule (EXW, FCA, FOB, CFR, CIF, CPT, CIP, DAP, DPU, DDP). Null on enquiries raised before it was added.
-  incoterm           String?
-  payment_mode       String
+  incoterm              String?
+  payment_mode          String
   /// Only when payment_mode is "credit".
-  credit_days        Int?
-  clearance          Boolean           @default(false)
+  credit_days           Int?
+  clearance             Boolean               @default(false)
   /// Dangerous goods.
-  is_dg              Boolean           @default(false)
+  is_dg                 Boolean               @default(false)
   /// Only when is_dg: UN number(s), normalised "UN1203" or "UN1203, UN1950".
-  un_number          String?
+  un_number             String?
   /// Packing list: [{ length, width, height, qty }] per line, in dimension_unit (see lib/freight.ts). Null = none given.
-  packages           Json?
+  packages              Json?
   /// cm | m | ft | in — unit of the package dimensions.
-  dimension_unit     String?
+  dimension_unit        String?
   /// Actual gross weight, always stored in kg (converted on save).
-  actual_weight      Decimal?          @db.Decimal(12, 3)
+  actual_weight         Decimal?              @db.Decimal(12, 3)
   /// Unit the weight was entered in: kg | lb. Null = kg (enquiries raised before it was added).
-  weight_unit        String?
+  weight_unit           String?
   /// true = stackable, false = non-stackable, null = not specified (enquiries raised before it was added).
-  stackable          Boolean?
+  stackable             Boolean?
   /// Chargeable weight in kg: the higher of actual and volumetric weight (computed on save, lib/freight.ts).
-  chargeable_weight  Decimal?          @db.Decimal(12, 3)
+  chargeable_weight     Decimal?              @db.Decimal(12, 3)
   /// Total volume in cubic metres, computed from the packing list on save.
-  cbm                Decimal?          @db.Decimal(12, 3)
+  cbm                   Decimal?              @db.Decimal(12, 3)
   /// Sea only: 20dc | 40dc | 40hc | 20ot | 40ot | 20fr | 40fr | 20rf | 40rf | lcl | ro_ro | break_bulk (see types/enquiry.ts).
-  service_type       String?
+  service_type          String?
   /// Sea reefer (20rf / 40rf) only: set temperature in °C.
-  reefer_temp        Decimal?          @db.Decimal(4, 1)
+  reefer_temp           Decimal?              @db.Decimal(4, 1)
   /// Sea open top (20ot / 40ot) only: ig (in gauge) | og (out of gauge).
-  gauge              String?
+  gauge                 String?
   /// Land only: FTL truck type or "ltl" (see types/enquiry.ts).
-  truck_type         String?
+  truck_type            String?
   /// Null until the enquiry is quoted.
-  provisional_cost   Decimal?          @db.Decimal(12, 2)
-  provisional_profit Decimal?          @db.Decimal(12, 2)
+  provisional_cost      Decimal?              @db.Decimal(12, 2)
+  provisional_profit    Decimal?              @db.Decimal(12, 2)
   /// Filled by accounts on the order.
-  actual_cost        Decimal?          @db.Decimal(12, 2)
-  actual_profit      Decimal?          @db.Decimal(12, 2)
-  notes              String?
-  /// inquiry_received | quoted | negotiation | offer_revised | confirmed | lost (see types/enquiry.ts).
-  status             String            @default("inquiry_received")
+  actual_cost           Decimal?              @db.Decimal(12, 2)
+  actual_profit         Decimal?              @db.Decimal(12, 2)
+  notes                 String?
+  /// sent_to_client | inquiry_received | with_agent | quoted | negotiation | offer_revised | confirmed | lost (see types/enquiry.ts).
+  status                String                @default("inquiry_received")
+  /// "Send to client": secret token of the public fillable form link (/enquiry-form/<token>).
+  client_form_token     String?               @unique
+  /// Email the form link was sent to, and when.
+  client_form_email     String?
+  client_form_sent_at   DateTime?
+  /// Filled in by the client when they submit the form: their typed name and drawn signature (PNG under uploads/enquiries/<id>/).
+  client_signed_name    String?
+  client_signed_at      DateTime?
+  client_signature_path String?
   /// Required when status is "lost".
-  cancel_reason      String?
-  cancelled_at       DateTime?
-  cancelled_by_id    Int?
+  cancel_reason         String?
+  cancelled_at          DateTime?
+  cancelled_by_id       Int?
   /// When the next automatic follow-up task is due. Null = enquiry_date + 30 days.
-  next_follow_up_at  DateTime?         @db.Date
-  created_by_id      Int
-  created_at         DateTime          @default(now())
-  updated_at         DateTime          @updatedAt
-  client             Client            @relation(fields: [client_id], references: [id], onDelete: Cascade)
-  createdBy          User              @relation("EnquiryCreatedBy", fields: [created_by_id], references: [id])
-  cancelledBy        User?             @relation("EnquiryCancelledBy", fields: [cancelled_by_id], references: [id])
-  order              Order?
-  followUps          EnquiryFollowUp[]
-  followUpTasks      Task[]
-  events             EnquiryEvent[]
+  next_follow_up_at     DateTime?             @db.Date
+  created_by_id         Int
+  created_at            DateTime              @default(now())
+  updated_at            DateTime              @updatedAt
+  client                Client                @relation(fields: [client_id], references: [id], onDelete: Cascade)
+  organization          Organization          @relation(fields: [org_id], references: [id])
+  createdBy             User                  @relation("EnquiryCreatedBy", fields: [created_by_id], references: [id])
+  cancelledBy           User?                 @relation("EnquiryCancelledBy", fields: [cancelled_by_id], references: [id])
+  order                 Order?
+  followUps             EnquiryFollowUp[]
+  followUpTasks         Task[]
+  events                EnquiryEvent[]
+  agentRequests         EnquiryAgentRequest[]
 
+  @@index([org_id])
   @@index([client_id])
   @@index([created_by_id])
   @@index([status])
@@ -502,4 +534,39 @@ model SalesmanTarget {
 
   @@index([salesman_id, period_start])
   @@map("salesman_targets")
+}
+
+/// Freight agents (overseas partners, carriers) the team asks for rates with "Send to agent".
+model Agent {
+  id             Int                   @id @default(autoincrement())
+  name           String
+  contact_person String?
+  email          String
+  phone          String?
+  created_at     DateTime              @default(now())
+  requests       EnquiryAgentRequest[]
+
+  @@map("agents")
+}
+
+/// One "Send to agent" rate request: the agent gets an emailed link (/agent-quote/<token>) to give their cost.
+model EnquiryAgentRequest {
+  id         Int       @id @default(autoincrement())
+  enquiry_id Int
+  agent_id   Int
+  /// Secret token of the agent's link.
+  token      String    @unique
+  sent_by_id Int
+  sent_at    DateTime  @default(now())
+  /// The agent's reply: their cost and any terms (validity, transit time…).
+  cost       Decimal?  @db.Decimal(12, 2)
+  notes      String?
+  replied_at DateTime?
+  enquiry    Enquiry   @relation(fields: [enquiry_id], references: [id], onDelete: Cascade)
+  agent      Agent     @relation(fields: [agent_id], references: [id])
+  sentBy     User      @relation("EnquiryAgentRequestSentBy", fields: [sent_by_id], references: [id])
+
+  @@index([enquiry_id])
+  @@index([agent_id])
+  @@map("enquiry_agent_requests")
 }

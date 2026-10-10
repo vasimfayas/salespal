@@ -68,3 +68,7 @@ export type ClientDocumentItem = {
   uploaded_by: string;
   created_at: string;
 };
+
+/** "Company · Department" for a department of a company handled per department; just the name otherwise. */
+export const clientLabel = (client: { name: string; department?: string | null }) =>
+  client.department ? `${client.name} · ${client.department}` : client.name;

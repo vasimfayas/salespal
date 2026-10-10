@@ -129,7 +129,7 @@ const PAYMENT_LABEL: Record<string, string> = { cash: "Cash", card: "Card", cred
 /* ─── Small building blocks ─── */
 
 /** One form section: title + hint on the left (desktop), fields on the right. */
-function Section({ title, hint, children }: { title: string; hint?: string; children: React.ReactNode }) {
+export function Section({ title, hint, children }: { title: string; hint?: string; children: React.ReactNode }) {
   return (
     <section className="grid gap-x-8 gap-y-3 border-t border-border py-6 first:border-t-0 first:pt-1 lg:grid-cols-[13rem_minmax(0,1fr)]">
       <div>
@@ -199,21 +199,36 @@ export function EnquiryForm({
   editing,
   client,
   setClient,
+  companies,
+  orgId,
+  setOrgId,
   error,
   saving,
   onSubmit,
   onCancel,
+  variant = "internal",
+  children,
 }: {
   form: EnquiryFormState;
   setForm: (next: EnquiryFormState) => void;
   editing: EnquiryListItem | null;
-  client: { id: number; name: string } | null;
-  setClient: (client: { id: number; name: string } | null) => void;
+  client?: { id: number; name: string } | null;
+  setClient?: (client: { id: number; name: string } | null) => void;
+  /** Companies the user works for; with more than one they pick which the enquiry is raised under. */
+  companies?: { id: number; name: string }[];
+  /** "" = the client's company. */
+  orgId?: string;
+  setOrgId?: (orgId: string) => void;
   error: string | null;
   saving: boolean;
   onSubmit: (e: React.FormEvent) => void;
-  onCancel: () => void;
+  onCancel?: () => void;
+  /** "client": the form a client fills in from an emailed link — shipment details only (no client, payment or quote). */
+  variant?: "internal" | "client";
+  /** Extra sections after Notes (the client's signature). */
+  children?: React.ReactNode;
 }) {
+  const isClient = variant === "client";
   const patch = (p: Partial<EnquiryFormState>) => setForm({ ...form, ...p });
   const cost = Number(form.provisional_cost);
   const profit = Number(form.provisional_profit);
@@ -250,20 +265,25 @@ export function EnquiryForm({
       {/* Header (pinned) */}
       <div className="sticky top-0 z-10 flex items-start justify-between gap-4 border-b border-border bg-card px-6 py-4">
         <div className="min-w-0">
-          <h3 className="text-base font-semibold text-foreground">{editing ? `Edit ${editing.ref}` : "New enquiry"}</h3>
+          <h3 className="text-base font-semibold text-foreground">{isClient ? "Shipment details" : editing ? `Edit ${editing.ref}` : "New enquiry"}</h3>
           <p className="mt-0.5 text-sm text-muted-foreground">
-            {editing
-              ? "Correct the shipment details. Cost and profit change through Quote / Offer revised so the history keeps the old figures."
-              : "Everything needed to price the shipment. Fields marked optional can be added later."}
+            {isClient
+              ? "Tell us what you'd like to ship. Fields marked optional can be left empty."
+              : editing
+                ? "Correct the shipment details. Cost and profit change through Quote / Offer revised so the history keeps the old figures."
+                : "Everything needed to price the shipment. Fields marked optional can be added later."}
           </p>
         </div>
-        <Button type="button" variant="ghost" size="icon-sm" onClick={onCancel} aria-label="Close">
-          <X />
-        </Button>
+        {onCancel && (
+          <Button type="button" variant="ghost" size="icon-sm" onClick={onCancel} aria-label="Close">
+            <X />
+          </Button>
+        )}
       </div>
 
       <div className="px-6 pt-5">
         {/* 1 · Client */}
+        {!isClient && (
         <Section title="Client" hint="Who is asking for the quote, and when.">
           <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_11rem]">
             <div>
@@ -275,12 +295,28 @@ export function EnquiryForm({
                   {editing.client_name}
                 </p>
               ) : (
-                <ClientPicker id="enq-client" required value={client} onChange={setClient} />
+                <ClientPicker id="enq-client" required value={client ?? null} onChange={(c) => setClient?.(c)} />
               )}
             </div>
             <Input label="Enquiry date" type="date" required value={form.enquiry_date} onChange={(e) => patch({ enquiry_date: e.target.value })} />
           </div>
+          {companies && companies.length > 1 &&
+            (editing ? (
+              <p className="mt-3 text-xs text-muted-foreground">
+                Raised under <span className="font-medium text-foreground">{editing.company.name}</span>
+              </p>
+            ) : (
+              <Select id="enq-company" label="Company" wrapperClassName="mt-4" value={orgId ?? ""} onChange={(e) => setOrgId?.(e.target.value)}>
+                <option value="">Client&apos;s company</option>
+                {companies.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </Select>
+            ))}
         </Section>
+        )}
 
         {/* 2 · Transport */}
         <Section title="Transport" hint="The mode decides which equipment and weight rules apply.">
@@ -481,7 +517,8 @@ export function EnquiryForm({
           )}
         </Section>
 
-        {/* 7 · Payment */}
+        {/* 7 · Payment (the sales team agrees terms with the client) */}
+        {!isClient && (
         <Section title="Payment" hint="How the client will pay.">
           <div className="flex flex-wrap items-end gap-4">
             <div role="radiogroup" aria-label="Payment mode" className="inline-flex rounded-control bg-muted p-1">
@@ -517,9 +554,10 @@ export function EnquiryForm({
             )}
           </div>
         </Section>
+        )}
 
-        {/* 8 · Quote (new enquiries only) */}
-        {!editing && (
+        {/* 8 · Quote (new internal enquiries only) */}
+        {!editing && !isClient && (
           <Section title="Quote (optional)" hint="Fill both to save it as Quoted, or leave both empty and quote later.">
             <div className="grid gap-4 sm:grid-cols-3">
               <Input
@@ -552,7 +590,7 @@ export function EnquiryForm({
         )}
 
         {/* 9 · Notes */}
-        <Section title="Notes (optional)" hint="Anything else the pricing team should know.">
+        <Section title="Notes (optional)" hint={isClient ? "Anything else we should know to quote you." : "Anything else the pricing team should know."}>
           <Textarea
             id="enq-notes"
             rows={3}
@@ -561,6 +599,8 @@ export function EnquiryForm({
             placeholder="Cargo ready date, commodity, special handling…"
           />
         </Section>
+
+        {children}
       </div>
 
       {/* Footer (pinned): live summary, errors, actions */}
@@ -582,12 +622,14 @@ export function EnquiryForm({
             {form.is_dg && <span className="text-warning-foreground"> · DG</span>}
           </p>
           <div className="ml-auto flex gap-2">
-            <Button type="button" variant="secondary" onClick={onCancel}>
-              Cancel
-            </Button>
+            {onCancel && (
+              <Button type="button" variant="secondary" onClick={onCancel}>
+                Cancel
+              </Button>
+            )}
             <Button type="submit" disabled={saving}>
               {saving && <Loader2 className="animate-spin" />}
-              {editing ? "Save changes" : "Save enquiry"}
+              {isClient ? "Sign and submit" : editing ? "Save changes" : "Save enquiry"}
             </Button>
           </div>
         </div>

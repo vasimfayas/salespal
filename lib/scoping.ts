@@ -58,11 +58,11 @@ export async function clientScopeWhere(token: ScopedToken): Promise<Prisma.Clien
 export async function orderScopeWhere(token: ScopedToken): Promise<Prisma.OrderWhereInput> {
   const userId = getTokenUserId(token);
   if (token.role_id === 1) return {};
-  // Accountants see orders for clients of the companies the owner assigned them to.
-  if (token.role_id === 4) return { client: { org_id: { in: await getAccountantOrgIds(userId) } } };
+  // Accountants and managers see the orders of their companies (an order's company is its enquiry's).
+  if (token.role_id === 4) return { org_id: { in: await getAccountantOrgIds(userId) } };
   if (token.role_id === 2) {
     const orgIds = token.org_ids?.length ? token.org_ids : await getManagerOrgIds(userId);
-    return { client: { org_id: { in: orgIds } } };
+    return { org_id: { in: orgIds } };
   }
   if (token.role_id === 3) return { created_by_id: userId };
   return { id: -1 };

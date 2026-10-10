@@ -21,6 +21,7 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
   const enquiry = await prisma.enquiry.findFirst({ where: { AND: [{ id: Number(id) }, await enquiryScopeWhere(token)] } });
   if (!enquiry) return NextResponse.json({ error: "Enquiry not found" }, { status: 404 });
   if (enquiry.status === "confirmed") return NextResponse.json({ error: "A confirmed enquiry can't be edited" }, { status: 409 });
+  if (enquiry.status === "sent_to_client") return NextResponse.json({ error: "The client is still filling in this form. Edit it once they submit." }, { status: 409 });
 
   const details = parseEnquiryDetails(await request.json().catch(() => ({})));
   if ("error" in details) return NextResponse.json({ error: details.error }, { status: 400 });

@@ -6,25 +6,14 @@ import { ClientPicker } from "@/components/clients/ClientPicker";
 import { useDebouncedParam, useUrlFilters } from "@/hooks/useUrlFilters";
 import type { TasksPage } from "@/lib/tasks-list";
 import { useRouter } from "next/navigation";
-import {
-  Plus,
-  Calendar,
-  X,
-  Loader2,
-  ListTodo,
-  User,
-  Building,
-  AlertCircle,
-  Search,
-  Trash2,
-} from "lucide-react";
+import { Plus, X, Loader2, Search, Trash2 } from "lucide-react";
 import { Modal } from "@/components/ui/Modal";
 import { Input } from "@/components/ui/Input";
 import { Toast } from "@/components/ui/Toast";
-import { cn, formatDate, titleCase } from "@/lib/utils";
-import { taskKindLabels, taskStatuses, type TaskKind } from "@/types/task";
-import { enquiryRef } from "@/types/enquiry";
+import { cn } from "@/lib/utils";
+import type { TaskKind } from "@/types/task";
 import { TaskActions, TaskStatusPill, isGuidedTask } from "@/components/tasks/TaskActions";
+import { ClientChip, DueDate, KindBadge, StatusSelect, hasInlineActions } from "@/components/tasks/TaskRowParts";
 
 import { buttonVariants } from "@/components/ui/Button";
 type UnifiedTask = {
@@ -53,13 +42,6 @@ interface ManagerTasksListProps {
   data: TasksPage;
   salesmen: SalesmanItem[];
 }
-
-const STATUS_SELECT_COLORS: Record<string, string> = {
-  pending: "bg-muted text-foreground/85 ring-border",
-  in_process: "bg-info-soft text-info-foreground ring-info/30",
-  achieved: "bg-success-soft text-success-foreground ring-success/30",
-  unsuccessful: "bg-danger-soft text-danger-foreground ring-danger/30",
-};
 
 export function ManagerTasksList({ data, salesmen }: ManagerTasksListProps) {
   const router = useRouter();
@@ -107,6 +89,8 @@ export function ManagerTasksList({ data, salesmen }: ManagerTasksListProps) {
   };
 
   const filteredTasks = localTasks;
+  // Fixed per mount so due-date colours are stable across re-renders
+  const [now] = useState(() => Date.now());
 
   // Submit task handler
   async function handleAddSubmit(e: React.FormEvent) {
@@ -261,6 +245,25 @@ export function ManagerTasksList({ data, salesmen }: ManagerTasksListProps) {
     }
   }
 
+  const statusCell = (task: UnifiedTask) =>
+    isGuidedTask(task) ? (
+      <TaskStatusPill task={task} />
+    ) : (
+      <StatusSelect task={task} updating={updatingTaskId === task.id} onChange={(status) => handleStatusChange(task.id, status, task.isClientTask, task.clientId)} />
+    );
+
+  const deleteButton = (task: UnifiedTask) => (
+    <button
+      onClick={() => handleDeleteTask(task.id, task.isClientTask, task.clientId)}
+      disabled={deletingTaskId === task.id}
+      aria-label={`Delete task: ${task.description}`}
+      title="Delete task"
+      className={cn(buttonVariants({ variant: "ghost", size: "icon-sm" }), "text-muted-foreground hover:bg-danger-soft hover:text-danger-foreground")}
+    >
+      {deletingTaskId === task.id ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+    </button>
+  );
+
   return (
     <div className="space-y-6">
       {/* Search and Filters panel */}
@@ -368,134 +371,79 @@ export function ManagerTasksList({ data, salesmen }: ManagerTasksListProps) {
           </button>
         </div>
 
-        <div className={cn("space-y-4 transition-opacity", isNavigating && "opacity-60")} aria-busy={isNavigating}>
-        {filteredTasks.length > 0 ? (
-          filteredTasks.map((task) => {
-            const isOverdue =
-              new Date(task.due_date) < new Date() &&
-              ["pending", "in_process"].includes(task.status);
-            return (
-              <div
-                key={`${task.isClientTask ? "client" : "regular"}-${task.id}`}
-                className={cn(
-                  "relative flex flex-col sm:flex-row sm:items-center justify-between gap-4 rounded-xl border bg-card p-4 shadow-sm transition-all duration-200 hover:shadow-md",
-                  isOverdue ? "border-l-4 border-l-danger border-border" : "border-border"
-                )}
-              >
-                <div className="flex-1 space-y-2.5 min-w-0">
-                  <div className="flex items-center flex-wrap gap-2">
-                    {/* Task type badge */}
-                    <span className="inline-flex items-center gap-1 rounded-full border border-primary/30 bg-primary-soft px-2.5 py-0.5 text-xs font-semibold text-primary">
-                      <ListTodo size={10} />
-                      <span>
-                        {task.isClientTask ? "Client Task" : taskKindLabels[task.kind ?? "general"]}
-                        {task.enquiry && ` · ${enquiryRef(task.enquiry.id, task.enquiry.prefix)}`}
-                      </span>
-                    </span>
-
-                    {/* Client the task is about */}
-                    {task.clientName && (
-                      <a
-                        href={task.clientId ? `/dashboard/manager/clients/${task.clientId}` : undefined}
-                        className="inline-flex items-center gap-1 rounded-full border border-success/30 bg-success-soft px-2.5 py-0.5 text-xs font-semibold text-success-foreground hover:underline"
-                      >
-                        <Building size={10} />
-                        <span>Client: {task.clientName}</span>
-                      </a>
-                    )}
-
-                    {/* Assigned Salesman */}
-                    <span className="inline-flex items-center gap-1 rounded-full border border-border bg-subtle px-2.5 py-0.5 text-xs font-semibold text-foreground/70">
-                      <User size={10} />
-                      <span>Assigned to: {task.assignedTo?.name || "Unassigned"}</span>
-                    </span>
-                  </div>
-
-                  {/* Task Description */}
-                  <p className="text-sm font-semibold text-foreground break-words leading-relaxed">
-                    {task.description}
-                  </p>
-
-                  {/* Task Metadata (Due Date & Overdue label) */}
-                  <div className="flex items-center gap-3 text-xs font-semibold text-muted-foreground/80">
-                    <span className="flex items-center gap-1">
-                      <Calendar size={11} className={isOverdue ? "text-danger-foreground animate-pulse" : "text-muted-foreground/80"} />
-                      <span className={cn(isOverdue ? "text-danger-foreground font-semibold" : "text-muted-foreground")}>
-                        Due: {formatDate(task.due_date)}
-                      </span>
-                    </span>
-                    {isOverdue && (
-                      <span className="inline-flex items-center gap-0.5 text-danger-foreground bg-danger-soft px-1.5 py-0.5 rounded-full text-[9px] font-semibold">
-                        <AlertCircle size={9} /> Overdue
-                      </span>
-                    )}
-                  </div>
-                </div>
-
-                <div className="flex flex-wrap items-center justify-end gap-3 shrink-0 self-end sm:self-center">
-                  <TaskActions task={task} enquiriesPath="/dashboard/manager/enquiries" />
-                  {isGuidedTask(task) ? (
-                    <TaskStatusPill task={task} />
-                  ) : (
-                  <div className="relative">
-                    {updatingTaskId === task.id && (
-                      <Loader2
-                        size={14}
-                        className="absolute -left-5 top-1/2 -translate-y-1/2 animate-spin text-muted-foreground/80"
-                      />
-                    )}
-                    <select
-                      value={task.status}
-                      onChange={(e) =>
-                        handleStatusChange(
-                          task.id,
-                          e.target.value,
-                          task.isClientTask,
-                          task.clientId
-                        )
-                      }
-                      disabled={updatingTaskId === task.id}
-                      aria-label="Update task status"
-                      className={cn(
-                        "cursor-pointer appearance-none rounded-full py-1 pl-2.5 pr-7 text-xs font-semibold ring-1 outline-none transition focus:ring-2 focus:ring-ring/20 disabled:opacity-60",
-                        STATUS_SELECT_COLORS[task.status] ?? STATUS_SELECT_COLORS.pending
-                      )}
-                      style={{
-                        backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")`,
-                        backgroundRepeat: "no-repeat",
-                        backgroundPosition: "right 0.5rem center",
-                      }}
-                    >
-                      {taskStatuses.map((status) => (
-                        <option key={status} value={status}>
-                          {titleCase(status)}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  )}
-
-                  {/* Delete button */}
-                  <button
-                    onClick={() => handleDeleteTask(task.id, task.isClientTask, task.clientId)}
-                    disabled={deletingTaskId === task.id}
-                    className="text-muted-foreground/80 hover:text-danger-foreground transition p-1.5 rounded-lg hover:bg-danger-soft flex-shrink-0 cursor-pointer"
-                    title="Delete task"
-                  >
-                    {deletingTaskId === task.id ? (
-                      <Loader2 size={14} className="animate-spin" />
-                    ) : (
-                      <Trash2 size={14} />
-                    )}
-                  </button>
-                </div>
-              </div>
-            );
-          })
-        ) : (
-          <div className="text-center p-12 bg-card rounded-card border border-dashed border-border text-sm text-muted-foreground">
-            No tasks found matching current filters.
+        <div className={cn("space-y-1 transition-opacity", isNavigating && "opacity-60")} aria-busy={isNavigating}>
+        {filteredTasks.length === 0 ? (
+          <div className="rounded-card border border-dashed border-border bg-card p-12 text-center text-sm text-muted-foreground">
+            {searchQuery ? `No tasks match “${searchQuery}”.` : "No tasks found matching current filters."}
           </div>
+        ) : (
+          <>
+            <div className="hidden overflow-hidden rounded-card border border-border bg-card shadow-card md:block">
+              <table className="w-full table-fixed text-left text-sm">
+                <thead className="border-b border-border bg-subtle text-xs text-muted-foreground">
+                  <tr>
+                    <th scope="col" className="px-4 py-3 font-medium">Task</th>
+                    <th scope="col" className="hidden w-[16%] px-4 py-3 font-medium lg:table-cell">Assigned to</th>
+                    <th scope="col" className="w-[130px] px-4 py-3 font-medium">Due</th>
+                    <th scope="col" className="w-[130px] px-4 py-3 font-medium">Status</th>
+                    <th scope="col" className={cn("px-4 py-3 text-right font-medium", hasInlineActions(filteredTasks) ? "w-[340px]" : "w-[110px]")}><span className="sr-only">Actions</span></th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {filteredTasks.map((task) => (
+                    <tr key={`${task.isClientTask ? "client" : "regular"}-${task.id}`} className="align-middle transition-colors hover:bg-subtle">
+                      <td className="px-4 py-3">
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <KindBadge task={task} />
+                          <ClientChip task={task} clientsPath="/dashboard/manager/clients" />
+                        </div>
+                        <p className="mt-1 line-clamp-2 text-foreground" title={task.description}>{task.description}</p>
+                      </td>
+                      <td className="hidden px-4 py-3 text-muted-foreground lg:table-cell">
+                        <span className="block truncate">{task.assignedTo?.name || "Unassigned"}</span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <DueDate task={task} now={now} />
+                      </td>
+                      <td className="px-4 py-3">{statusCell(task)}</td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center justify-end gap-1">
+                          <TaskActions task={task} enquiriesPath="/dashboard/manager/enquiries" />
+                          {deleteButton(task)}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <ul className="divide-y divide-border overflow-hidden rounded-card border border-border bg-card shadow-card md:hidden">
+              {filteredTasks.map((task) => (
+                <li key={`${task.isClientTask ? "client" : "regular"}-${task.id}`} className="space-y-2 p-4">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+                      <KindBadge task={task} />
+                      <ClientChip task={task} clientsPath="/dashboard/manager/clients" />
+                    </div>
+                    {statusCell(task)}
+                  </div>
+                  <p className="text-sm text-foreground">{task.description}</p>
+                  <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
+                    <span className="flex items-center gap-2">
+                      <DueDate task={task} now={now} />
+                      <span aria-hidden>·</span>
+                      {task.assignedTo?.name || "Unassigned"}
+                    </span>
+                    <div className="flex items-center gap-1">
+                      <TaskActions task={task} enquiriesPath="/dashboard/manager/enquiries" />
+                      {deleteButton(task)}
+                    </div>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </>
         )}
         <Pagination page={data.page} pageSize={data.pageSize} total={data.total} pending={isNavigating} noun="tasks" onPage={(p) => set({ page: p })} />
         </div>

@@ -13,7 +13,7 @@ async function load(request: NextRequest, context: Params) {
   if (!token) return { error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) } as const;
   const { id, docId } = await context.params;
   const client = await findScopedClient(token, Number(id));
-  const doc = client ? await prisma.clientDocument.findFirst({ where: { id: Number(docId), client_id: client.id } }) : null;
+  const doc = client ? await prisma.clientDocument.findFirst({ where: { id: Number(docId), client_id: { in: client.documentClientIds } } }) : null;
   if (!doc) return { error: NextResponse.json({ error: "Document not found" }, { status: 404 }) } as const;
   return { token, doc } as const;
 }

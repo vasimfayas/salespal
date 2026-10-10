@@ -30,7 +30,9 @@ const C = {
 };
 
 const STATUS_COLOR: Record<EnquiryStatus, string> = {
+  sent_to_client: "#0EA5E9",
   inquiry_received: "#94A3B8",
+  with_agent: "#F97316",
   quoted: "#3B82F6",
   negotiation: "#F59E0B",
   offer_revised: "#8B5CF6",

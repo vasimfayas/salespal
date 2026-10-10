@@ -3,7 +3,7 @@ import { mkdir, readFile, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { prisma } from "@/lib/prisma";
 import { getAccountantOrgIds, getManagerOrgIds, getSalesmanOrgIds } from "@/lib/scoping";
-import { COMPANY_DOCUMENT_MAX_BYTES, companyDocumentMimeTypes, type CompanyDocumentItem } from "@/types/company";
+import { COMPANY_DOCUMENT_MAX_BYTES, companyDocumentMimeTypes, companyLogoUrl, type CompanyDocumentItem } from "@/types/company";
 
 /** Uploaded files live outside public/ and are only served through the authenticated documents API. */
 const UPLOAD_ROOT = path.join(process.cwd(), "uploads");
@@ -78,6 +78,7 @@ export type CompanyProfile = {
   email: string | null;
   prefix: string | null;
   export_office_no: string | null;
+  logo_url: string | null;
   documents: CompanyDocumentItem[];
 };
 
@@ -94,11 +95,16 @@ export async function getCompanyProfiles(orgIds: number[]): Promise<CompanyProfi
       email: true,
       prefix: true,
       export_office_no: true,
+      logo_path: true,
       documents: { include: { uploadedBy: { select: { name: true } } }, orderBy: [{ label: "asc" }, { id: "asc" }] },
     },
     orderBy: { name: "asc" },
   });
-  return orgs.map((org) => ({ ...org, documents: org.documents.map(serializeCompanyDocument) }));
+  return orgs.map(({ logo_path, ...org }) => ({
+    ...org,
+    logo_url: companyLogoUrl({ id: org.id, logo_path }),
+    documents: org.documents.map(serializeCompanyDocument),
+  }));
 }
 
 export function serializeCompanyDocument(doc: {

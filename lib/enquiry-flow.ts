@@ -74,11 +74,11 @@ async function logEvent(
 export type EnquiryAction = "quote" | "negotiate" | "revise" | "confirm" | "lose";
 
 const FROM: Record<EnquiryAction, readonly EnquiryStatus[]> = {
-  quote: ["inquiry_received"],
+  quote: ["inquiry_received", "with_agent"],
   negotiate: ["quoted", "offer_revised"],
   revise: ["negotiation", "offer_revised"],
   confirm: ["quoted", "negotiation", "offer_revised"],
-  lose: ["inquiry_received", "quoted", "negotiation", "offer_revised"],
+  lose: ["sent_to_client", "inquiry_received", "with_agent", "quoted", "negotiation", "offer_revised"],
 };
 
 const ACTION_VERB: Record<EnquiryAction, string> = {
@@ -187,6 +187,7 @@ export async function applyEnquiryAction(
     const order = await tx.order.create({
       data: {
         client_id: enquiry.client_id,
+        org_id: enquiry.org_id,
         mode: enquiry.mode,
         description:
           enquiry.notes ||

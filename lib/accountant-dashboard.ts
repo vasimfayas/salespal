@@ -63,7 +63,7 @@ function receivablesCte(orgIds: number[]) {
       JOIN clients c ON c.id = o.client_id
       JOIN users u ON u.id = o.created_by_id
       LEFT JOIN enquiries e ON e.id = o.enquiry_id
-      WHERE o.status NOT IN ('cancelled', 'revision_requested') AND o.amount - o.paid_total > 0.005 AND c.org_id IN (${Prisma.join(orgIds)})
+      WHERE o.status NOT IN ('cancelled', 'revision_requested') AND o.amount - o.paid_total > 0.005 AND o.org_id IN (${Prisma.join(orgIds)})
     )`;
 }
 
@@ -87,12 +87,12 @@ const toReceivable = (r: ReceivableSqlRow): ReceivableOrder => ({
 /** Orders in transit with no job no yet: the accountant's to-do list. */
 const AWAITING_DETAILS = (inOrgs: Prisma.OrderWhereInput): Prisma.OrderWhereInput => ({ status: "transit", job_no: null, ...inOrgs });
 
-/** Scoped to the clients of `orgIds` — the companies the accountant is assigned to. */
+/** Scoped to the orders of `orgIds` — the companies the accountant is assigned to. */
 export async function getAccountantDashboard(orgIds: number[]) {
   const now = new Date();
   const today = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
   const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
-  const inOrgs = { client: { org_id: { in: orgIds } } };
+  const inOrgs = { org_id: { in: orgIds } };
   const cte = receivablesCte(orgIds);
 
   const [summary, pendingRows, awaiting, awaitingCount, collectedThisMonth, advancesThisMonth] = await Promise.all([

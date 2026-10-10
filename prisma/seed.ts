@@ -116,7 +116,7 @@ const JOB_REFS_BY_MODE: Record<string, JobRef[]> = {
 
 async function wipe() {
   const tables = [
-    "enquiry_events", "enquiry_follow_ups", "order_payments", "orders", "task_updates", "tasks", "enquiries", "client_tasks",
+    "enquiry_agent_requests", "agents", "enquiry_events", "enquiry_follow_ups", "order_payments", "orders", "task_updates", "tasks", "enquiries", "client_tasks",
     "client_documents", "client_logs", "salesman_kpi_logs", "salesman_targets", "shipping_rates", "clients",
     "company_documents", "manager_salesman", "manager_org", "accountant_org", "users", "organizations", "roles",
   ];
@@ -236,11 +236,36 @@ async function main() {
       created_at: createdAt,
     };
   });
-  const clients: { id: number; assigned_salesman_id: number; org_id: number; created_at: Date; status: string; name: string }[] = [];
+  const clientSelect = { id: true, assigned_salesman_id: true, org_id: true, created_at: true, status: true, name: true, cr_no: true } as const;
+  const clients: { id: number; assigned_salesman_id: number; org_id: number; created_at: Date; status: string; name: string; cr_no: string | null }[] = [];
   await inChunks(clientRows, 5000, async (chunk) => {
-    clients.push(...(await prisma.client.createManyAndReturn({ data: chunk, select: { id: true, assigned_salesman_id: true, org_id: true, created_at: true, status: true, name: true } })));
+    clients.push(...(await prisma.client.createManyAndReturn({ data: chunk, select: clientSelect })));
   });
-  log(`clients: ${clients.length}`);
+
+  // Companies handled per department: the main row is "Head office"; each department is its own client row
+  // (no CR of its own — it shows the company's), with its own contact and a salesman from the same company.
+  const DEPARTMENTS = ["Logistics", "Procurement", "Projects", "Imports", "Exports"];
+  const parents = clients.filter((c, i) => c.cr_no && i % 97 === 0).slice(0, SMALL ? 10 : 120);
+  await prisma.client.updateMany({ where: { id: { in: parents.map((p) => p.id) } }, data: { department: "Head office" } });
+  const deptRows: Prisma.ClientCreateManyInput[] = parents.flatMap((p, pi) => {
+    const orgSalesmen = [...new Set(links.filter((l) => l.org_id === p.org_id).map((l) => l.salesman_id))];
+    const first = int(0, DEPARTMENTS.length - 1);
+    return DEPARTMENTS.slice(first, first + int(1, 2)).map((department, di) => ({
+      name: p.name,
+      department,
+      parent_client_id: p.id,
+      contact_person_name: `${pick(FIRST)} ${pick(LAST)}`,
+      contact_no: `+9745${String(pi * 10 + di + 1).padStart(7, "0")}`,
+      mail_id: `${department.toLowerCase()}${p.id}@example.com`,
+      contact_person_designation: pick(DESIGNATIONS),
+      assigned_salesman_id: pick(orgSalesmen),
+      org_id: p.org_id,
+      status: weighted([["contacted", 3], ["follow_up", 5], ["lead", 2]] as const) as string,
+      created_at: between(p.created_at, new Date(NOW)),
+    }));
+  });
+  clients.push(...(await prisma.client.createManyAndReturn({ data: deptRows, select: clientSelect })));
+  log(`clients: ${clients.length} (${deptRows.length} departments of ${parents.length} companies)`);
 
   /* Shipping rates: every origin × destination × container lane, shuffled, first N.rates kept */
   const lanes: { mode: "sea" | "air" | "land"; location: string; port: string; container: "20gp" | "40hc" }[] = [
@@ -328,6 +353,7 @@ async function main() {
     plans.push({ clientIdx, status, order, revised });
     enquiryRows.push({
       client_id: client.id,
+      org_id: client.org_id,
       enquiry_date: dateOnly(enquiryDate),
       mode, from, to,
       collection_address: inbound ? null : chance(0.7) ? `Warehouse ${int(1, 80)}, Street ${int(1, 60)}, ${pick(QATAR_AREAS)}, Qatar` : null,
@@ -391,6 +417,7 @@ async function main() {
     const client = clients[plan.clientIdx];
     orderRows.push({
       client_id: e.client_id,
+      org_id: client.org_id,
       mode: e.mode,
       description: `${e.incoterm ? `${e.incoterm} · ` : ""}${e.job_ref ? `${e.job_ref} ` : ""}${e.mode} freight ${e.from} → ${e.to}${e.clearance ? " incl. clearance" : ""}`,
       payment_mode: e.payment_mode,
@@ -521,6 +548,73 @@ async function main() {
   });
   await inChunks(eventRows, 10000, (chunk) => prisma.enquiryEvent.createMany({ data: chunk }));
   log(`enquiry events: ${eventRows.length}`);
+
+  // Enquiry forms sent to clients that they haven't filled in yet: placeholder shipment fields until they submit.
+  const sentRows: Prisma.EnquiryCreateManyInput[] = Array.from({ length: SMALL ? 20 : 150 }, (_, k) => {
+    const { c } = pick(enquiryPool);
+    const sentAt = daysAgo(rand() * 20);
+    return {
+      client_id: c.id,
+      org_id: c.org_id,
+      enquiry_date: dateOnly(sentAt),
+      mode: "sea",
+      from: "",
+      to: "",
+      payment_mode: "cash",
+      status: "sent_to_client",
+      created_by_id: c.assigned_salesman_id,
+      client_form_token: `seed${k}${Math.floor(rand() * 2 ** 32).toString(36)}${Math.floor(rand() * 2 ** 32).toString(36)}`,
+      client_form_email: `contact${c.id}@example.com`,
+      client_form_sent_at: sentAt,
+      created_at: sentAt,
+    };
+  });
+  const sent = await prisma.enquiry.createManyAndReturn({ data: sentRows, select: { id: true, created_by_id: true, created_at: true, client_form_email: true } });
+  await prisma.enquiryEvent.createMany({
+    data: sent.map((e) => ({ enquiry_id: e.id, action: "sent_to_client", to_status: "sent_to_client", note: `Form sent to ${e.client_form_email}`, created_by_id: e.created_by_id, created_at: e.created_at })),
+  });
+  log(`enquiry forms waiting on clients: ${sent.length}`);
+
+  // Agents, and open enquiries sent to them for rates ("With agent"); about half the agents have replied with a cost.
+  const AGENT_NAMES = ["Gulf Freight Partners", "Shanghai Ocean Logistics", "Jebel Ali Forwarding", "EuroCargo Rotterdam", "Mumbai Sea Links", "Desert Road Haulage", "SkyBridge Air Cargo", "Hanseatic Shipping", "Red Sea Logistics", "Orient Express Freight"];
+  const agents = await prisma.agent.createManyAndReturn({
+    data: AGENT_NAMES.map((name, i) => ({
+      name,
+      contact_person: `${pick(FIRST)} ${pick(LAST)}`,
+      email: `rates${i + 1}@agents.example.com`,
+      phone: `+971 4 ${int(200, 999)} ${int(1000, 9999)}`,
+    })),
+    select: { id: true, name: true },
+  });
+  const withAgent = enquiries.filter((e) => e.status === "inquiry_received" && chance(0.5)).slice(0, SMALL ? 40 : 800);
+  const agentRequestRows: Prisma.EnquiryAgentRequestCreateManyInput[] = [];
+  const agentEventRows: Prisma.EnquiryEventCreateManyInput[] = [];
+  for (const e of withAgent) {
+    const first = int(0, agents.length - 1);
+    for (const agent of [agents[first], ...(chance(0.3) ? [agents[(first + 1) % agents.length]] : [])]) {
+      const sentAt = between(e.created_at, new Date(NOW));
+      const replied = chance(0.55);
+      const repliedAt = replied ? between(sentAt, new Date(NOW)) : null;
+      const cost = replied ? int(300, e.mode === "air" ? 8000 : 13000) : null;
+      const notes = replied && chance(0.6) ? pick(["Valid 14 days. Transit ~18 days.", "USD, excl. local charges.", "Subject to space availability.", "Includes origin handling."]) : null;
+      agentRequestRows.push({
+        enquiry_id: e.id,
+        agent_id: agent.id,
+        token: `seedagent${agentRequestRows.length}${Math.floor(rand() * 2 ** 32).toString(36)}${Math.floor(rand() * 2 ** 32).toString(36)}`,
+        sent_by_id: e.created_by_id,
+        sent_at: sentAt,
+        cost,
+        notes,
+        replied_at: repliedAt,
+      });
+      agentEventRows.push({ enquiry_id: e.id, action: "sent_to_agent", from_status: "inquiry_received", to_status: "with_agent", note: `Sent to ${agent.name}`, created_by_id: e.created_by_id, created_at: sentAt });
+      if (repliedAt) agentEventRows.push({ enquiry_id: e.id, action: "agent_replied", cost, note: agent.name + (notes ? ` — ${notes}` : ""), created_by_id: e.created_by_id, created_at: repliedAt });
+    }
+  }
+  await prisma.enquiry.updateMany({ where: { id: { in: withAgent.map((e) => e.id) } }, data: { status: "with_agent" } });
+  await prisma.enquiryAgentRequest.createMany({ data: agentRequestRows });
+  await inChunks(agentEventRows, 10000, (chunk) => prisma.enquiryEvent.createMany({ data: chunk }));
+  log(`agents: ${agents.length} · enquiries with agents: ${withAgent.length} (${agentRequestRows.length} rate requests)`);
 
   // Follow-ups on enquiries still open after 30 days: comments, plus a pending task for some.
   const followUpRows: Prisma.EnquiryFollowUpCreateManyInput[] = [];

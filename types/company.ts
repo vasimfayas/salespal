@@ -52,3 +52,12 @@ export function formatFileSize(bytes: number) {
 export function findCrDocument<T extends { label: string }>(documents: T[]): T | undefined {
   return documents.find((d) => /^c\.?r\.?\b|commercial registration/i.test(d.label.trim()));
 }
+
+/** Logos are PNG / JPG (what the enquiry PDF can embed), up to 2 MB. */
+export const COMPANY_LOGO_MAX_BYTES = 2 * 1024 * 1024;
+export const COMPANY_LOGO_ACCEPT = ".png,.jpg,.jpeg";
+
+/** URL of a company's logo, or null; the stored file name versions it so a replaced logo isn't served from cache. */
+export function companyLogoUrl(org: { id: number; logo_path: string | null }) {
+  return org.logo_path ? `/api/companies/${org.id}/logo?v=${encodeURIComponent(org.logo_path.split(/[\\/]/).pop()!)}` : null;
+}

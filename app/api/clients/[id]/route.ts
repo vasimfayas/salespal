@@ -5,7 +5,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { clientScopeWhere, isRole } from "@/lib/scoping";
 import { clientCategoryLabels, isClientCategory, type ClientCategory } from "@/types/client";
-import { normalizeCrNo, parseCrExpiryDate } from "@/lib/client-fields";
+import { departmentTaken, normalizeCrNo, parseCrExpiryDate } from "@/lib/client-fields";
 import { canSetStatus, isClientStatus } from "@/lib/client-status-flow";
 import { cleanText, contactRequiredMessage, missingContactFields, statusRequiresContact } from "@/lib/client-contact";
 
@@ -46,7 +46,14 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
     return NextResponse.json({ error: "Invalid CR number or expiry date" }, { status: 400 });
   }
 
-  if (crNo) {
+  // A department shares its company's CR (kept on the company's main row), so its own CR fields aren't editable.
+  const isDepartment = scoped.parent_client_id !== null;
+  const department = body.department !== undefined ? cleanText(body.department) || null : undefined;
+  if (department && (await departmentTaken(scoped.parent_client_id ?? scoped.id, department, scoped.id))) {
+    return NextResponse.json({ error: "That department already exists for this company" }, { status: 409 });
+  }
+
+  if (crNo && !isDepartment) {
     const duplicateCr = await prisma.client.findFirst({
       where: { cr_no: crNo, id: { not: Number(id) } },
       select: { id: true },
@@ -112,11 +119,12 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
           contact_person_designation:
             body.contact_person_designation !== undefined ? cleanText(body.contact_person_designation) || null : undefined,
           mail_id: body.mail_id ?? undefined,
-          cr_no: body.cr_no !== undefined ? crNo ?? null : undefined,
-          cr_expiry_date: crExpiry.value,
+          cr_no: body.cr_no !== undefined && !isDepartment ? crNo ?? null : undefined,
+          cr_expiry_date: isDepartment ? undefined : crExpiry.value,
           contact_no: body.contact_no !== undefined ? cleanText(body.contact_no) : undefined,
           status: body.status ?? undefined,
           category: body.category ?? undefined,
+          department,
           notes: body.notes !== undefined ? body.notes : undefined,
           location_coordinates: body.location_coordinates !== undefined ? body.location_coordinates : undefined,
         },

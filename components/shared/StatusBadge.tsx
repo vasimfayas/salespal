@@ -24,7 +24,9 @@ const dotClasses: Record<StatusTone, string> = {
 /** One place that decides which tone a status value gets. */
 const STATUS_TONES: Record<string, StatusTone> = {
   // Enquiry stages
+  sent_to_client: "info",
   inquiry_received: "neutral",
+  with_agent: "warning",
   quoted: "info",
   negotiation: "warning",
   offer_revised: "primary",

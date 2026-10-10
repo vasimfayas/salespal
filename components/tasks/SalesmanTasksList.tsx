@@ -5,26 +5,14 @@ import { Pagination } from "@/components/ui/Pagination";
 import { useDebouncedParam, useUrlFilters } from "@/hooks/useUrlFilters";
 import type { TasksPage, TaskView } from "@/lib/tasks-list";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
-import {
-  Plus,
-  Calendar,
-  X,
-  Loader2,
-  ListTodo,
-  MessageSquareText,
-  Package,
-  Search,
-  UserPlus,
-  Wallet
-} from "lucide-react";
+import { Plus, X, Loader2, Search } from "lucide-react";
 import { TaskActions, TaskStatusPill, isGuidedTask } from "@/components/tasks/TaskActions";
-import { enquiryRef } from "@/types/enquiry";
+import { ClientChip, DueDate, KindBadge, StatusSelect, hasInlineActions } from "@/components/tasks/TaskRowParts";
 import { Modal } from "@/components/ui/Modal";
 import { Input } from "@/components/ui/Input";
 import { Toast } from "@/components/ui/Toast";
-import { cn, formatDate, titleCase } from "@/lib/utils";
-import { taskKindLabels, taskStatuses, type TaskKind } from "@/types/task";
+import { cn } from "@/lib/utils";
+import type { TaskKind } from "@/types/task";
 
 import { buttonVariants } from "@/components/ui/Button";
 type Task = {
@@ -65,112 +53,16 @@ const EMPTY_MESSAGES: Record<TaskView, string> = {
   completed: "No completed tasks.",
 };
 
-const KIND_BADGE: Record<TaskKind, { icon: typeof ListTodo; className: string }> = {
-  general: { icon: ListTodo, className: "bg-muted text-muted-foreground" },
-  lead_follow_up: { icon: UserPlus, className: "bg-success-soft text-success-foreground" },
-  enquiry_follow_up: { icon: MessageSquareText, className: "bg-warning-soft text-warning-foreground" },
-  order_follow_up: { icon: Package, className: "bg-info-soft text-info-foreground" },
-  payment_follow_up: { icon: Wallet, className: "bg-primary-soft text-primary-soft-foreground" },
-};
-
 interface SalesmanTasksListProps {
   /** One server-sorted page of the salesman's tasks (created by them or assigned to them). */
   data: TasksPage;
   currentUserId: number;
 }
 
-const STATUS_SELECT_COLORS: Record<string, string> = {
-  pending: "bg-muted text-foreground",
-  in_process: "bg-info-soft text-info-foreground",
-  achieved: "bg-success-soft text-success-foreground",
-  unsuccessful: "bg-danger-soft text-danger-foreground",
-};
-
-const isOpen = (status: string) => status === "pending" || status === "in_process";
-
 function assignedByLabel(task: Task, currentUserId: number) {
   if (task.enquiry) return "Auto follow-up";
   if (task.kind === "lead_follow_up" && task.created_by_id !== currentUserId && task.createdBy?.name) return `${task.createdBy.name} (lead)`;
   return task.created_by_id === currentUserId || !task.createdBy?.name ? "You" : (task.createdBy.name ?? "You");
-}
-
-function KindBadge({ task }: { task: Task }) {
-  const kind = task.kind ?? (task.enquiry ? "enquiry_follow_up" : "general");
-  const badge = KIND_BADGE[kind];
-  const Icon = badge.icon;
-  return (
-    <span className={cn("inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-medium", badge.className)}>
-      <Icon size={11} aria-hidden />
-      {task.enquiry ? `${taskKindLabels[kind]} · ${enquiryRef(task.enquiry.id, task.enquiry.prefix)}` : taskKindLabels[kind]}
-    </span>
-  );
-}
-
-/** Red within 2 days (or overdue), amber within a week — only while the task is still open. */
-function DueDate({ task, now }: { task: Task; now: number }) {
-  const days = Math.ceil((new Date(task.due_date).getTime() - now) / (1000 * 60 * 60 * 24));
-  const tone = !isOpen(task.status)
-    ? "text-muted-foreground"
-    : days <= 2
-      ? "font-medium text-danger-foreground"
-      : days <= 7
-        ? "font-medium text-warning-foreground"
-        : "text-foreground";
-  return (
-    <span className={cn("inline-flex items-center gap-1.5 whitespace-nowrap tabular-nums", tone)}>
-      <Calendar size={13} className="shrink-0 opacity-70" aria-hidden />
-      {formatDate(task.due_date)}
-    </span>
-  );
-}
-
-function StatusSelect({
-  task,
-  updating,
-  onChange,
-}: {
-  task: Task;
-  updating: boolean;
-  onChange: (taskId: number, newStatus: string, isClientTask?: boolean, clientId?: number) => void;
-}) {
-  return (
-    <div className="relative inline-flex items-center gap-1.5">
-      <select
-        value={task.status}
-        onChange={(e) => onChange(task.id, e.target.value, task.isClientTask, task.clientId ?? undefined)}
-        disabled={updating}
-        aria-label={`Update status for ${task.description}`}
-        className={cn(
-          "cursor-pointer appearance-none rounded-full py-1 pl-2.5 pr-7 text-xs font-medium outline-none transition focus-visible:ring-2 focus-visible:ring-primary/30 disabled:cursor-wait disabled:opacity-60",
-          STATUS_SELECT_COLORS[task.status] ?? STATUS_SELECT_COLORS.pending,
-        )}
-        style={{
-          backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")`,
-          backgroundRepeat: "no-repeat",
-          backgroundPosition: "right 0.5rem center",
-        }}
-      >
-        {taskStatuses.map((status) => (
-          <option key={status} value={status}>
-            {titleCase(status)}
-          </option>
-        ))}
-      </select>
-      {updating && <Loader2 size={14} className="animate-spin text-muted-foreground" aria-label="Saving" />}
-    </div>
-  );
-}
-
-/** Client the task is about, linked to its page. */
-function ClientChip({ task }: { task: Task }) {
-  if (!task.clientName) return null;
-  return task.clientId ? (
-    <Link href={`/dashboard/salesman/clients/${task.clientId}`} className="truncate text-xs font-medium text-muted-foreground hover:text-primary hover:underline">
-      · {task.clientName}
-    </Link>
-  ) : (
-    <span className="truncate text-xs font-medium text-muted-foreground">· {task.clientName}</span>
-  );
 }
 
 export function SalesmanTasksList({ data, currentUserId }: SalesmanTasksListProps) {
@@ -386,16 +278,16 @@ export function SalesmanTasksList({ data, currentUserId }: SalesmanTasksListProp
                     <th scope="col" className="hidden w-[16%] px-4 py-3 font-medium lg:table-cell">Assigned by</th>
                     <th scope="col" className="w-[130px] px-4 py-3 font-medium">Due</th>
                     <th scope="col" className="w-[130px] px-4 py-3 font-medium">Status</th>
-                    <th scope="col" className="w-[340px] px-4 py-3 text-right font-medium"><span className="sr-only">Actions</span></th>
+                    <th scope="col" className={cn("px-4 py-3 text-right font-medium", hasInlineActions(localTasks) ? "w-[340px]" : "w-[110px]")}><span className="sr-only">Actions</span></th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
                   {combinedTasks.map(({ id, data: task }) => (
-                    <tr key={id} className="align-top transition-colors hover:bg-subtle">
+                    <tr key={id} className="align-middle transition-colors hover:bg-subtle">
                       <td className="px-4 py-3">
                         <div className="flex flex-wrap items-center gap-1.5">
                           <KindBadge task={task} />
-                          <ClientChip task={task} />
+                          <ClientChip task={task} clientsPath="/dashboard/salesman/clients" />
                         </div>
                         <p className="mt-1 line-clamp-2 text-foreground" title={task.description}>{task.description}</p>
                       </td>
@@ -409,7 +301,7 @@ export function SalesmanTasksList({ data, currentUserId }: SalesmanTasksListProp
                         {isGuidedTask(task) ? (
                           <TaskStatusPill task={task} />
                         ) : (
-                          <StatusSelect task={task} updating={updatingTaskId === task.id} onChange={handleStatusChange} />
+                          <StatusSelect task={task} updating={updatingTaskId === task.id} onChange={(status) => handleStatusChange(task.id, status, task.isClientTask, task.clientId ?? undefined)} />
                         )}
                       </td>
                       <td className="px-4 py-3 text-right">
@@ -427,12 +319,12 @@ export function SalesmanTasksList({ data, currentUserId }: SalesmanTasksListProp
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex min-w-0 flex-wrap items-center gap-1.5">
                       <KindBadge task={task} />
-                      <ClientChip task={task} />
+                      <ClientChip task={task} clientsPath="/dashboard/salesman/clients" />
                     </div>
                     {isGuidedTask(task) ? (
                       <TaskStatusPill task={task} />
                     ) : (
-                      <StatusSelect task={task} updating={updatingTaskId === task.id} onChange={handleStatusChange} />
+                      <StatusSelect task={task} updating={updatingTaskId === task.id} onChange={(status) => handleStatusChange(task.id, status, task.isClientTask, task.clientId ?? undefined)} />
                     )}
                   </div>
                   <p className="text-sm text-foreground">{task.description}</p>

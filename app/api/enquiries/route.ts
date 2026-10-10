@@ -1,10 +1,9 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { getToken } from "next-auth/jwt";
 import { prisma } from "@/lib/prisma";
-import { clientScopeWhere, getTokenUserId, isRole } from "@/lib/scoping";
-import { BLACKLISTED_ERROR, applyClientStatus, revalidateClientViews, statusAfterEnquiry } from "@/lib/client-status-flow";
-import { CONTACT_FIELD_LABELS, missingContactFields } from "@/lib/client-contact";
-import { getEnquiriesPage, revalidateEnquiryPages } from "@/lib/enquiries";
+import { getTokenUserId, isRole } from "@/lib/scoping";
+import { applyClientStatus, revalidateClientViews } from "@/lib/client-status-flow";
+import { getEnquiriesPage, resolveEnquiryClient, revalidateEnquiryPages } from "@/lib/enquiries";
 import { enquiryDetailsData, parseEnquiryDetails } from "@/lib/enquiry-fields";
 
 export async function GET(request: NextRequest) {
@@ -41,28 +40,15 @@ export async function POST(request: NextRequest) {
     if (blank(body.provisional_profit) || !Number.isFinite(profit)) return NextResponse.json({ error: "Enter both cost and profit, or leave both empty" }, { status: 400 });
   }
 
-  const client = await prisma.client.findFirst({
-    where: { AND: [{ id: clientId }, await clientScopeWhere(token)] },
-    select: { id: true, status: true, assigned_salesman_id: true, contact_person_name: true, contact_no: true, contact_person_designation: true },
-  });
-  if (!client) return NextResponse.json({ error: "Client not found" }, { status: 404 });
-  if (client.status === "blacklisted") return NextResponse.json({ error: BLACKLISTED_ERROR }, { status: 403 });
-
-  // Raising an enquiry moves the client to "enquiry" (or back to "onboarded" if dormant).
-  // Past Lead a client needs contact details, so ask for them first.
-  const nextStatus = statusAfterEnquiry(client.status);
-  const missing = nextStatus ? missingContactFields(client) : [];
-  if (missing.length) {
-    return NextResponse.json(
-      { error: `Add the client's ${missing.map((k) => CONTACT_FIELD_LABELS[k].toLowerCase()).join(", ")} before raising an enquiry`, code: "CONTACT_REQUIRED", missing },
-      { status: 422 }
-    );
-  }
+  const resolved = await resolveEnquiryClient(token, clientId, body.org_id);
+  if ("error" in resolved) return NextResponse.json({ error: resolved.error, ...("extra" in resolved ? resolved.extra : {}) }, { status: resolved.status });
+  const { client, orgId, nextStatus } = resolved;
 
   const enquiry = await prisma.$transaction(async (tx) => {
     const created = await tx.enquiry.create({
       data: {
         client_id: clientId,
+        org_id: orgId,
         ...enquiryDetailsData(details.data),
         provisional_cost: cost,
         provisional_profit: profit,

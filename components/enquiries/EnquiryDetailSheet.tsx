@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { CopyLinkButton } from "@/components/enquiries/SendToClientDialog";
 import { ArrowRight, ExternalLink, MessageSquareText, Pencil } from "lucide-react";
 import { EnquiryStageActions } from "@/components/enquiries/EnquiryStageActions";
 import { EnquiryPdfButton } from "@/components/enquiries/EnquiryPdfButton";
@@ -62,7 +63,8 @@ export function EnquiryDetailSheet({
   const quoted = e ? e.provisional_cost !== null : false;
   const showFollowUp = e ? (canFollowUp && active) || e.follow_ups.length > 0 : false;
   const latest = e?.follow_ups[0];
-  const canEdit = !!onEdit && !!e && e.status !== "confirmed";
+  const canEdit = !!onEdit && !!e && e.status !== "confirmed" && e.status !== "sent_to_client";
+  const awaitingClient = e?.status === "sent_to_client";
 
   return (
     <Sheet open={!!e} onOpenChange={(open) => !open && onClose()}>
@@ -80,11 +82,15 @@ export function EnquiryDetailSheet({
                   {e.client_name}
                   <PremiumBadge category={e.client_category} />
                 </p>
-                <p className="mt-1 flex flex-wrap items-center gap-1.5 text-sm text-muted-foreground">
-                  <span className="font-medium uppercase">{e.mode}</span>
-                  <span aria-hidden>·</span>
-                  {e.from} <ArrowRight size={13} aria-label="to" /> {e.to}
-                </p>
+                {awaitingClient ? (
+                  <p className="mt-1 text-sm italic text-muted-foreground">Waiting for the client to fill in the form</p>
+                ) : (
+                  <p className="mt-1 flex flex-wrap items-center gap-1.5 text-sm text-muted-foreground">
+                    <span className="font-medium uppercase">{e.mode}</span>
+                    <span aria-hidden>·</span>
+                    {e.from} <ArrowRight size={13} aria-label="to" /> {e.to}
+                  </p>
+                )}
               </div>
               {active && (
                 <p className={cn("text-xs", e.follow_up_due ? "font-medium text-warning-foreground" : "text-muted-foreground")}>
@@ -95,6 +101,54 @@ export function EnquiryDetailSheet({
 
             {/* Body */}
             <div className="flex-1 space-y-6 overflow-y-auto px-6 py-5">
+              {awaitingClient && e.client_form && (
+                <Section title="Client form">
+                  <div className="space-y-3 rounded-control border border-info/30 bg-info-soft p-3 text-sm text-info-foreground">
+                    <p>
+                      Sent{e.client_form.email ? ` to ${e.client_form.email}` : ""}
+                      {e.client_form.sent_at ? ` on ${formatDate(e.client_form.sent_at)}` : ""}. The details fill in when the client submits it.
+                    </p>
+                    <CopyLinkButton url={typeof window === "undefined" ? e.client_form.path : new URL(e.client_form.path, window.location.origin).toString()} />
+                  </div>
+                </Section>
+              )}
+              {e.agent_requests.length > 0 && (
+                <Section title="Agent rates">
+                  <ul className="space-y-2">
+                    {e.agent_requests.map((r) => (
+                      <li key={r.id} className="rounded-control border border-border p-3 text-sm">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="font-medium text-foreground">{r.agent}</p>
+                            <p className="text-xs text-muted-foreground">Sent {formatDate(r.sent_at)}{r.replied_at ? ` · replied ${formatDate(r.replied_at)}` : ""}</p>
+                          </div>
+                          {r.cost !== null ? (
+                            <span className="shrink-0 font-semibold tabular-nums text-foreground">{formatAmount(r.cost)}</span>
+                          ) : (
+                            <span className="shrink-0 rounded-full bg-warning-soft px-2 py-0.5 text-xs font-medium text-warning-foreground">Waiting</span>
+                          )}
+                        </div>
+                        {r.notes && <p className="mt-2 whitespace-pre-line text-xs text-muted-foreground">{r.notes}</p>}
+                        {r.cost === null && (
+                          <div className="mt-2">
+                            <CopyLinkButton url={typeof window === "undefined" ? r.path : new URL(r.path, window.location.origin).toString()} />
+                          </div>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                </Section>
+              )}
+              {e.client_signature && (
+                <Section title="Signed by the client">
+                  <div className="rounded-control border border-border p-3">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={e.client_signature.url} alt={`Signature of ${e.client_signature.name}`} className="h-20 w-auto max-w-full bg-white object-contain" />
+                    <p className="mt-2 text-sm text-foreground">{e.client_signature.name}</p>
+                    <p className="text-xs text-muted-foreground">{formatDate(e.client_signature.at)}</p>
+                  </div>
+                </Section>
+              )}
               <Section title="Commercial">
                 {!quoted ? (
                   <p className="rounded-control border border-dashed border-border p-3 text-sm text-muted-foreground">Not quoted yet.</p>
@@ -261,6 +315,10 @@ export function EnquiryDetailSheet({
 }
 
 const EVENT_TEXT: Record<string, string> = {
+  sent_to_client: "Form sent to client",
+  client_submitted: "Client filled in and signed the form",
+  sent_to_agent: "Sent to agent for a rate",
+  agent_replied: "Agent replied with a cost",
   inquiry_received: "Inquiry received",
   quoted: "Quoted",
   negotiation: "Moved to on negotiations",

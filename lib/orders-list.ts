@@ -1,11 +1,13 @@
 import type { Prisma } from "@prisma/client";
+import { clientLabel } from "@/types/client";
 import { prisma } from "@/lib/prisma";
 import { orderPaymentsInclude, serializeOrder } from "@/lib/order-serialize";
 import { literal, pageParam, paging, param, PAGE_SIZE, type Paged, type SearchParams } from "@/lib/list-params";
 import { VOID_ORDER_STATUSES, orderStatuses } from "@/types/order";
 
 const orderListInclude = {
-  client: { select: { id: true, name: true, organization: { select: { prefix: true } } } },
+  client: { select: { id: true, name: true, department: true } },
+  organization: { select: { prefix: true } },
   createdBy: { select: { name: true } },
   enquiry: { select: { provisional_cost: true, provisional_profit: true, actual_cost: true, actual_profit: true, credit_days: true } },
   ...orderPaymentsInclude,
@@ -18,6 +20,8 @@ function toOrderRow(order: OrderWithList) {
   const { enquiry, ...rest } = serializeOrder(order);
   return {
     ...rest,
+    // Departments of one company show as "Company · Department" so their orders can be told apart.
+    client: { ...rest.client, name: clientLabel(rest.client) },
     quote: enquiry
       ? {
           cost: enquiry.provisional_cost?.toNumber() ?? null,
@@ -37,6 +41,7 @@ function orderSearchWhere(q: string | undefined): Prisma.OrderWhereInput {
   if (!q) return {};
   const or: Prisma.OrderWhereInput[] = [
     { client: { name: { contains: literal(q), mode: "insensitive" } } },
+    { client: { department: { contains: literal(q), mode: "insensitive" } } },
     { createdBy: { name: { contains: literal(q), mode: "insensitive" } } },
     { job_no: { contains: literal(q), mode: "insensitive" } },
     { from: { contains: literal(q), mode: "insensitive" } },

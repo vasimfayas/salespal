@@ -24,8 +24,9 @@ import {
 import { CompanyFormModal, type CompanyFormValues } from "@/components/companies/CompanyFormModal";
 import { CompanyAccountantsPanel } from "@/components/companies/CompanyAccountantsPanel";
 import { CompanyDocumentsPanel } from "@/components/companies/CompanyDocumentsPanel";
+import { CompanyLogoEditor } from "@/components/companies/CompanyLogo";
 import { EmptyState } from "@/components/ui/EmptyState";
-import type { CompanyDocumentItem } from "@/types/company";
+import { companyLogoUrl, type CompanyDocumentItem } from "@/types/company";
 import {
   assignManagerToOrg,
   removeManagerFromOrg,
@@ -46,6 +47,7 @@ interface Org {
   email: string | null;
   prefix: string | null;
   export_office_no: string | null;
+  logo_path: string | null;
   /** Client counts by status, and the total, for this company. */
   clientStatusCounts: Record<string, number>;
   clientTotal: number;
@@ -460,9 +462,7 @@ export function CompaniesClient({
               {/* Company header: name, contact details, headline numbers */}
               <div className="p-6 flex flex-col md:flex-row md:items-center md:justify-between gap-6 shrink-0 border-b border-border">
                 <div className="flex items-start gap-3 min-w-0">
-                  <span className="flex size-10 shrink-0 items-center justify-center rounded-control bg-primary-soft text-primary-soft-foreground">
-                    <Building className="size-5" aria-hidden />
-                  </span>
+                  <CompanyLogoEditor orgId={company.id} name={company.name} url={companyLogoUrl(company)} />
                   <div className="min-w-0 space-y-1.5">
                     <div className="flex items-center gap-1.5">
                       <h2 className="text-xl font-semibold tracking-tight text-foreground">{company.name}</h2>
