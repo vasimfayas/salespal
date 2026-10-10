@@ -10,6 +10,8 @@ import { cn, formatDate, formatPhoneNumber } from "@/lib/utils";
 import { RotateCcw, Search, ChevronDown, Navigation, Building, User, Mail, Calendar, X } from "lucide-react";
 
 import { buttonVariants } from "@/components/ui/Button";
+import { clientCategories, clientCategoryLabels } from "@/types/client";
+import { PremiumToggle } from "@/components/clients/ClientCategory";
 type Client = {
   id: number;
   name: string;
@@ -20,6 +22,7 @@ type Client = {
   location_coordinates: string | null;
   mail_id: string | null;
   status: string;
+  category?: string;
   notes: string | null;
   created_at: Date | string;
   org_id: number;
@@ -65,6 +68,7 @@ export function ClientTable({
 }) {
   const { get, set, reset, isPending } = useUrlFilters();
   const statusFilter = get("status", "all");
+  const categoryFilter = get("category", "all");
   const companyFilter = get("company", "all");
   const managerFilter = get("manager", "all");
   const dateFilterRange = get("date", "all");
@@ -79,7 +83,7 @@ export function ClientTable({
   }
 
   const hasActiveFilters =
-    searchQuery !== "" || statusFilter !== "all" || companyFilter !== "all" || managerFilter !== "all" || dateFilterRange !== "all";
+    searchQuery !== "" || statusFilter !== "all" || categoryFilter !== "all" || companyFilter !== "all" || managerFilter !== "all" || dateFilterRange !== "all";
 
   return (
     <div className="space-y-4">
@@ -162,6 +166,24 @@ export function ClientTable({
               <option value="all">All Statuses</option>
               {clientStatuses.map((st) => (
                 <option key={st} value={st}>{clientStatusLabels[st]}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Category Filter */}
+          <div className="flex flex-col gap-1.5 min-w-[140px]">
+            <label className="text-xs font-semibold text-muted-foreground" htmlFor="category-filter">
+              Category
+            </label>
+            <select
+              id="category-filter"
+              value={categoryFilter}
+              onChange={(e) => set({ category: e.target.value })}
+              className="w-full rounded-control border border-input bg-card px-3 text-sm text-foreground shadow-xs outline-none transition-[border-color,box-shadow] duration-150 placeholder:text-muted-foreground/70 hover:border-border-strong focus:border-ring focus:ring-3 focus:ring-ring/15 disabled:cursor-not-allowed disabled:bg-muted disabled:opacity-70 h-10 cursor-pointer"
+            >
+              <option value="all">All Categories</option>
+              {clientCategories.map((c) => (
+                <option key={c} value={c}>{clientCategoryLabels[c]}</option>
               ))}
             </select>
           </div>
@@ -257,7 +279,12 @@ export function ClientTable({
                         </div>
                       </td>
                       <td className="px-4 py-3 font-semibold text-foreground">
-                        {client.name}
+                        <span className="inline-flex items-center gap-1">
+                          {client.name}
+                          <span onClick={(e) => e.stopPropagation()}>
+                            <PremiumToggle clientId={client.id} clientName={client.name} category={client.category} />
+                          </span>
+                        </span>
                         {client.contact_person_name && (
                           <span className="block text-[10px] text-muted-foreground/80 font-medium mt-0.5">
                             Attn: {client.contact_person_name}

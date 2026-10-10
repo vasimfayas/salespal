@@ -7,8 +7,12 @@ import {
   cargoTotals,
   dimensionUnitLabels,
   dimensionUnits,
+  fromKg,
   lineCbm,
   MAX_PACKAGE_LINES,
+  toKg,
+  weightUnits,
+  type WeightUnit,
   volumetricRuleLabels,
   type CargoPackage,
   type DimensionUnit,
@@ -54,6 +58,8 @@ export function CargoDimensionsField({
   onLinesChange,
   actualWeight,
   onActualWeightChange,
+  weightUnit = "kg",
+  onWeightUnitChange,
   stackable,
   onStackableChange,
   bare = false,
@@ -63,15 +69,21 @@ export function CargoDimensionsField({
   onUnitChange: (unit: DimensionUnit) => void;
   lines: PackageLineInput[];
   onLinesChange: (lines: PackageLineInput[]) => void;
+  /** As typed, in `weightUnit`. */
   actualWeight: string;
   onActualWeightChange: (value: string) => void;
+  weightUnit?: WeightUnit;
+  onWeightUnitChange?: (unit: WeightUnit) => void;
   /** "" = not specified (older enquiries). */
   stackable: "" | "true" | "false";
   onStackableChange: (value: "true" | "false") => void;
   /** No box of its own (when a form section already groups it). */
   bare?: boolean;
 }) {
-  const actual = actualWeight === "" || !(Number(actualWeight) >= 0) ? null : Number(actualWeight);
+  // Typed weight converted to kg: all weight comparisons (chargeable weight) are done in kg.
+  const actual = actualWeight === "" || !(Number(actualWeight) >= 0) ? null : toKg(Number(actualWeight), weightUnit);
+  const otherUnit: WeightUnit = weightUnit === "kg" ? "lb" : "kg";
+  const converted = actual === null ? null : Math.round(fromKg(actual, otherUnit) * 10) / 10;
   const totals = cargoTotals(validLines(lines), unit, mode, actual);
   const update = (i: number, patch: Partial<PackageLineInput>) => onLinesChange(lines.map((l, j) => (j === i ? { ...l, ...patch } : l)));
   const remove = (i: number) => onLinesChange(lines.length === 1 ? [emptyPackageLine()] : lines.filter((_, j) => j !== i));
@@ -167,20 +179,36 @@ export function CargoDimensionsField({
       </div>
 
       <div className="flex flex-wrap items-end gap-x-6 gap-y-3">
-      <label htmlFor="enq-actual-weight" className="block text-sm font-medium text-foreground/85">
-        <span className="mb-1 block">Actual gross weight, kg (total)</span>
-        <input
-          id="enq-actual-weight"
-          type="number"
-          min="0"
-          step="0.001"
-          inputMode="decimal"
-          value={actualWeight}
-          onChange={(e) => onActualWeightChange(e.target.value)}
-          placeholder="e.g. 1250"
-          className={cn(cellClass, "h-10 px-3 sm:w-56")}
-        />
-      </label>
+      <div>
+        <label htmlFor="enq-actual-weight" className="mb-1 block text-sm font-medium text-foreground/85">
+          Actual gross weight (total)
+        </label>
+        <div className="flex items-center gap-2">
+          <input
+            id="enq-actual-weight"
+            type="number"
+            min="0"
+            step="0.001"
+            inputMode="decimal"
+            value={actualWeight}
+            onChange={(e) => onActualWeightChange(e.target.value)}
+            placeholder={weightUnit === "lb" ? "e.g. 2750" : "e.g. 1250"}
+            aria-describedby="enq-weight-converted"
+            className={cn(cellClass, "h-10 w-36 px-3")}
+          />
+          {onWeightUnitChange && (
+            <SegmentedControl
+              label="Weight unit"
+              value={weightUnit}
+              onChange={onWeightUnitChange}
+              options={weightUnits.map((u) => ({ value: u, label: u }))}
+            />
+          )}
+        </div>
+        <p id="enq-weight-converted" className="mt-1 h-4 text-xs tabular-nums text-muted-foreground" aria-live="polite">
+          {converted !== null && `= ${formatQuantity(converted)} ${otherUnit}`}
+        </p>
+      </div>
 
       <div>
         <span id="enq-stackable-label" className="mb-1 block text-sm font-medium text-foreground/85">Stacking</span>

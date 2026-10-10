@@ -20,7 +20,7 @@ export async function enquiryScopeWhere(token: ScopedToken): Promise<Prisma.Enqu
 }
 
 const enquiryListInclude = {
-  client: { select: { name: true } },
+  client: { select: { name: true, category: true } },
   createdBy: { select: { name: true } },
   order: { select: { id: true, job_no: true, status: true } },
   events: { include: { createdBy: { select: { name: true } } }, orderBy: { created_at: "desc" } },
@@ -39,6 +39,7 @@ function toListItem(e: EnquiryWithList): EnquiryListItem {
     ref: enquiryRef(e.id),
     client_id: e.client_id,
     client_name: e.client.name,
+    client_category: e.client.category,
     enquiry_date: e.enquiry_date.toISOString().slice(0, 10),
     mode: e.mode,
     from: e.from,
@@ -54,6 +55,7 @@ function toListItem(e: EnquiryWithList): EnquiryListItem {
     packages: readPackages(e.packages),
     dimension_unit: e.dimension_unit ?? DEFAULT_DIMENSION_UNIT,
     actual_weight: e.actual_weight?.toNumber() ?? null,
+    weight_unit: e.weight_unit ?? "kg",
     stackable: e.stackable,
     chargeable_weight: e.chargeable_weight?.toNumber() ?? null,
     cbm: e.cbm?.toNumber() ?? null,

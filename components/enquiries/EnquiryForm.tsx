@@ -9,7 +9,15 @@ import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { Switch } from "@/components/ui/Switch";
 import { Textarea } from "@/components/ui/Textarea";
-import { DEFAULT_DIMENSION_UNIT, isDimensionUnit, type DimensionUnit } from "@/lib/freight";
+import {
+  DEFAULT_DIMENSION_UNIT,
+  DEFAULT_WEIGHT_UNIT,
+  fromKg,
+  isDimensionUnit,
+  isWeightUnit,
+  type DimensionUnit,
+  type WeightUnit,
+} from "@/lib/freight";
 import { cn, formatAmount } from "@/lib/utils";
 import {
   enquiryPaymentModes,
@@ -55,6 +63,7 @@ export const emptyEnquiryForm = () => ({
   packages: [emptyPackageLine()] as PackageLineInput[],
   dimension_unit: DEFAULT_DIMENSION_UNIT as DimensionUnit,
   actual_weight: "",
+  weight_unit: DEFAULT_WEIGHT_UNIT as WeightUnit,
   stackable: "true" as "" | "true" | "false",
   service_type: "",
   reefer_temp: "",
@@ -85,7 +94,9 @@ export const enquiryFormFrom = (e: EnquiryListItem): EnquiryFormState => ({
     ? e.packages.map((p) => ({ length: String(p.length), width: String(p.width), height: String(p.height), qty: String(p.qty) }))
     : [emptyPackageLine()],
   dimension_unit: isDimensionUnit(e.dimension_unit) ? e.dimension_unit : DEFAULT_DIMENSION_UNIT,
-  actual_weight: e.actual_weight === null ? "" : String(e.actual_weight),
+  // Stored in kg; shown back in the unit it was entered in.
+  actual_weight: e.actual_weight === null ? "" : String(Math.round(fromKg(e.actual_weight, isWeightUnit(e.weight_unit) ? e.weight_unit : "kg") * 100) / 100),
+  weight_unit: isWeightUnit(e.weight_unit) ? e.weight_unit : DEFAULT_WEIGHT_UNIT,
   stackable: (e.stackable === null ? "" : String(e.stackable)) as "" | "true" | "false",
   service_type: e.service_type ?? "",
   reefer_temp: e.reefer_temp === null ? "" : String(e.reefer_temp),
@@ -424,6 +435,8 @@ export function EnquiryForm({
             onLinesChange={(packages) => patch({ packages })}
             actualWeight={form.actual_weight}
             onActualWeightChange={(actual_weight) => patch({ actual_weight })}
+            weightUnit={form.weight_unit}
+            onWeightUnitChange={(weight_unit) => patch({ weight_unit })}
             stackable={form.stackable}
             onStackableChange={(stackable) => patch({ stackable })}
           />

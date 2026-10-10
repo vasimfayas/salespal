@@ -203,6 +203,8 @@ export type EnquiryListItem = {
   ref: string;
   client_id: number;
   client_name: string;
+  /** standard | premium */
+  client_category: string;
   enquiry_date: string; // YYYY-MM-DD
   mode: string;
   from: string;
@@ -220,8 +222,10 @@ export type EnquiryListItem = {
   /** Packing list in dimension_unit; empty when none given. */
   packages: CargoPackage[];
   dimension_unit: string;
-  /** kg, as declared. */
+  /** kg, as declared (always stored in kg). */
   actual_weight: number | null;
+  /** Unit the weight was entered in: kg | lb. */
+  weight_unit: string;
   /** true stackable, false non-stackable, null not specified. */
   stackable: boolean | null;
   /** kg: the higher of actual and volumetric weight. */

@@ -25,6 +25,8 @@ import { ContactDetailsDialog, type ContactPromptTarget } from "@/components/cli
 import { missingContactFields, statusRequiresContact } from "@/lib/client-contact";
 
 import { buttonVariants } from "@/components/ui/Button";
+import { clientCategories, clientCategoryLabels } from "@/types/client";
+import { PremiumToggle } from "@/components/clients/ClientCategory";
 type Client = {
   id: number;
   name: string;
@@ -36,6 +38,7 @@ type Client = {
   location_coordinates: string | null;
   mail_id: string | null;
   status: string;
+  category?: string;
   notes: string | null;
   created_at: Date | string;
   assigned_salesman_id: number;
@@ -136,6 +139,7 @@ export function ManagerClientsList({
   const { get, set, reset, isPending: isNavigating } = useUrlFilters();
   const [searchQuery, setSearchQuery] = useDebouncedParam("q", set, get("q"));
   const statusFilter = get("status", "all");
+  const categoryFilter = get("category", "all");
   const salesmanFilter = get("salesman", "all");
   const dateFilterRange = get("date", "all");
   const customDate = get("day");
@@ -289,7 +293,7 @@ export function ManagerClientsList({
   }
 
   const hasActiveFilters =
-    searchQuery !== "" || statusFilter !== "all" || salesmanFilter !== "all" || dateFilterRange !== "all";
+    searchQuery !== "" || statusFilter !== "all" || categoryFilter !== "all" || salesmanFilter !== "all" || dateFilterRange !== "all";
 
   return (
     <div className="space-y-4">
@@ -385,6 +389,24 @@ export function ManagerClientsList({
               <option value="all">All Statuses</option>
               {clientStatuses.map((st) => (
                 <option key={st} value={st}>{clientStatusLabels[st]}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Category Filter */}
+          <div className="flex flex-col gap-1.5 min-w-[140px]">
+            <label className="text-xs font-semibold text-muted-foreground" htmlFor="category-filter">
+              Category
+            </label>
+            <select
+              id="category-filter"
+              value={categoryFilter}
+              onChange={(e) => set({ category: e.target.value })}
+              className="w-full rounded-control border border-input bg-card px-3 text-sm text-foreground shadow-xs outline-none transition-[border-color,box-shadow] duration-150 placeholder:text-muted-foreground/70 hover:border-border-strong focus:border-ring focus:ring-3 focus:ring-ring/15 disabled:cursor-not-allowed disabled:bg-muted disabled:opacity-70 h-10 cursor-pointer"
+            >
+              <option value="all">All Categories</option>
+              {clientCategories.map((c) => (
+                <option key={c} value={c}>{clientCategoryLabels[c]}</option>
               ))}
             </select>
           </div>
@@ -569,13 +591,16 @@ export function ManagerClientsList({
                         </div>
                       </td>
                       <td className="px-4 py-3">
-                        <Link
-                          href={`/dashboard/manager/clients/${client.id}`}
-                          onClick={(e) => e.stopPropagation()}
-                          className="font-semibold text-foreground hover:text-primary transition"
-                        >
-                          {client.name}
-                        </Link>
+                        <span className="flex items-center gap-1">
+                          <Link
+                            href={`/dashboard/manager/clients/${client.id}`}
+                            onClick={(e) => e.stopPropagation()}
+                            className="font-semibold text-foreground hover:text-primary transition"
+                          >
+                            {client.name}
+                          </Link>
+                          <PremiumToggle clientId={client.id} clientName={client.name} category={client.category} />
+                        </span>
                       </td>
                       <td className="px-4 py-3 font-semibold text-foreground">
                         {formatPhoneNumber(client.contact_no)}

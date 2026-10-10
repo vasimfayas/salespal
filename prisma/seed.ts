@@ -229,6 +229,7 @@ async function main() {
       org_id: link.org_id,
       notes: chance(0.1) ? pick(["High value logistics opportunity.", "Prefers WhatsApp contact.", "Seasonal shipments in Q4.", "Asked for monthly rate card."]) : null,
       status: weighted([["lead", 13], ["contacted", 12], ["follow_up", 36], ["dormant", 18], ["lost", 21]] as const) as string,
+      category: chance(0.05) ? "premium" : "standard",
       created_at: createdAt,
     };
   });
@@ -337,6 +338,7 @@ async function main() {
       packages: packages.length ? packages : Prisma.DbNull,
       dimension_unit: unit,
       actual_weight: actualWeight,
+      weight_unit: chance(0.15) ? "lb" : "kg", // stored in kg either way; lb only changes how it's shown
       stackable: hasDims ? chance(0.8) : null,
       chargeable_weight: totals.chargeableWeight,
       cbm: totals.cbm,

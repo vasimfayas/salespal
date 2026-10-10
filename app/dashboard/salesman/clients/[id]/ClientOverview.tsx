@@ -26,10 +26,12 @@ import { statusRequiresContact } from "@/lib/client-contact";
 import { ClientSwitcher } from "@/components/clients/ClientSwitcher";
 
 import { buttonVariants } from "@/components/ui/Button";
+import { PremiumBadge, PremiumToggle } from "@/components/clients/ClientCategory";
 // Definition of types
 type Client = {
   id: number;
   name: string;
+  category?: string;
   contact_person_name: string;
   contact_no: string;
   contact_person_designation?: string | null;
@@ -326,9 +328,15 @@ export function ClientOverview({ client: initialClient, initialTasks, backLink, 
       {/* Header section */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-border pb-5">
         <div>
-          <h1 className="text-3xl font-semibold text-foreground tracking-tight">
-            {client.name}
-          </h1>
+          <div className="flex flex-wrap items-center gap-2">
+            <h1 className="text-3xl font-semibold text-foreground tracking-tight">{client.name}</h1>
+            {/* Managers can mark / unmark premium; salesmen just see the badge. */}
+            {teamOnly ? (
+              <PremiumToggle clientId={client.id} clientName={client.name} category={client.category} withLabel />
+            ) : (
+              <PremiumBadge category={client.category} />
+            )}
+          </div>
           <p className="mt-1.5 text-sm text-muted-foreground font-semibold">
             {client.organization?.name || "Independent"}
             {client.contact_person_name && <> • {client.contact_person_name}</>}

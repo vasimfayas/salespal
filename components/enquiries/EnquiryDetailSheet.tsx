@@ -10,8 +10,9 @@ import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { cn, formatAmount, formatDate, formatDateTime, formatQuantity, titleCase } from "@/lib/utils";
 import { enquiryStatusLabels, equipmentLabel, formatTemp, gaugeLabels, type Gauge, incotermNames, isActiveEnquiry, jobRefNames, type EnquiryEventItem, type EnquiryListItem, type EnquiryStatus, type Incoterm, type JobRef } from "@/types/enquiry";
 import { orderStatusLabel } from "@/types/order";
-import { cargoTotals, dimensionUnitLabels, isDimensionUnit, lineCbm, volumetricRuleLabels, DEFAULT_DIMENSION_UNIT } from "@/lib/freight";
+import { cargoTotals, fromKg, dimensionUnitLabels, isDimensionUnit, lineCbm, volumetricRuleLabels, DEFAULT_DIMENSION_UNIT } from "@/lib/freight";
 
+import { PremiumBadge } from "@/components/clients/ClientCategory";
 function Field({ label, children, className }: { label: string; children: React.ReactNode; className?: string }) {
   return (
     <div className={cn("min-w-0", className)}>
@@ -75,7 +76,10 @@ export function EnquiryDetailSheet({
                 <StatusBadge status={e.status} />
               </div>
               <div>
-                <p className="text-lg font-semibold leading-snug text-foreground">{e.client_name}</p>
+                <p className="flex flex-wrap items-center gap-2 text-lg font-semibold leading-snug text-foreground">
+                  {e.client_name}
+                  <PremiumBadge category={e.client_category} />
+                </p>
                 <p className="mt-1 flex flex-wrap items-center gap-1.5 text-sm text-muted-foreground">
                   <span className="font-medium uppercase">{e.mode}</span>
                   <span aria-hidden>·</span>
@@ -360,7 +364,14 @@ function CargoSection({ enquiry: e }: { enquiry: EnquiryListItem }) {
       <dl className="grid grid-cols-2 gap-x-4 gap-y-3">
         {e.packages.length > 0 && <Field label="Pieces"><span className="tabular-nums">{formatQuantity(totals.pieces)}</span></Field>}
         <Field label="Volume">{e.cbm !== null ? <span className="tabular-nums">{formatQuantity(e.cbm)} m³</span> : dash}</Field>
-        <Field label="Actual weight">{kg(e.actual_weight)}</Field>
+        <Field label="Actual weight">
+          {kg(e.actual_weight)}
+          {e.actual_weight !== null && e.weight_unit === "lb" && (
+            <span className="ml-1 text-xs font-normal text-muted-foreground">
+              (entered as {formatQuantity(Math.round(fromKg(e.actual_weight, "lb") * 10) / 10)} lb)
+            </span>
+          )}
+        </Field>
         <Field label="Stacking">
           {e.stackable === null ? dash : e.stackable ? "Stackable" : <span className="text-warning-foreground">Non-stackable</span>}
         </Field>

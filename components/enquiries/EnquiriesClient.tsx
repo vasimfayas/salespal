@@ -33,6 +33,7 @@ import {
   shipmentSpec,
 } from "@/types/enquiry";
 
+import { PremiumBadge } from "@/components/clients/ClientCategory";
 /** Anything short of Confirmed can still be corrected. */
 const canEditEnquiry = (e: EnquiryListItem) => e.status !== "confirmed";
 
@@ -267,7 +268,10 @@ export function EnquiriesClient({
                         )}
                       </td>
                       <td className="px-4 py-3 align-top">
-                        <span className="line-clamp-2 font-medium text-foreground">{e.client_name}</span>
+                        <span className="line-clamp-2 font-medium text-foreground">
+                          {e.client_name}
+                          <PremiumBadge category={e.client_category} compact className="ml-1 align-[-2px]" />
+                        </span>
                         {e.job_ref && <span className="block truncate text-xs text-muted-foreground">{e.job_ref} · {jobRefNames[e.job_ref as JobRef] ?? ""}</span>}
                       </td>
                       <td className="px-4 py-3 align-top">
@@ -344,7 +348,10 @@ export function EnquiriesClient({
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
                       <p className="font-mono text-[13px] font-semibold text-foreground">{e.ref}</p>
-                      <p className="truncate text-sm font-medium text-foreground">{e.client_name}</p>
+                      <p className="flex items-center gap-1 truncate text-sm font-medium text-foreground">
+                        <span className="truncate">{e.client_name}</span>
+                        <PremiumBadge category={e.client_category} compact />
+                      </p>
                     </div>
                     <StatusBadge status={e.status} />
                   </div>

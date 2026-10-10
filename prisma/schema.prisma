@@ -161,6 +161,8 @@ model Client {
   org_id                       Int
   notes                        String?
   status                       String
+  /// standard | premium (see types/client.ts clientCategories). More categories can be added there.
+  category                     String       @default("standard")
   checklist_kyc_verified       Boolean      @default(false)
   checklist_agreement_signed   Boolean      @default(false)
   checklist_rate_card_approved Boolean      @default(false)
@@ -183,6 +185,7 @@ model Client {
   @@index([org_id, status])
   @@index([assigned_salesman_id, status])
   @@index([status])
+  @@index([category])
   @@index([created_at])
   @@map("clients")
 }
@@ -359,8 +362,10 @@ model Enquiry {
   packages           Json?
   /// cm | m | ft | in — unit of the package dimensions.
   dimension_unit     String?
-  /// Actual gross weight in kg, as declared by the client.
+  /// Actual gross weight, always stored in kg (converted on save).
   actual_weight      Decimal?          @db.Decimal(12, 3)
+  /// Unit the weight was entered in: kg | lb. Null = kg (enquiries raised before it was added).
+  weight_unit        String?
   /// true = stackable, false = non-stackable, null = not specified (enquiries raised before it was added).
   stackable          Boolean?
   /// Chargeable weight in kg: the higher of actual and volumetric weight (computed on save, lib/freight.ts).

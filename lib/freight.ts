@@ -23,6 +23,19 @@ export const volumetricRuleLabels: Record<string, string> = {
   sea: "Ocean LCL · L×W×H (cm) ÷ 1,000 · 1 m³ = 1,000 kg",
 };
 
+/** Weight units for the actual weight. Stored and compared in kg; lb is converted on entry. */
+export const weightUnits = ["kg", "lb"] as const;
+export type WeightUnit = (typeof weightUnits)[number];
+export const DEFAULT_WEIGHT_UNIT: WeightUnit = "kg";
+export const KG_PER_LB = 0.45359237;
+export function isWeightUnit(value: unknown): value is WeightUnit {
+  return weightUnits.includes(value as WeightUnit);
+}
+/** Weight in `unit` → kg. */
+export const toKg = (value: number, unit: WeightUnit) => (unit === "lb" ? value * KG_PER_LB : value);
+/** kg → weight in `unit`. */
+export const fromKg = (kg: number, unit: WeightUnit) => (unit === "lb" ? kg / KG_PER_LB : kg);
+
 /** One line of the packing list: dimensions of a single piece in the enquiry's unit, and how many. */
 export type CargoPackage = { length: number; width: number; height: number; qty: number };
 

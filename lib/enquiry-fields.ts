@@ -1,6 +1,6 @@
 import { Prisma } from "@prisma/client";
 import { parseDateOnly } from "@/lib/salesman-targets";
-import { cargoTotals, DEFAULT_DIMENSION_UNIT, isDimensionUnit, MAX_PACKAGE_LINES, round3, type CargoPackage, type DimensionUnit } from "@/lib/freight";
+import { cargoTotals, DEFAULT_DIMENSION_UNIT, DEFAULT_WEIGHT_UNIT, isDimensionUnit, isWeightUnit, toKg, type WeightUnit, MAX_PACKAGE_LINES, round3, type CargoPackage, type DimensionUnit } from "@/lib/freight";
 import { enquiryModes, enquiryPaymentModes, gauges, incoterms, isOpenTop, jobRefs, needsReeferTemp, REEFER_TEMP_MAX, REEFER_TEMP_MIN, seaServiceTypes, truckTypes, type JobRef } from "@/types/enquiry";
 
 /** The shipment details of an enquiry (everything but client, figures and status). Shared by create and edit. */
@@ -22,7 +22,10 @@ export type EnquiryDetails = {
   /** Null when no dimensions were given. */
   packages: CargoPackage[] | null;
   dimension_unit: DimensionUnit;
+  /** Always kg. */
   actual_weight: number | null;
+  /** Unit it was entered in (kg | lb). */
+  weight_unit: WeightUnit;
   /** null = not specified. */
   stackable: boolean | null;
   /** Computed: max(actual, volumetric). */
@@ -78,7 +81,10 @@ export function parseEnquiryDetails(body: Record<string, unknown>): { data: Enqu
   // Sea also takes a service type, land a truck type; fields that don't belong to the mode are cleared.
   const packages = packingList(body.packages);
   const unit = body.dimension_unit === undefined || body.dimension_unit === null || body.dimension_unit === "" ? DEFAULT_DIMENSION_UNIT : body.dimension_unit;
-  const actualWeight = measurement(body.actual_weight);
+  const weightUnit = body.weight_unit === undefined || body.weight_unit === null || body.weight_unit === "" ? DEFAULT_WEIGHT_UNIT : body.weight_unit;
+  const enteredWeight = measurement(body.actual_weight);
+  // Stored in kg whatever unit it was typed in, so chargeable weight always compares like with like.
+  const actualWeight = enteredWeight == null || !isWeightUnit(weightUnit) ? enteredWeight : round3(toKg(enteredWeight, weightUnit));
   const isDg = Boolean(body.is_dg);
   const unNumber = isDg ? unNumbers(body.un_number) : null;
   const serviceType = body.mode === "sea" ? String(body.service_type ?? "") : null;
@@ -97,6 +103,7 @@ export function parseEnquiryDetails(body: Record<string, unknown>): { data: Enqu
   if (packages === undefined) return { error: `Each package line needs length, width and height above 0 and a whole quantity (max ${MAX_PACKAGE_LINES} lines)` };
   if (isDg && !unNumber) return { error: "Enter the UN number for dangerous goods (UN followed by 4 digits, e.g. UN1203)" };
   if (!isDimensionUnit(unit)) return { error: "Invalid dimension unit" };
+  if (!isWeightUnit(weightUnit)) return { error: "Invalid weight unit" };
   if (actualWeight === undefined) return { error: "Actual weight must be a number of 0 or more" };
   if (serviceType !== null && !seaServiceTypes.includes(serviceType as never)) return { error: "Select a service type" };
   if (reeferTemp !== null && (body.reefer_temp === "" || body.reefer_temp === null || body.reefer_temp === undefined || !Number.isFinite(reeferTemp) || reeferTemp < REEFER_TEMP_MIN || reeferTemp > REEFER_TEMP_MAX)) {
@@ -124,6 +131,7 @@ export function parseEnquiryDetails(body: Record<string, unknown>): { data: Enqu
       packages: packages.length ? packages : null,
       dimension_unit: unit,
       actual_weight: actualWeight,
+      weight_unit: weightUnit,
       stackable: body.stackable === true || body.stackable === "true" ? true : body.stackable === false || body.stackable === "false" ? false : null,
       chargeable_weight: totals.chargeableWeight,
       cbm: totals.cbm,
@@ -152,6 +160,7 @@ export const ENQUIRY_FIELD_LABELS: Record<keyof EnquiryDetails, string> = {
   packages: "dimensions",
   dimension_unit: "dimension unit",
   actual_weight: "actual weight",
+  weight_unit: "weight unit",
   stackable: "stackability",
   chargeable_weight: "chargeable weight",
   cbm: "CBM",

@@ -13,6 +13,7 @@ export const clientListSelect = {
   location_coordinates: true,
   mail_id: true,
   status: true,
+  category: true,
   notes: true,
   created_at: true,
   org_id: true,
@@ -41,6 +42,8 @@ export function clientFilterWhere(params: SearchParams): Prisma.ClientWhereInput
   }
   const status = param(params, "status");
   if (status) and.push({ status });
+  const category = param(params, "category");
+  if (category) and.push({ category });
   const company = intParam(params, "company");
   if (company) and.push({ org_id: company });
   const manager = intParam(params, "manager");

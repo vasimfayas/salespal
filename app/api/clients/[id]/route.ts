@@ -3,7 +3,8 @@ import { revalidateTag } from "next/cache";
 import { getToken } from "next-auth/jwt";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { clientScopeWhere } from "@/lib/scoping";
+import { clientScopeWhere, isRole } from "@/lib/scoping";
+import { clientCategoryLabels, isClientCategory, type ClientCategory } from "@/types/client";
 import { normalizeCrNo, parseCrExpiryDate } from "@/lib/client-fields";
 import { canSetStatus, isClientStatus } from "@/lib/client-status-flow";
 import { cleanText, contactRequiredMessage, missingContactFields, statusRequiresContact } from "@/lib/client-contact";
@@ -51,6 +52,12 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
       select: { id: true },
     });
     if (duplicateCr) return NextResponse.json({ error: "CR number already exists" }, { status: 409 });
+  }
+
+  // Category (Standard / Premium): owners and managers only.
+  if (body.category !== undefined) {
+    if (!isClientCategory(body.category)) return NextResponse.json({ error: "Invalid client category" }, { status: 400 });
+    if (!isRole(token, [1, 2])) return NextResponse.json({ error: "Only managers can change a client's category" }, { status: 403 });
   }
 
   if (body.status !== undefined) {
@@ -109,18 +116,28 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
           cr_expiry_date: crExpiry.value,
           contact_no: body.contact_no !== undefined ? cleanText(body.contact_no) : undefined,
           status: body.status ?? undefined,
+          category: body.category ?? undefined,
           notes: body.notes !== undefined ? body.notes : undefined,
           location_coordinates: body.location_coordinates !== undefined ? body.location_coordinates : undefined,
         },
       });
 
-      await tx.clientLog.create({
-        data: {
-          client_id: updatedClient.id,
-          action: `Client details updated: ${body.name || updatedClient.name}`,
-          done_by: Number(token.id),
-        },
-      });
+      // A category-only change gets its own log line instead of "Client details updated".
+      const categoryOnly = body.category !== undefined && Object.keys(body).length === 1;
+      if (body.category !== undefined && body.category !== scoped.category) {
+        await tx.clientLog.create({
+          data: { client_id: updatedClient.id, action: `Marked as ${clientCategoryLabels[body.category as ClientCategory]} customer`, done_by: Number(token.id) },
+        });
+      }
+      if (!categoryOnly) {
+        await tx.clientLog.create({
+          data: {
+            client_id: updatedClient.id,
+            action: `Client details updated: ${body.name || updatedClient.name}`,
+            done_by: Number(token.id),
+          },
+        });
+      }
 
       if (body.status && body.status !== scoped.status) {
         await tx.clientLog.create({

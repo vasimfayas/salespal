@@ -31,6 +31,14 @@ export const MANAGER_ONLY_STATUSES: readonly ClientStatus[] = ["blacklisted"];
 /** Onboarded clients with no enquiry (or order) for this many days become "dormant". */
 export const DORMANT_AFTER_DAYS = 60;
 
+/** Client categories. "standard" is the default; add more here (e.g. "key_account") as they're needed. */
+export const clientCategories = ["standard", "premium"] as const;
+export type ClientCategory = (typeof clientCategories)[number];
+export const clientCategoryLabels: Record<ClientCategory, string> = { standard: "Standard", premium: "Premium" };
+export function isClientCategory(value: unknown): value is ClientCategory {
+  return clientCategories.includes(value as ClientCategory);
+}
+
 export type ClientListItem = {
   id: number;
   name: string;
