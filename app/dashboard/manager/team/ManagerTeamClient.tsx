@@ -14,9 +14,10 @@ import type { SalesmanTargetRow } from "@/types/salesman-target";
 
 import { buttonVariants } from "@/components/ui/Button";
 import { cn } from "@/lib/utils";
+import type { Performance } from "@/lib/performance";
 interface ManagerTeamClientProps {
-  /** KPI score per salesman id, computed on the server from client status counts. */
-  kpiScores: Record<number, number>;
+  /** This month's orders / value / new clients per salesman id (lib/performance.ts). */
+  performance: Record<number, Performance>;
   teamSize: number;
   targets: SalesmanTargetRow[];
   /** Companies this manager runs. */
@@ -25,7 +26,7 @@ interface ManagerTeamClientProps {
   salesmanCompanies: Record<number, number[]>;
 }
 
-export function ManagerTeamClient({ kpiScores, teamSize, targets, companies, salesmanCompanies }: ManagerTeamClientProps) {
+export function ManagerTeamClient({ performance, teamSize, targets, companies, salesmanCompanies }: ManagerTeamClientProps) {
   const multiCompany = companies.length > 1;
   const companyNames = (ids: number[] = []) => companies.filter((c) => ids.includes(c.id)).map((c) => c.name).join(", ");
   // New salesmen start with every company ticked; the manager unticks the ones they shouldn't have.
@@ -152,7 +153,7 @@ export function ManagerTeamClient({ kpiScores, teamSize, targets, companies, sal
       <SalesmenTargetsClient
         salesmen={targets}
         canAssign
-        kpiScores={kpiScores}
+        performance={performance}
         salesmanHref={(id) => `/dashboard/manager/team/${id}`}
         renderActions={(row) => (
           <>

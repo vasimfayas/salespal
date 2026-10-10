@@ -21,6 +21,10 @@ model Organization {
   address     String?
   phone       String?
   email       String?
+  /// Short code used in enquiry IDs, e.g. "SPA" → SPA-ENQ-00012. Uppercase A–Z / 0–9, 2–6 chars.
+  prefix           String?       @unique
+  /// Export office (registration) number.
+  export_office_no String?
   created_at  DateTime          @default(now())
   managers    ManagerOrg[]
   accountants AccountantOrg[]
@@ -59,6 +63,7 @@ model User {
   enquiryFollowUps         EnquiryFollowUp[] @relation("EnquiryFollowUpBy")
   enquiryEvents            EnquiryEvent[]    @relation("EnquiryEventBy")
   recordedPayments         OrderPayment[]    @relation("PaymentRecordedBy")
+  taskUpdates              TaskUpdate[]      @relation("TaskUpdateBy")
   uploadedClientDocuments  ClientDocument[]  @relation("ClientDocumentUploadedBy")
 
   @@map("users")
@@ -176,6 +181,7 @@ model Client {
   organization                 Organization @relation(fields: [org_id], references: [id])
   logs                         ClientLog[]
   clientTasks                  ClientTask[]
+  tasks                        Task[]
   orders                       Order[]
   enquiries                    Enquiry[]
   documents                    ClientDocument[]
@@ -221,11 +227,39 @@ model Task {
   /// Set on automatic follow-up tasks for enquiries left open for 30+ days.
   enquiry_id     Int?
   enquiry        Enquiry? @relation(fields: [enquiry_id], references: [id], onDelete: Cascade)
+  /// The client a task is about (lead follow-ups). Its outcome updates this client.
+  client_id      Int?
+  client         Client?  @relation(fields: [client_id], references: [id], onDelete: Cascade)
+  /// Lead follow-up result: contacted | follow_up | rejected.
+  outcome        String?
+  /// When the task was closed (achieved / unsuccessful). Closed tasks are cleaned up after 6 months.
+  closed_at      DateTime?
+  updates        TaskUpdate[]
 
   @@index([assigned_to_id, due_date])
+  @@index([client_id])
+  @@index([status, closed_at])
   @@index([created_by_id])
   @@index([enquiry_id])
   @@map("tasks")
+}
+
+/// Activity on a task: outcomes, reasons, due-date changes. Mirrored to client_logs when the task has a client.
+model TaskUpdate {
+  id            Int       @id @default(autoincrement())
+  task_id       Int
+  /// contacted | follow_up | rejected | enquiry_follow_up | enquiry_stage | enquiry_closed | status | reassigned
+  action        String
+  note          String?
+  prev_due_date DateTime?
+  new_due_date  DateTime?
+  created_by_id Int
+  created_at    DateTime  @default(now())
+  task          Task      @relation(fields: [task_id], references: [id], onDelete: Cascade)
+  createdBy     User      @relation("TaskUpdateBy", fields: [created_by_id], references: [id])
+
+  @@index([task_id, created_at])
+  @@map("task_updates")
 }
 
 model SalesmanKpiLog {

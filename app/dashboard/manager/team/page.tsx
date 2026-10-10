@@ -10,7 +10,7 @@ import { ManagerTeamClient } from "./ManagerTeamClient";
 export default function TeamPage() {
   return (
     <>
-      <PageHeader title="Team" subtitle="Your salesmen, their KPIs, targets and progress." />
+      <PageHeader title="Team" subtitle="Your salesmen, what they bring in this month, their targets and progress." />
       <Suspense fallback={<TeamSkeleton />}>
         <TeamSection />
       </Suspense>
@@ -28,14 +28,14 @@ async function TeamSection() {
     prisma.managerSalesman.findMany({ where: { manager_id: managerId }, select: { salesman_id: true, org_id: true } }),
   ]);
 
-  const kpiScores = Object.fromEntries(team.map((s) => [s.id, s.kpiScore]));
+  const performance = Object.fromEntries(team.map((s) => [s.id, s.perf]));
   // Which of this manager's companies each salesman works for.
   const salesmanCompanies: Record<number, number[]> = {};
   for (const l of links) (salesmanCompanies[l.salesman_id] ??= []).push(l.org_id);
 
   return (
     <ManagerTeamClient
-      kpiScores={kpiScores}
+      performance={performance}
       teamSize={team.length}
       targets={targets}
       companies={managerOrgs.map((m) => m.org)}

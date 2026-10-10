@@ -22,7 +22,9 @@ import { Modal } from "@/components/ui/Modal";
 import { Input } from "@/components/ui/Input";
 import { Toast } from "@/components/ui/Toast";
 import { cn, formatDate, titleCase } from "@/lib/utils";
-import { taskStatuses } from "@/types/task";
+import { taskKindLabels, taskStatuses, type TaskKind } from "@/types/task";
+import { enquiryRef } from "@/types/enquiry";
+import { TaskActions, TaskStatusPill, isGuidedTask } from "@/components/tasks/TaskActions";
 
 import { buttonVariants } from "@/components/ui/Button";
 type UnifiedTask = {
@@ -36,6 +38,9 @@ type UnifiedTask = {
   isClientTask: boolean;
   clientId?: number | null;
   clientName?: string | null;
+  kind?: TaskKind;
+  enquiry?: { id: number; status: string; prefix?: string | null } | null;
+  outcome?: string | null;
 };
 
 type SalesmanItem = {
@@ -341,10 +346,10 @@ export function ManagerTasksList({ data, salesmen }: ManagerTasksListProps) {
           ]).map((tab) => (
             <button
               key={tab.key}
-              onClick={() => set({ type: tab.key })}
+              onClick={() => set({ type: tab.key, view: null })}
               className={cn(
                 "px-3 py-1.5 text-xs font-semibold rounded-lg transition cursor-pointer",
-                typeFilter === tab.key
+                typeFilter === tab.key && get("view") !== "lead"
                   ? "bg-card text-foreground shadow-sm ring-1 ring-border/60"
                   : "text-muted-foreground hover:text-foreground/85 hover:bg-muted"
               )}
@@ -352,6 +357,15 @@ export function ManagerTasksList({ data, salesmen }: ManagerTasksListProps) {
               {tab.label}
             </button>
           ))}
+          <button
+            onClick={() => set({ view: "lead", type: null })}
+            className={cn(
+              "px-3 py-1.5 text-xs font-semibold rounded-lg transition cursor-pointer",
+              get("view") === "lead" ? "bg-card text-foreground shadow-sm ring-1 ring-border/60" : "text-muted-foreground hover:text-foreground/85 hover:bg-muted"
+            )}
+          >
+            Open leads <span className="tabular-nums text-muted-foreground">{data.viewCounts.lead.toLocaleString()}</span>
+          </button>
         </div>
 
         <div className={cn("space-y-4 transition-opacity", isNavigating && "opacity-60")} aria-busy={isNavigating}>
@@ -373,15 +387,21 @@ export function ManagerTasksList({ data, salesmen }: ManagerTasksListProps) {
                     {/* Task type badge */}
                     <span className="inline-flex items-center gap-1 rounded-full border border-primary/30 bg-primary-soft px-2.5 py-0.5 text-xs font-semibold text-primary">
                       <ListTodo size={10} />
-                      <span>{task.isClientTask ? "Client Task" : "General Task"}</span>
+                      <span>
+                        {task.isClientTask ? "Client Task" : taskKindLabels[task.kind ?? "general"]}
+                        {task.enquiry && ` · ${enquiryRef(task.enquiry.id, task.enquiry.prefix)}`}
+                      </span>
                     </span>
 
-                    {/* Client name if present */}
-                    {task.isClientTask && task.clientName && (
-                      <span className="inline-flex items-center gap-1 rounded-full border border-success/30 bg-success-soft px-2.5 py-0.5 text-xs font-semibold text-success-foreground">
+                    {/* Client the task is about */}
+                    {task.clientName && (
+                      <a
+                        href={task.clientId ? `/dashboard/manager/clients/${task.clientId}` : undefined}
+                        className="inline-flex items-center gap-1 rounded-full border border-success/30 bg-success-soft px-2.5 py-0.5 text-xs font-semibold text-success-foreground hover:underline"
+                      >
                         <Building size={10} />
                         <span>Client: {task.clientName}</span>
-                      </span>
+                      </a>
                     )}
 
                     {/* Assigned Salesman */}
@@ -412,8 +432,11 @@ export function ManagerTasksList({ data, salesmen }: ManagerTasksListProps) {
                   </div>
                 </div>
 
-                <div className="flex items-center gap-3 shrink-0 self-end sm:self-center">
-                  {/* Status update select */}
+                <div className="flex flex-wrap items-center justify-end gap-3 shrink-0 self-end sm:self-center">
+                  <TaskActions task={task} enquiriesPath="/dashboard/manager/enquiries" />
+                  {isGuidedTask(task) ? (
+                    <TaskStatusPill task={task} />
+                  ) : (
                   <div className="relative">
                     {updatingTaskId === task.id && (
                       <Loader2
@@ -450,6 +473,7 @@ export function ManagerTasksList({ data, salesmen }: ManagerTasksListProps) {
                       ))}
                     </select>
                   </div>
+                  )}
 
                   {/* Delete button */}
                   <button

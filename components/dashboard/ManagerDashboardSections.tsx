@@ -7,7 +7,8 @@ import { Skeleton } from "@/components/ui/Skeleton";
 import { SectionCard } from "@/components/dashboard/SectionCard";
 import { StatCard } from "@/components/dashboard/StatCard";
 import { StatCardWithDetails, type StatDetailItem } from "@/components/dashboard/StatCardWithDetails";
-import { cn, formatDate } from "@/lib/utils";
+import { cn, formatAmount, formatDate } from "@/lib/utils";
+import { getPerformance, monthPeriod, sumPerformance } from "@/lib/performance";
 import {
   TrendingUp,
   TrendingDown,
@@ -105,8 +106,12 @@ export async function ManagerKpiCardsRow({
   managerId: number;
   period: "this_month" | "last_month";
 }) {
-  const sortedSalesmen = await getManagerTeam(managerId);
+  const perfPeriod = monthPeriod(period === "last_month" ? -1 : 0);
+  const sortedSalesmen = await getManagerTeam(managerId, perfPeriod.from.toISOString(), perfPeriod.to.toISOString());
   const salesmanIds = sortedSalesmen.map((s) => s.id);
+  // Team order value this period vs the month before (what the team brought in).
+  const teamValue = sumPerformance(sortedSalesmen.map((s) => s.perf));
+  const prevValue = sumPerformance((await getPerformance(salesmanIds, monthPeriod(period === "last_month" ? -2 : -1))).values());
 
   const thisMonth = getMonthRange(0);
   const lastMonth = getMonthRange(-1);
@@ -133,20 +138,14 @@ export async function ManagerKpiCardsRow({
   const activePipeline = (allCounts.follow_up ?? 0) + (allCounts.lead ?? 0);
   const weekNew = k.weekNew;
 
-  const avgKpi =
-    sortedSalesmen.length > 0
-      ? Math.round(sortedSalesmen.reduce((sum, s) => sum + s.kpiScore, 0) / sortedSalesmen.length)
-      : 0;
-
-  // KPI change — derived from the onboarded log delta (unchanged rule)
-  const kpiChange = onboardedThis - onboardedPrev;
-  const kpiChangePct = onboardedPrev > 0 ? Math.round((kpiChange / onboardedPrev) * 100) : kpiChange > 0 ? 100 : 0;
+  const valueChangePct =
+    prevValue.value > 0 ? Math.round(((teamValue.value - prevValue.value) / prevValue.value) * 100) : teamValue.value > 0 ? 100 : 0;
   const overdueCount = k.overdueTotal;
   const more = (total: number, shown: number) => (total > shown ? ` (showing ${shown} of ${total})` : "");
 
   const cards: {
     label: string;
-    value: number;
+    value: number | string;
     badgeLabel: string;
     direction: "up" | "down" | "flat";
     Icon: typeof UserCheck;
@@ -192,17 +191,17 @@ export async function ManagerKpiCardsRow({
       viewAllLabel: `Go to clients${more(k.pipelineTotal, k.pipeline.length)}`,
     },
     {
-      label: "Team KPI Score",
-      value: avgKpi,
-      badgeLabel: `${kpiChangePct > 0 ? "+" : ""}${kpiChangePct}% change`,
-      direction: kpiChangePct > 0 ? "up" : kpiChangePct < 0 ? "down" : "flat",
+      label: "Team Order Value",
+      value: formatAmount(teamValue.value),
+      badgeLabel: `${valueChangePct > 0 ? "+" : ""}${valueChangePct}% vs prev. month`,
+      direction: valueChangePct > 0 ? "up" : valueChangePct < 0 ? "down" : "flat",
       Icon: BarChart3,
       bg: "bg-primary",
       items: sortedSalesmen.map((s) => ({
         id: s.id,
         primary: s.name,
-        secondary: `${s.totalClients} client${s.totalClients === 1 ? "" : "s"}`,
-        meta: `KPI ${s.kpiScore}`,
+        secondary: `${s.perf.orders} order${s.perf.orders === 1 ? "" : "s"} · ${s.perf.newClients} new client${s.perf.newClients === 1 ? "" : "s"}`,
+        meta: formatAmount(s.perf.value),
         href: `/dashboard/manager/team/${s.id}`,
       })),
       emptyMessage: "No salesmen on your team yet.",
@@ -285,7 +284,7 @@ export async function SalesmanPerformanceSection({
           </h2>
           <p className="text-xs text-muted-foreground">this month</p>
         </div>
-        <div className="rounded-2xl border border-foreground bg-primary p-10 text-center">
+        <div className="rounded-card border border-dashed border-border-strong bg-card p-10 text-center">
           <p className="text-sm text-muted-foreground">
             No salesmen assigned to your team yet.
           </p>
@@ -295,7 +294,7 @@ export async function SalesmanPerformanceSection({
   }
 
   const topSalesman = sortedSalesmen[0];
-  const maxKpi = topSalesman.kpiScore || 1;
+  const maxValue = Math.max(topSalesman.perf.value, 1);
 
   // Last active per salesman from activity feed
   const lastActiveMap = new Map<number, Date>();
@@ -305,20 +304,10 @@ export async function SalesmanPerformanceSection({
     }
   }
 
-  // Task stats per salesman (counted in SQL)
+  // Task stats per salesman (counted in SQL) — shown as work activity, not part of the ranking.
   const taskStatsMap = new Map(Object.entries(taskStats).map(([id, v]) => [Number(id), v]));
-
-  const topStats = taskStatsMap.get(topSalesman.id) ?? {
-    total: 0,
-    completed: 0,
-  };
+  const topStats = taskStatsMap.get(topSalesman.id) ?? { total: 0, completed: 0 };
   const topLastActive = lastActiveMap.get(topSalesman.id);
-
-  // Progress bar max (for normalization)
-  const topOnboarded = topSalesman.counts.onboarded ?? 0;
-  const topFollowUp = topSalesman.counts.follow_up ?? 0;
-  const topNewLead = topSalesman.counts.lead ?? 0;
-  const progressMax = Math.max(topOnboarded, topFollowUp, topNewLead, 1);
 
   return (
     <div className="space-y-3">
@@ -328,293 +317,107 @@ export async function SalesmanPerformanceSection({
             Salesman Performance
           </Link>
         </h2>
-        <p className="text-xs text-muted-foreground">this month</p>
+        <p className="text-xs text-muted-foreground">This month · ranked by order value</p>
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2 items-stretch">
-        {/* ── LEFT: Top Performer Spotlight ── */}
-        <div className="relative h-full flex flex-col overflow-hidden rounded-2xl border border-foreground bg-primary">
+        {/* ── Top performer ── */}
+        <div className="relative flex h-full flex-col overflow-hidden rounded-card border border-border bg-card shadow-card">
           <span className="absolute inset-x-0 top-0 h-[3px] bg-success" aria-hidden />
-
-          <div className="p-4 pt-5 flex flex-col flex-1">
-            {/* Top badge */}
-            <span className="inline-flex items-center gap-1.5 self-start rounded-full border border-success/20 bg-success/15 px-2.5 py-1 text-xs font-semibold text-success-foreground mb-3">
-              <Trophy size={11} strokeWidth={2.5} />
-              Top Performer
+          <div className="flex flex-1 flex-col p-5 pt-6">
+            <span className="mb-3 inline-flex items-center gap-1.5 self-start rounded-full bg-success-soft px-2.5 py-1 text-xs font-medium text-success-foreground">
+              <Trophy size={12} strokeWidth={2.5} aria-hidden /> Top performer
             </span>
-
-            {/* Avatar + Name + Score */}
-            <div className="flex items-center gap-3 mb-4">
-              <div
-                className={cn(
-                  "h-11 w-11 shrink-0 flex items-center justify-center rounded-full text-white text-sm font-semibold ring-2 ring-success/40",
-                  getAvatarColor(topSalesman.name)
-                )}
-              >
+            <div className="mb-5 flex items-center gap-3">
+              <div className={cn("flex size-11 shrink-0 items-center justify-center rounded-full text-sm font-semibold text-white", getAvatarColor(topSalesman.name))}>
                 {getInitials(topSalesman.name)}
               </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-white truncate">
-                  {topSalesman.name}
-                </p>
-                <p className="text-xs text-muted-foreground/80 truncate">Salesman · {orgName}</p>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-semibold text-foreground">{topSalesman.name}</p>
+                <p className="truncate text-xs text-muted-foreground">Salesman · {orgName}</p>
               </div>
-              <div className="text-right shrink-0">
-                <p className="font-display text-2xl font-semibold leading-none text-success-foreground tabular-nums">
-                  {topSalesman.kpiScore}
-                </p>
-                <p className="text-xs text-muted-foreground font-medium mt-1">
-                  KPI Score
-                </p>
+              <div className="shrink-0 text-right">
+                <p className="text-2xl font-semibold leading-none tabular-nums text-foreground">{formatAmount(topSalesman.perf.value)}</p>
+                <p className="mt-1 text-xs text-muted-foreground">Order value</p>
               </div>
             </div>
 
-            {/* 4 stat boxes */}
-            <div className="grid grid-cols-4 gap-1.5 mb-4">
-              <div className="rounded-lg border border-white/5 bg-card/[0.04] px-1.5 py-1.5 text-center">
-                <p className="font-display text-sm font-semibold text-success-foreground">
-                  {topOnboarded}
-                </p>
-                <p className="text-[11px] font-semibold text-muted-foreground">
-                  Onboarded
-                </p>
-              </div>
-              <div className="rounded-lg border border-white/5 bg-card/[0.04] px-1.5 py-1.5 text-center">
-                <p className="font-display text-sm font-semibold text-primary">
-                  {topFollowUp}
-                </p>
-                <p className="text-[11px] font-semibold text-muted-foreground">
-                  Follow-up
-                </p>
-              </div>
-              <div className="rounded-lg border border-white/5 bg-card/[0.04] px-1.5 py-1.5 text-center">
-                <p className="font-display text-sm font-semibold text-warning-foreground">
-                  {topNewLead}
-                </p>
-                <p className="text-[11px] font-semibold text-muted-foreground">
-                  New Lead
-                </p>
-              </div>
-              <div className="rounded-lg border border-white/5 bg-card/[0.04] px-1.5 py-1.5 text-center">
-                <p className="font-display text-sm font-semibold text-danger-foreground">
-                  {topSalesman.counts.lost ?? 0}
-                </p>
-                <p className="text-[11px] font-semibold text-muted-foreground">
-                  Lost
-                </p>
-              </div>
-            </div>
-
-            {/* 3 progress bars */}
-            <div className="space-y-2 mb-4">
+            <dl className="mb-5 grid grid-cols-3 gap-2">
               {[
-                {
-                  label: "Onboarded",
-                  value: topOnboarded,
-                  color: "bg-success",
-                },
-                {
-                  label: "Follow-up",
-                  value: topFollowUp,
-                  color: "bg-primary",
-                },
-                {
-                  label: "New Lead",
-                  value: topNewLead,
-                  color: "bg-warning",
-                },
-              ].map((bar) => (
-                <div key={bar.label}>
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-[11px] font-medium text-muted-foreground/80">
-                      {bar.label}
-                    </span>
-                    <span className="text-[11px] font-semibold text-white">
-                      {bar.value}
-                    </span>
-                  </div>
-                  <div className="h-1.5 overflow-hidden rounded-full bg-primary">
-                    <div
-                      className={cn(
-                        "h-full rounded-full transition-all duration-500",
-                        bar.color
-                      )}
-                      style={{
-                        width: `${Math.max(
-                          (bar.value / progressMax) * 100,
-                          bar.value > 0 ? 8 : 0
-                        )}%`,
-                      }}
-                    />
-                  </div>
+                { label: "Orders", value: topSalesman.perf.orders },
+                { label: "New clients", value: topSalesman.perf.newClients },
+                { label: "Clients", value: topSalesman.totalClients },
+              ].map((m) => (
+                <div key={m.label} className="rounded-control border border-border bg-subtle px-3 py-2">
+                  <dt className="text-xs text-muted-foreground">{m.label}</dt>
+                  <dd className="mt-0.5 text-lg font-semibold tabular-nums text-foreground">{m.value.toLocaleString()}</dd>
                 </div>
               ))}
-            </div>
+            </dl>
 
-            {/* Footer */}
-            <div className="mt-auto flex items-center justify-between border-t border-foreground pt-3">
+            {/* Work activity — monitored separately from performance */}
+            <div className="mt-auto flex items-center justify-between border-t border-border pt-3 text-xs">
               <div>
-                <p className="text-[11px] text-muted-foreground font-medium">
-                  Tasks Completed
-                </p>
-                <p className="text-xs font-semibold text-muted-foreground/60">
+                <p className="text-muted-foreground">Tasks completed</p>
+                <p className="font-medium tabular-nums text-foreground">
                   {topStats.completed}/{topStats.total}
                 </p>
               </div>
               <div className="text-right">
-                <p className="text-[11px] text-muted-foreground font-medium">
-                  Last Active
-                </p>
-                <p className="text-xs font-semibold text-muted-foreground/60">
-                  {topLastActive ? getTimeAgo(topLastActive) : "No activity"}
-                </p>
+                <p className="text-muted-foreground">Last active</p>
+                <p className="font-medium text-foreground">{topLastActive ? getTimeAgo(topLastActive) : "No activity"}</p>
               </div>
             </div>
           </div>
         </div>
 
-        {/* ── RIGHT: Team Leaderboard ── */}
-        <div className="h-full flex flex-col rounded-2xl border border-foreground bg-primary p-4">
+        {/* ── Team leaderboard ── */}
+        <div className="flex h-full flex-col rounded-card border border-border bg-card p-5 shadow-card">
           <div className="mb-3 shrink-0">
             <div className="flex items-center gap-2">
-              <Trophy size={14} className="text-warning-foreground" />
-              <h3 className="text-sm font-semibold text-white">
-                Team Leaderboard
-              </h3>
+              <Trophy size={14} className="text-warning-foreground" aria-hidden />
+              <h3 className="text-sm font-semibold text-foreground">Team leaderboard</h3>
             </div>
-            <p className="text-[11px] text-muted-foreground mt-0.5">
-              all salesmen ranked by KPI score
-            </p>
+            <p className="mt-0.5 text-xs text-muted-foreground">Order value this month, then orders</p>
           </div>
 
-          <div className="space-y-0 divide-y divide-foreground overflow-y-auto flex-1 min-h-0 max-h-[420px] pr-1">
+          <ol className="min-h-0 max-h-[420px] flex-1 divide-y divide-border overflow-y-auto pr-1">
             {sortedSalesmen.map((s, idx) => {
               const lastActive = lastActiveMap.get(s.id);
-              const isActive24h =
-                lastActive && lastActive >= twentyFourHoursAgo;
-              const statusDotColor = isActive24h
-                ? "bg-success"
-                : s.kpiScore < 60
-                  ? "bg-warning"
-                  : "bg-muted-foreground";
-
-              const barColor =
-                s.kpiScore >= 75
-                  ? "bg-success"
-                  : s.kpiScore >= 50
-                    ? "bg-warning"
-                    : "bg-danger";
-              const scoreColor =
-                s.kpiScore >= 75
-                  ? "text-success-foreground"
-                  : s.kpiScore >= 50
-                    ? "text-warning-foreground"
-                    : "text-danger-foreground";
-
-              const rankIcon =
-                idx === 0 ? "🥇" : idx === 1 ? "🥈" : null;
-
+              const active24h = lastActive && lastActive >= twentyFourHoursAgo;
+              const rankIcon = idx === 0 ? "🥇" : idx === 1 ? "🥈" : idx === 2 ? "🥉" : null;
               return (
-                <div
-                  key={s.id}
-                  className="flex items-center gap-2 py-2 first:pt-0 last:pb-0"
-                >
-                  {/* Rank */}
-                  <span className="w-5 text-center text-xs shrink-0">
-                    {rankIcon ? (
-                      rankIcon
-                    ) : (
-                      <span className="text-[11px] font-semibold text-muted-foreground">
-                        #{idx + 1}
-                      </span>
-                    )}
+                <li key={s.id} className="flex items-center gap-2.5 py-2.5 first:pt-0 last:pb-0">
+                  <span className="w-6 shrink-0 text-center text-xs">
+                    {rankIcon ?? <span className="text-[11px] font-medium text-muted-foreground">#{idx + 1}</span>}
                   </span>
-
-                  {/* Avatar with status dot */}
                   <div className="relative shrink-0">
-                    <div
-                      className={cn(
-                        "h-7 w-7 flex items-center justify-center rounded-full text-white text-[10px] font-semibold",
-                        getAvatarColor(s.name)
-                      )}
-                    >
+                    <div className={cn("flex size-7 items-center justify-center rounded-full text-[10px] font-semibold text-white", getAvatarColor(s.name))}>
                       {getInitials(s.name)}
                     </div>
                     <span
-                      className={cn(
-                        "absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full ring-2 ring-foreground",
-                        statusDotColor
-                      )}
+                      className={cn("absolute -bottom-0.5 -right-0.5 size-2.5 rounded-full ring-2 ring-card", active24h ? "bg-success" : "bg-muted-foreground/40")}
+                      title={active24h ? "Active in the last 24h" : "Not active in the last 24h"}
                     />
                   </div>
-
-                  {/* Name + last active */}
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs font-semibold text-white truncate">
+                  <div className="min-w-0 flex-1">
+                    <Link href={`/dashboard/manager/team/${s.id}`} className="block truncate text-xs font-medium text-foreground hover:text-primary">
                       {s.name}
-                    </p>
-                    <p className="text-[10px] text-muted-foreground">
-                      {lastActive ? getTimeAgo(lastActive) : "No activity"}
-                    </p>
-                  </div>
-
-                  {/* Mini stats */}
-                  <div className="hidden sm:flex items-center gap-2.5 shrink-0">
-                    <div className="text-center">
-                      <p className="text-xs font-semibold text-muted-foreground/60 tabular-nums">
-                        {s.totalClients}
-                      </p>
-                      <p className="text-[11px] font-semibold text-muted-foreground">
-                        CLIENTS
-                      </p>
-                    </div>
-                    <div className="text-center">
-                      <p className="text-xs font-semibold text-success-foreground tabular-nums">
-                        {s.counts.onboarded ?? 0}
-                      </p>
-                      <p className="text-[11px] font-semibold text-muted-foreground">
-                        ON
-                      </p>
-                    </div>
-                    <div className="text-center">
-                      <p className="text-xs font-semibold text-danger-foreground tabular-nums">
-                        {s.counts.lost ?? 0}
-                      </p>
-                      <p className="text-[11px] font-semibold text-muted-foreground">
-                        LOST
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Score bar + score */}
-                  <div className="w-16 shrink-0">
-                    <div className="h-1.5 rounded-full bg-primary overflow-hidden mb-1">
-                      <div
-                        className={cn(
-                          "h-full rounded-full transition-all duration-500",
-                          barColor
-                        )}
-                        style={{
-                          width: `${Math.max(
-                            (s.kpiScore / maxKpi) * 100,
-                            4
-                          )}%`,
-                        }}
-                      />
-                    </div>
-                    <p
-                      className={cn(
-                        "text-[11px] font-semibold text-right tabular-nums",
-                        scoreColor
-                      )}
-                    >
-                      {s.kpiScore}
+                    </Link>
+                    <p className="text-[11px] text-muted-foreground">
+                      {s.perf.orders} order{s.perf.orders === 1 ? "" : "s"} · {s.perf.newClients} new client{s.perf.newClients === 1 ? "" : "s"}
                     </p>
                   </div>
-                </div>
+                  <div className="w-24 shrink-0">
+                    <p className="mb-1 text-right text-xs font-semibold tabular-nums text-foreground">{formatAmount(s.perf.value)}</p>
+                    <div className="h-1.5 overflow-hidden rounded-full bg-muted">
+                      <div className="h-full rounded-full bg-primary transition-[width] duration-500" style={{ width: `${Math.max((s.perf.value / maxValue) * 100, s.perf.value > 0 ? 4 : 0)}%` }} />
+                    </div>
+                  </div>
+                </li>
               );
             })}
-          </div>
+          </ol>
         </div>
       </div>
     </div>
@@ -957,7 +760,7 @@ export function ManagerKpiSkeleton() {
 }
 
 export function ManagerPerfSkeleton() {
-  const dark = "animate-pulse rounded-lg bg-primary";
+  const dark = "skeleton rounded-lg";
   return (
     <div className="space-y-3">
       <div className="space-y-1">
@@ -965,7 +768,7 @@ export function ManagerPerfSkeleton() {
         <Skeleton className="h-3 w-20" />
       </div>
       <div className="grid gap-4 lg:grid-cols-2 items-stretch">
-        <div className="rounded-2xl border border-foreground bg-primary p-4 space-y-3">
+        <div className="rounded-card border border-border bg-card shadow-card p-4 space-y-3">
           <div className={cn(dark, "h-4 w-24 rounded-full")} />
           <div className="flex items-center gap-3">
             <div className={cn(dark, "h-11 w-11 rounded-full shrink-0")} />
@@ -985,7 +788,7 @@ export function ManagerPerfSkeleton() {
           ))}
           <div className={cn(dark, "h-10 rounded-lg")} />
         </div>
-        <div className="rounded-2xl border border-foreground bg-primary p-4 space-y-3">
+        <div className="rounded-card border border-border bg-card shadow-card p-4 space-y-3">
           <div className={cn(dark, "h-4 w-32")} />
           {Array.from({ length: 5 }).map((_, j) => (
             <div key={j} className="flex items-center gap-2.5">

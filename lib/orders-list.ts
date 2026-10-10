@@ -5,7 +5,7 @@ import { literal, pageParam, paging, param, PAGE_SIZE, type Paged, type SearchPa
 import { VOID_ORDER_STATUSES, orderStatuses } from "@/types/order";
 
 const orderListInclude = {
-  client: { select: { id: true, name: true } },
+  client: { select: { id: true, name: true, organization: { select: { prefix: true } } } },
   createdBy: { select: { name: true } },
   enquiry: { select: { provisional_cost: true, provisional_profit: true, actual_cost: true, actual_profit: true, credit_days: true } },
   ...orderPaymentsInclude,

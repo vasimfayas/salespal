@@ -242,7 +242,7 @@ export function SalesmanReportPdf({ report: r }: { report: NonNullable<SalesmanM
           <Kpi label="Order value" value={compact(r.orders.value)} foot={`${int(r.orders.count)} order${r.orders.count === 1 ? "" : "s"} confirmed`} />
           <Kpi label="Payments collected" value={compact(r.collected.amount)} foot={`${int(r.collected.count)} payment${r.collected.count === 1 ? "" : "s"} recorded`} />
           <Kpi label="Quoted value" value={compact(e.quotedValue)} foot={`Avg. margin ${pct(e.margin, 1)}`} />
-          <Kpi label="KPI score" value={int(r.kpiScore)} foot={`${int(portfolioTotal)} clients in portfolio`} />
+          <Kpi label="New clients" value={int(r.onboarded.newClients)} foot={`First order this month · ${int(portfolioTotal)} clients in portfolio`} />
         </View>
 
         {/* Target */}
@@ -365,7 +365,7 @@ export function SalesmanReportPdf({ report: r }: { report: NonNullable<SalesmanM
                 empty=""
                 rows={r.lost.items}
                 cols={[
-                  { label: "Enquiry", width: "13%", strong: true, render: (x) => enquiryRef(x.id) },
+                  { label: "Enquiry", width: "13%", strong: true, render: (x) => enquiryRef(x.id, x.prefix) },
                   { label: "Client", width: "21%", render: (x) => x.client },
                   { label: "Route", width: "20%", render: (x) => `${x.from} › ${x.to}` },
                   { label: "Reason", width: "22%", render: (x) => x.reason ?? "—" },

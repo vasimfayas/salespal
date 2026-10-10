@@ -53,7 +53,7 @@ export type OrderListItem = {
   due_date?: string | Date | null;
   created_at: string | Date;
   updated_at: string | Date;
-  client?: { name: string };
+  client?: { name: string; organization?: { prefix: string | null } | null };
   createdBy?: { name: string };
   /** Set when an order was cancelled or sent back for revision. */
   closed_reason?: string | null;

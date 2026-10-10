@@ -13,6 +13,8 @@ export type CompanyFormValues = {
   address: string | null;
   phone: string | null;
   email: string | null;
+  prefix: string | null;
+  export_office_no: string | null;
 };
 
 const fieldClass =
@@ -55,6 +57,8 @@ function CompanyForm({
   const [address, setAddress] = useState(company?.address ?? "");
   const [phone, setPhone] = useState(company?.phone ?? "");
   const [email, setEmail] = useState(company?.email ?? "");
+  const [prefix, setPrefix] = useState(company?.prefix ?? "");
+  const [exportOfficeNo, setExportOfficeNo] = useState(company?.export_office_no ?? "");
   const [error, setError] = useState("");
   const isEdit = Boolean(company?.id);
 
@@ -67,7 +71,7 @@ function CompanyForm({
     setError("");
 
     startTransition(async () => {
-      const values = { name, address, phone, email };
+      const values = { name, address, phone, email, prefix, export_office_no: exportOfficeNo };
       const res = isEdit ? await updateCompanyAction(company!.id!, values) : await createCompanyAction(values);
       if (!res.success) {
         setError(res.error ?? "Something went wrong.");
@@ -117,6 +121,40 @@ function CompanyForm({
               onChange={(e) => setName(e.target.value)}
               className={fieldClass}
             />
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label htmlFor="company-prefix" className={labelClass}>
+                Prefix (Optional)
+              </label>
+              <input
+                id="company-prefix"
+                type="text"
+                maxLength={6}
+                placeholder="e.g. SPA"
+                value={prefix}
+                onChange={(e) => setPrefix(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ""))}
+                aria-describedby="company-prefix-hint"
+                className={`${fieldClass} font-mono uppercase`}
+              />
+              <p id="company-prefix-hint" className="mt-1 text-[11px] text-muted-foreground">
+                {prefix ? `Enquiry IDs: ${prefix}-ENQ-00012` : "2–6 letters or digits, used in enquiry IDs."}
+              </p>
+            </div>
+            <div>
+              <label htmlFor="company-export-office" className={labelClass}>
+                Export Office No. (Optional)
+              </label>
+              <input
+                id="company-export-office"
+                type="text"
+                placeholder="Export office number"
+                value={exportOfficeNo}
+                onChange={(e) => setExportOfficeNo(e.target.value)}
+                className={fieldClass}
+              />
+            </div>
           </div>
 
           <div>

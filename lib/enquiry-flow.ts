@@ -1,7 +1,7 @@
 import { Prisma } from "@prisma/client";
 import { revalidatePath, revalidateTag } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { closeFollowUpTasks, revalidateTaskViews } from "@/lib/enquiry-follow-ups";
+import { closeFollowUpTasks, nextFollowUpDate, revalidateTaskViews } from "@/lib/enquiry-follow-ups";
 import { syncOrderPayments, isFullyPaid } from "@/lib/order-payments";
 import { missingContactFields, contactRequiredMessage } from "@/lib/client-contact";
 import { BLACKLISTED_ERROR, applyClientStatus, revalidateClientViews, statusAfterOrder } from "@/lib/client-status-flow";
@@ -122,14 +122,20 @@ export async function applyEnquiryAction(
       const cost = money(body.cost, "cost");
       const profit = money(body.profit, "profit", { allowNegative: true });
       const to: EnquiryStatus = action === "quote" ? "quoted" : "offer_revised";
-      await tx.enquiry.update({ where: { id: enquiry.id }, data: { status: to, provisional_cost: cost, provisional_profit: profit } });
+      // Moving the enquiry on counts as following it up: close its follow-up task and restart the 30-day clock.
+      await tx.enquiry.update({
+        where: { id: enquiry.id },
+        data: { status: to, provisional_cost: cost, provisional_profit: profit, next_follow_up_at: nextFollowUpDate() },
+      });
       await logEvent(tx, { ...base, action: to, to_status: to, prev_cost: prevCost, prev_profit: prevProfit, cost, profit });
+      await closeFollowUpTasks(tx, enquiry.id, "achieved", { action: "enquiry_stage", note: `Moved to ${to === "quoted" ? "Quoted" : "Offer revised"}`, by: actor.id });
       return { status: to, orderId: null };
     }
 
     if (action === "negotiate") {
-      await tx.enquiry.update({ where: { id: enquiry.id }, data: { status: "negotiation" } });
+      await tx.enquiry.update({ where: { id: enquiry.id }, data: { status: "negotiation", next_follow_up_at: nextFollowUpDate() } });
       await logEvent(tx, { ...base, action: "negotiation", to_status: "negotiation" });
+      await closeFollowUpTasks(tx, enquiry.id, "achieved", { action: "enquiry_stage", note: "Moved to On negotiations", by: actor.id });
       return { status: "negotiation" as const, orderId: null };
     }
 
@@ -139,7 +145,7 @@ export async function applyEnquiryAction(
         where: { id: enquiry.id },
         data: { status: "lost", cancel_reason: reason, cancelled_at: new Date(), cancelled_by_id: actor.id },
       });
-      await closeFollowUpTasks(tx, enquiry.id, "unsuccessful");
+      await closeFollowUpTasks(tx, enquiry.id, "unsuccessful", { action: "enquiry_closed", note: `Enquiry marked lost: ${reason}`, by: actor.id });
       await logEvent(tx, { ...base, action: "lost", to_status: "lost", note: reason });
       return { status: "lost" as const, orderId: null };
     }
@@ -168,7 +174,7 @@ export async function applyEnquiryAction(
       });
       await syncOrderPayments(tx, revised.id);
       await tx.enquiry.update({ where: { id: enquiry.id }, data: { status: "confirmed" } });
-      await closeFollowUpTasks(tx, enquiry.id, "achieved");
+      await closeFollowUpTasks(tx, enquiry.id, "achieved", { action: "enquiry_stage", note: "Enquiry confirmed — order reopened", by: actor.id });
       await logEvent(tx, {
         ...base, action: "order_reopened", to_status: "confirmed", cost: prevCost, profit: prevProfit, order_id: revised.id,
         prev_cost: null, prev_profit: null, note: `Order amount ${revised.amount.toFixed(2)} → ${amount.toFixed(2)}`,
@@ -197,7 +203,7 @@ export async function applyEnquiryAction(
     });
     await syncOrderPayments(tx, order.id);
     await tx.enquiry.update({ where: { id: enquiry.id }, data: { status: "confirmed" } });
-    await closeFollowUpTasks(tx, enquiry.id, "achieved");
+    await closeFollowUpTasks(tx, enquiry.id, "achieved", { action: "enquiry_stage", note: "Enquiry confirmed — order created", by: actor.id });
     await logEvent(tx, { ...base, action: "confirmed", to_status: "confirmed", cost: prevCost, profit: prevProfit, order_id: order.id });
 
     const clientNext = statusAfterOrder(enquiry.client.status);
@@ -206,7 +212,7 @@ export async function applyEnquiryAction(
   });
 
   revalidateEnquiryPages();
-  if (action === "confirm" || action === "lose") revalidateTaskViews();
+  revalidateTaskViews(); // every stage move can close a follow-up task
   if (result.orderId) revalidateOrderViews();
   if ("clientChanged" in result && result.clientChanged) revalidateClientViews();
   return result;

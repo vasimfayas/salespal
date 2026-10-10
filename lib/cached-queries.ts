@@ -375,7 +375,7 @@ export const getOrderById = unstable_cache(
     const order = await prisma.order.findUnique({
       where: { id: orderId },
       include: {
-        client: { select: { id: true, name: true, org_id: true } },
+        client: { select: { id: true, name: true, org_id: true, organization: { select: { prefix: true } } } },
         createdBy: { select: { id: true, name: true } },
         ...orderPaymentsInclude,
       },

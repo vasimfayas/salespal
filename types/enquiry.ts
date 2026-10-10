@@ -194,8 +194,17 @@ export type EnquiryEventItem = {
 
 export type EnquiryFollowUpItem = { id: number; comment: string; by: string; at: string };
 
-export function enquiryRef(id: number) {
-  return `ENQ-${String(id).padStart(5, "0")}`;
+/** Enquiry ID shown to people: "SPA-ENQ-00012" with the client's company prefix, else "ENQ-00012". */
+export function enquiryRef(id: number, prefix?: string | null) {
+  return `${prefix ? `${prefix}-` : ""}ENQ-${String(id).padStart(5, "0")}`;
+}
+
+/** The enquiry number in a typed ref: "SPA-ENQ-00012", "ENQ-12", "enq12", "12" → 12; otherwise null. */
+export function parseEnquiryRef(text: string) {
+  // Optional company prefix (must contain a letter and end in "-" or a space), optional "ENQ", then the number.
+  const m = text.trim().match(/^(?:(?=[a-z0-9]*[a-z])[a-z0-9]{2,6}[-\s])?(?:enq[-\s]?)?0*(\d+)$/i);
+  const id = m ? Number(m[1]) : NaN;
+  return Number.isInteger(id) && id > 0 ? id : null;
 }
 
 export type EnquiryListItem = {
@@ -203,6 +212,8 @@ export type EnquiryListItem = {
   ref: string;
   client_id: number;
   client_name: string;
+  /** The client's company: name, enquiry-ID prefix, export office number. */
+  company: { name: string; prefix: string | null; export_office_no: string | null };
   /** standard | premium */
   client_category: string;
   enquiry_date: string; // YYYY-MM-DD

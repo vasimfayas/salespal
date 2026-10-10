@@ -38,7 +38,7 @@ export async function ensureEnquiryFollowUpTasks(userId: number) {
   const today = todayUtc();
   const due = await prisma.enquiry.findMany({
     where: { created_by_id: userId, ...dueForFollowUp(today) },
-    select: { id: true, enquiry_date: true, client: { select: { name: true } } },
+    select: { id: true, enquiry_date: true, client: { select: { name: true, organization: { select: { prefix: true } } } } },
   });
 
   let created = 0;
@@ -59,7 +59,7 @@ export async function ensureEnquiryFollowUpTasks(userId: number) {
         enquiry_id: enquiry.id,
         assigned_to_id: userId,
         created_by_id: userId,
-        description: `Follow up on enquiry ${enquiryRef(enquiry.id)} for ${enquiry.client.name} — still active after ${days} days. Add a follow-up comment, move it to the next stage, or mark it lost with a reason.`,
+        description: `Follow up on enquiry ${enquiryRef(enquiry.id, enquiry.client.organization.prefix)} for ${enquiry.client.name} — still active after ${days} days. Add a follow-up comment, move it to the next stage, or mark it lost with a reason.`,
         due_date: today,
         status: "pending",
         notification: true,
@@ -72,13 +72,23 @@ export async function ensureEnquiryFollowUpTasks(userId: number) {
   return created;
 }
 
-/** Marks the enquiry's outstanding follow-up tasks as done (follow-up logged / converted) or unsuccessful (cancelled). */
+/**
+ * Closes the enquiry's outstanding follow-up tasks — done (follow-up logged, moved on, confirmed) or
+ * unsuccessful (lost) — and records what happened in each task's history.
+ */
 export async function closeFollowUpTasks(
   tx: Prisma.TransactionClient,
   enquiryId: number,
-  status: "achieved" | "unsuccessful"
+  status: "achieved" | "unsuccessful",
+  detail: { action: string; note: string; by: number },
 ) {
-  await tx.task.updateMany({ where: { enquiry_id: enquiryId, ...OPEN_FOLLOW_UP_TASK }, data: { status } });
+  const open = await tx.task.findMany({ where: { enquiry_id: enquiryId, ...OPEN_FOLLOW_UP_TASK }, select: { id: true } });
+  if (open.length === 0) return;
+  const now = new Date();
+  await tx.task.updateMany({ where: { id: { in: open.map((t) => t.id) } }, data: { status, closed_at: now } });
+  await tx.taskUpdate.createMany({
+    data: open.map((t) => ({ task_id: t.id, action: detail.action, note: detail.note, created_by_id: detail.by, created_at: now })),
+  });
 }
 
 export function revalidateTaskViews() {

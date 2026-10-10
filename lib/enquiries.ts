@@ -2,7 +2,7 @@ import type { Prisma } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { clientScopeWhere, getAccountantOrgIds, getManagerSalesmanIds, getTokenUserId, type ScopedToken } from "@/lib/scoping";
-import { enquiryRef, enquiryStatuses, type EnquiryListItem, type EnquiryStatus } from "@/types/enquiry";
+import { enquiryRef, enquiryStatuses, parseEnquiryRef, type EnquiryListItem, type EnquiryStatus } from "@/types/enquiry";
 import { DEFAULT_DIMENSION_UNIT, readPackages } from "@/lib/freight";
 import { intParam, literal, pageParam, paging, param, PAGE_SIZE, type Paged, type SearchParams } from "@/lib/list-params";
 
@@ -20,7 +20,7 @@ export async function enquiryScopeWhere(token: ScopedToken): Promise<Prisma.Enqu
 }
 
 const enquiryListInclude = {
-  client: { select: { name: true, category: true } },
+  client: { select: { name: true, category: true, organization: { select: { name: true, prefix: true, export_office_no: true } } } },
   createdBy: { select: { name: true } },
   order: { select: { id: true, job_no: true, status: true } },
   events: { include: { createdBy: { select: { name: true } } }, orderBy: { created_at: "desc" } },
@@ -36,7 +36,8 @@ const STATUSES: readonly EnquiryStatus[] = enquiryStatuses;
 function toListItem(e: EnquiryWithList): EnquiryListItem {
   return {
     id: e.id,
-    ref: enquiryRef(e.id),
+    ref: enquiryRef(e.id, e.client.organization.prefix),
+    company: e.client.organization,
     client_id: e.client_id,
     client_name: e.client.name,
     client_category: e.client.category,
@@ -100,8 +101,8 @@ function enquirySearchWhere(q: string | undefined): Prisma.EnquiryWhereInput {
     { client: { name: { contains: literal(q), mode: "insensitive" } } },
     { order: { job_no: { contains: literal(q), mode: "insensitive" } } },
   ];
-  const refId = Number(q.replace(/^enq-?/i, ""));
-  if (Number.isInteger(refId) && refId > 0) or.push({ id: refId });
+  const refId = parseEnquiryRef(q);
+  if (refId) or.push({ id: refId });
   return { OR: or };
 }
 

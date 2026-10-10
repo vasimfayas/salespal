@@ -1,5 +1,5 @@
 import { Star, AlertTriangle, UserCheck, Users, XCircle, type LucideIcon } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn, formatAmount } from "@/lib/utils";
 import { clientStatusLabel } from "@/types/client";
 import { statusDotClass } from "@/components/ui/Badge";
 
@@ -63,8 +63,9 @@ export interface CompanyComparisonCardProps {
   pipelineBreakdown: { status: string; count: number }[];
   totalClients: number;
   managerName: string;
-  teamKpi: number;
-  maxTeamKpi: number;
+  /** Order value this month by the company's team. */
+  teamValue: number;
+  maxTeamValue: number;
 }
 
 export function CompanyComparisonCard({
@@ -76,13 +77,13 @@ export function CompanyComparisonCard({
   pipelineBreakdown,
   totalClients,
   managerName,
-  teamKpi,
-  maxTeamKpi,
+  teamValue,
+  maxTeamValue,
 }: CompanyComparisonCardProps) {
   const theme = STATUS_THEME[status];
   const BadgeIcon = theme.badgeIcon;
   const gaugePct =
-    maxTeamKpi > 0 ? Math.min(Math.max((teamKpi / maxTeamKpi) * 100, teamKpi > 0 ? 4 : 0), 100) : 0;
+    maxTeamValue > 0 ? Math.min(Math.max((teamValue / maxTeamValue) * 100, teamValue > 0 ? 4 : 0), 100) : 0;
 
   return (
     <div className="relative flex h-full flex-col overflow-hidden rounded-card border border-border bg-card shadow-card">
@@ -146,8 +147,8 @@ export function CompanyComparisonCard({
             </div>
           </div>
           <div className="w-28 shrink-0 text-right">
-            <p className="text-xs text-muted-foreground">Team KPI</p>
-            <p className={cn("mt-0.5 text-lg font-semibold tabular-nums", theme.valueColor)}>{teamKpi.toLocaleString()}</p>
+            <p className="text-xs text-muted-foreground">Order value · this month</p>
+            <p className={cn("mt-0.5 text-lg font-semibold tabular-nums", theme.valueColor)}>{formatAmount(teamValue)}</p>
             <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-muted">
               <div className={cn("h-full rounded-full transition-[width] duration-500", theme.accent)} style={{ width: `${gaugePct}%` }} />
             </div>

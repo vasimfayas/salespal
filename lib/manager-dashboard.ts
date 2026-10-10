@@ -1,7 +1,7 @@
 import { unstable_cache } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { literal } from "@/lib/list-params";
-import { calculateKpiScore } from "@/lib/kpi";
+import { byPerformance, getPerformance, monthPeriod, type Performance } from "@/lib/performance";
 
 /**
  * Manager dashboard aggregates — counted in Postgres; detail lists are capped (the cards link to the full pages).
@@ -13,11 +13,22 @@ const CACHE = { revalidate: 30, tags: ["manager-dashboard", "manager-clients", "
 /** Rows shown in the KPI card pop-ups and the pending-task list. */
 export const DETAIL_LIMIT = 50;
 
-export type TeamMember = { id: number; name: string; counts: Record<string, number>; kpiScore: number; totalClients: number };
+export type TeamMember = {
+  id: number;
+  name: string;
+  counts: Record<string, number>;
+  totalClients: number;
+  /** Orders, order value and new clients in the period (lib/performance.ts). */
+  perf: Performance;
+};
 
-/** The manager's salesmen with their client status counts and KPI, best first. */
+/**
+ * The manager's salesmen with their client status counts and performance for the period
+ * (default: this month), best first — ranked by order value, then orders.
+ */
 export const getManagerTeam = unstable_cache(
-  async (managerId: number): Promise<TeamMember[]> => {
+  async (managerId: number, fromIso?: string, toIso?: string): Promise<TeamMember[]> => {
+    const period = fromIso && toIso ? { from: new Date(fromIso), to: new Date(toIso) } : monthPeriod(0);
     const salesmen = await prisma.user.findMany({
       where: { salesmanManager: { some: { manager_id: managerId } } },
       select: { id: true, name: true },
@@ -29,6 +40,7 @@ export const getManagerTeam = unstable_cache(
           _count: { _all: true },
         })
       : [];
+    const perf = await getPerformance(salesmen.map((s) => s.id), period);
     const counts = new Map<number, Record<string, number>>();
     for (const g of grouped) {
       const c = counts.get(g.assigned_salesman_id) ?? {};
@@ -38,11 +50,11 @@ export const getManagerTeam = unstable_cache(
     return salesmen
       .map((s) => {
         const c = counts.get(s.id) ?? {};
-        return { id: s.id, name: s.name, counts: c, kpiScore: calculateKpiScore(c), totalClients: Object.values(c).reduce((a, b) => a + b, 0) };
+        return { id: s.id, name: s.name, counts: c, totalClients: Object.values(c).reduce((a, b) => a + b, 0), perf: perf.get(s.id)! };
       })
-      .sort((a, b) => b.kpiScore - a.kpiScore);
+      .sort(byPerformance);
   },
-  ["manager-team-kpi"],
+  ["manager-team-perf"],
   CACHE
 );
 

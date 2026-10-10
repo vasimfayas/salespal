@@ -4,6 +4,8 @@ import { getToken } from "next-auth/jwt";
 import { prisma } from "@/lib/prisma";
 import { canAccessSalesman, clientScopeWhere, getManagerOrgIds, getTokenUserId, isRole } from "@/lib/scoping";
 
+import { createLeadTasks, leadClientSelect } from "@/lib/lead-tasks";
+import { revalidateTaskViews } from "@/lib/enquiry-follow-ups";
 /** Managers reassign several of their organization's clients to one salesman on their team, optionally under another of their companies. */
 export async function POST(request: NextRequest) {
   const token = await getToken({ req: request, secret: process.env.NEXTAUTH_SECRET });
@@ -58,16 +60,20 @@ export async function POST(request: NextRequest) {
     .filter((client) => client.assigned_salesman_id !== salesmanId || (org && client.org_id !== org.id))
     .map((client) => client.id);
   const action = `Assigned to ${salesman.name}${org ? ` (${org.name})` : ""} for follow-up`;
+  let tasks = { created: 0, reassigned: 0 };
   if (toMove.length) {
-    await prisma.$transaction([
-      prisma.client.updateMany({
+    tasks = await prisma.$transaction(async (tx) => {
+      await tx.client.updateMany({
         where: { id: { in: toMove } },
         data: { assigned_salesman_id: salesmanId, ...(org ? { org_id: org.id } : {}) },
-      }),
-      prisma.clientLog.createMany({
+      });
+      await tx.clientLog.createMany({
         data: toMove.map((id) => ({ client_id: id, action, done_by: getTokenUserId(token) })),
-      }),
-    ]);
+      });
+      // One follow-up task per lead for the salesman (lib/lead-tasks.ts).
+      const leads = await tx.client.findMany({ where: { id: { in: toMove } }, select: leadClientSelect });
+      return createLeadTasks(tx, { clients: leads, salesmanId, assignedById: getTokenUserId(token) });
+    });
   }
 
   revalidateTag("salesman-dashboard", { expire: 0 });
@@ -75,5 +81,6 @@ export async function POST(request: NextRequest) {
   revalidateTag("admin-clients", { expire: 0 });
   revalidateTag("manager-dashboard", { expire: 0 });
   revalidateTag("manager-clients", { expire: 0 });
-  return NextResponse.json({ updated: toMove.length });
+  if (tasks.created || tasks.reassigned) revalidateTaskViews();
+  return NextResponse.json({ updated: toMove.length, tasks_created: tasks.created });
 }

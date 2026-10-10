@@ -73,7 +73,7 @@ export function OrderDetail({ order: initialOrder }: { order: OrderListItem }) {
                     href={enquiryHref("salesman", (order.enquiry_id ?? order.origin_enquiry_id)!)}
                     className="inline-flex items-center gap-1 font-mono text-sm font-semibold text-primary hover:underline"
                   >
-                    {enquiryRef((order.enquiry_id ?? order.origin_enquiry_id)!)} <ExternalLink size={12} aria-hidden />
+                    {enquiryRef((order.enquiry_id ?? order.origin_enquiry_id)!, order.client?.organization?.prefix)} <ExternalLink size={12} aria-hidden />
                   </Link>
                 ) : (
                   <span className="text-sm font-semibold text-foreground">—</span>

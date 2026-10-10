@@ -148,6 +148,12 @@ export async function buildEnquiryFormPdf(enquiry: EnquiryListItem | null): Prom
     label(date, M + CW - 12 - font.widthOfTextAtSize(date, 8), y - 32, 8, font, rgb(0.88, 0.96, 0.95));
   }
   y -= 52;
+  // Issuing company (and its export office number) for exported enquiries.
+  if (e?.company) {
+    const company = [e.company.name, e.company.export_office_no ? `Export Office No. ${e.company.export_office_no}` : null].filter(Boolean).join("  ·  ");
+    label(company, M, y, 9, bold, INK);
+    y -= 13;
+  }
   label("Fill in every field that applies and tick the matching boxes. All dimensions are per piece.", M, y, 8, font, MUTED);
   y -= 8;
 

@@ -83,9 +83,15 @@ export type ClientOrderRow = {
   overdue: boolean;
 };
 
+/** The client's company enquiry-ID prefix (SPA → SPA-ENQ-00012), or null. */
+async function clientPrefix(clientId: number) {
+  const c = await prisma.client.findUnique({ where: { id: clientId }, select: { organization: { select: { prefix: true } } } });
+  return c?.organization.prefix ?? null;
+}
+
 export async function getClientOrdersPage(clientId: number, page: unknown) {
   const where = { client_id: clientId };
-  const total = await prisma.order.count({ where });
+  const [total, prefix] = await Promise.all([prisma.order.count({ where }), clientPrefix(clientId)]);
   const current = Math.min(pageOf(page), Math.max(1, Math.ceil(total / CLIENT_HISTORY_PAGE_SIZE)));
   const rows = await prisma.order.findMany({
     where,
@@ -108,7 +114,7 @@ export async function getClientOrdersPage(clientId: number, page: unknown) {
         created_at: r.created_at.toISOString(),
         job_no: r.job_no,
         enquiry_id: r.origin_enquiry_id,
-        enquiry_ref: r.origin_enquiry_id ? enquiryRef(r.origin_enquiry_id) : null,
+        enquiry_ref: r.origin_enquiry_id ? enquiryRef(r.origin_enquiry_id, prefix) : null,
         mode: r.mode,
         from: r.from,
         to: r.to,
@@ -141,7 +147,7 @@ export type ClientEnquiryRow = {
 
 export async function getClientEnquiriesPage(clientId: number, page: unknown) {
   const where = { client_id: clientId };
-  const total = await prisma.enquiry.count({ where });
+  const [total, prefix] = await Promise.all([prisma.enquiry.count({ where }), clientPrefix(clientId)]);
   const current = Math.min(pageOf(page), Math.max(1, Math.ceil(total / CLIENT_HISTORY_PAGE_SIZE)));
   const rows = await prisma.enquiry.findMany({
     where,
@@ -157,7 +163,7 @@ export async function getClientEnquiriesPage(clientId: number, page: unknown) {
     rows: rows.map(
       (r): ClientEnquiryRow => ({
         id: r.id,
-        ref: enquiryRef(r.id),
+        ref: enquiryRef(r.id, prefix),
         enquiry_date: r.enquiry_date.toISOString().slice(0, 10),
         mode: r.mode,
         from: r.from,

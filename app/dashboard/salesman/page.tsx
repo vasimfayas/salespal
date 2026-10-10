@@ -1,21 +1,16 @@
 import { Suspense } from "react";
 import { getSalesPalSession } from "@/lib/auth";
-import {
-  calculateKpiScoreProgress,
-  getKpiScoreBreakdown,
-  type KpiBreakdownItem,
-} from "@/lib/kpi";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { DonutChart } from "@mantine/charts";
 import { SectionCard } from "@/components/dashboard/SectionCard";
 import { StatCard, type StatCardTheme } from "@/components/dashboard/StatCard";
-import { UserCheck, Phone, Sparkles, XCircle, ListChecks } from "lucide-react";
+import { UserCheck, Phone, Sparkles, XCircle, ListChecks, Wallet, Package, UserPlus } from "lucide-react";
+import { EMPTY_PERFORMANCE, getPerformance, monthPeriod } from "@/lib/performance";
 import { MonthlyActivityChart } from "@/components/dashboard/MonthlyActivityChart";
 import { OrderMonthlyChart } from "@/components/orders/OrderMonthlyChart";
 import { TaskOverview } from "@/components/dashboard/TaskOverview";
-import { cn } from "@/lib/utils";
+import { formatAmount } from "@/lib/utils";
 import {
   getCachedSalesmanInfo,
   getCachedClientStatusCounts,
@@ -48,35 +43,6 @@ function KpiCardsSkeleton() {
   );
 }
 
-function KpiScoreSkeleton() {
-  return (
-    <div className="rounded-card border border-border bg-card p-6 shadow-card animate-pulse">
-      <Skeleton className="h-4 w-24" />
-      <Skeleton className="mt-2 h-3 w-72 max-w-full" />
-      <div className="mt-6 grid items-center gap-10 md:grid-cols-2">
-        <div className="flex flex-col items-center gap-4">
-          <Skeleton className="h-[200px] w-[200px] rounded-full" />
-          <Skeleton className="h-4 w-36" />
-        </div>
-        <div className="space-y-4">
-          {Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} className="space-y-2">
-              <div className="flex items-center justify-between gap-2">
-                <div className="flex items-center gap-2">
-                  <Skeleton className="h-2 w-2 rounded-full" />
-                  <Skeleton className="h-3 w-20" />
-                </div>
-                <Skeleton className="h-3 w-16" />
-              </div>
-              <Skeleton className="h-1.5 w-full rounded-full" />
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
-
 function ChartSkeleton() {
   return (
     <div className="rounded-card border border-border bg-card p-6 shadow-card animate-pulse">
@@ -104,131 +70,6 @@ function TasksSkeleton() {
     </div>
   );
 }
-
-/* ── KPI Score Ring + Breakdown ── */
-
-function breakdownTone(status: string, weight: number) {
-  if (status === "onboarded") {
-    return { dot: "bg-success", bar: "bg-success" };
-  }
-  if (weight < 0) return { dot: "bg-danger", bar: "bg-danger" };
-  if (status === "dormant") return { dot: "bg-muted-foreground", bar: "bg-muted-foreground" };
-  return { dot: "bg-primary", bar: "bg-primary" };
-}
-
-function donutTone(status: string, weight: number) {
-  if (status === "onboarded") return "green.6";
-  if (weight < 0) return "pink.6";
-  if (status === "dormant") return "gray.5";
-  return "teal.6";
-}
-
-function KpiScoreSection({
-  progress,
-  breakdown,
-}: {
-  progress: ReturnType<typeof calculateKpiScoreProgress>;
-  breakdown: KpiBreakdownItem[];
-}) {
-  const { score, maxScore, percent, totalClients, remaining } = progress;
-
-  // A donut can only plot non-negative shares — points lost to "lost"/"blacklisted"
-  // clients still show up (as negative numbers) in the list below.
-  const donutData = breakdown
-    .filter((item) => item.points > 0)
-    .map((item) => ({
-      name: item.label,
-      value: item.points,
-      color: donutTone(item.status, item.weight),
-    }));
-
-  return (
-    <div className="grid items-center gap-10 md:grid-cols-[auto_1fr]">
-      <div className="flex flex-col items-center gap-4">
-        <div className="relative flex h-[200px] w-[200px] items-center justify-center">
-          {donutData.length > 0 ? (
-            <DonutChart
-              data={donutData}
-              size={200}
-              thickness={22}
-              paddingAngle={3}
-              withTooltip
-              tooltipDataSource="segment"
-              strokeWidth={0}
-            />
-          ) : (
-            <div className="h-[200px] w-[200px] rounded-full border-[22px] border-border" />
-          )}
-          <div
-            className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center"
-            aria-label={`KPI score ${score} out of ${maxScore} points`}
-          >
-            <span className="text-[40px] font-semibold leading-none text-foreground tabular-nums">
-              {percent}
-              <span className="text-2xl font-semibold text-muted-foreground/80">%</span>
-            </span>
-            <span className="mt-2 text-xs font-medium text-muted-foreground">
-              {score} of {maxScore} pts
-            </span>
-          </div>
-        </div>
-
-        <p className="max-w-[200px] text-center text-xs text-muted-foreground">
-          {totalClients === 0
-            ? "No clients assigned yet"
-            : maxScore > 0 && remaining > 0
-              ? `${remaining} pt${remaining === 1 ? "" : "s"} left to reach full potential`
-              : totalClients > 0
-                ? "Full pipeline potential reached"
-                : null}
-        </p>
-      </div>
-
-      <div className="space-y-4">
-        <p className="text-xs font-medium text-muted-foreground/80">Where your points come from</p>
-        {breakdown.length > 0 ? (
-          <div className="space-y-3.5">
-            {breakdown.map((item) => {
-              const tone = breakdownTone(item.status, item.weight);
-              const barPct =
-                maxScore > 0
-                  ? Math.min(Math.max((item.points / maxScore) * 100, 0), 100)
-                  : 0;
-              return (
-                <div key={item.status}>
-                  <div className="mb-1.5 flex items-center justify-between gap-2 text-xs">
-                    <span className="flex items-center gap-2 capitalize text-foreground/85">
-                      <span className={cn("h-2 w-2 shrink-0 rounded-full", tone.dot)} />
-                      {item.label}
-                    </span>
-                    <span className="shrink-0 tabular-nums text-muted-foreground">
-                      {item.count} × {item.weight} ={" "}
-                      <span className="font-semibold text-foreground">
-                        {item.points} pt{item.points === 1 ? "" : "s"}
-                      </span>
-                    </span>
-                  </div>
-                  <div className="h-1.5 overflow-hidden rounded-full bg-muted">
-                    <div
-                      className={cn("h-full rounded-full transition-all duration-500", tone.bar)}
-                      style={{ width: `${barPct}%` }}
-                    />
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        ) : (
-          <p className="text-sm text-muted-foreground">No client activity yet.</p>
-        )}
-      </div>
-    </div>
-  );
-}
-
-/* ══════════════════════════════════════════════════════════════
-   Async Server Components (each one is a Suspense boundary)
-   ══════════════════════════════════════════════════════════════ */
 
 const STATUS_CARD_CONFIG: {
   label: string;
@@ -303,7 +144,7 @@ async function KpiCardsSection({ userId }: { userId: number }) {
             caption={
               <>
                 Vs last month:{" "}
-                <span className="font-semibold text-white">{lastMonthCounts[card.key] ?? 0}</span>
+                <span className="font-semibold text-foreground">{lastMonthCounts[card.key] ?? 0}</span>
               </>
             }
             theme={card.theme}
@@ -314,19 +155,36 @@ async function KpiCardsSection({ userId }: { userId: number }) {
   );
 }
 
-async function KpiScoreCard({ userId }: { userId: number }) {
-  const counts = await getCachedClientStatusCounts(userId);
-  const totalClients = Object.values(counts).reduce((a, b) => a + b, 0);
-  const kpiProgress = calculateKpiScoreProgress(counts, totalClients);
-  const kpiBreakdown = getKpiScoreBreakdown(counts);
-
+/** This month's orders, order value and new clients vs last month — what salesman performance is measured on. */
+async function PerformanceCardsSection({ userId }: { userId: number }) {
+  const [now, prev] = await Promise.all([getPerformance([userId], monthPeriod(0)), getPerformance([userId], monthPeriod(-1))]);
+  const cur = now.get(userId) ?? EMPTY_PERFORMANCE;
+  const last = prev.get(userId) ?? EMPTY_PERFORMANCE;
+  const change = (a: number, b: number) => (b > 0 ? Math.round(((a - b) / b) * 100) : a > 0 ? 100 : 0);
+  const cards = [
+    { label: "Order value", value: formatAmount(cur.value), prev: formatAmount(last.value), pct: change(cur.value, last.value), icon: Wallet, theme: { bg: "bg-primary" } },
+    { label: "Orders", value: cur.orders, prev: last.orders, pct: change(cur.orders, last.orders), icon: Package, theme: { bg: "bg-info" } },
+    { label: "New clients", value: cur.newClients, prev: last.newClients, pct: change(cur.newClients, last.newClients), icon: UserPlus, theme: { bg: "bg-success" } },
+  ];
   return (
-    <SectionCard
-      title="KPI score"
-      subtitle={`Points from your ${totalClients} client${totalClients === 1 ? "" : "s"} — max ${kpiProgress.maxScore} if all reach onboarded`}
-    >
-      <KpiScoreSection progress={kpiProgress} breakdown={kpiBreakdown} />
-    </SectionCard>
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+      {cards.map((c) => (
+        <StatCard
+          key={c.label}
+          icon={c.icon}
+          label={`${c.label} · this month`}
+          value={c.value}
+          badgeLabel={`${c.pct > 0 ? "+" : ""}${c.pct}%`}
+          badgeDirection={c.pct > 0 ? "up" : c.pct < 0 ? "down" : "flat"}
+          caption={
+            <>
+              Last month: <span className="font-semibold text-foreground">{c.prev}</span>
+            </>
+          }
+          theme={c.theme}
+        />
+      ))}
+    </div>
   );
 }
 
@@ -431,15 +289,18 @@ export default async function SalesmanDashboardPage() {
       <PageHeader title="My Performance" subtitle={subtitle} />
 
       <div className="space-y-5">
-        {/* ─── 1. KPI Status Cards ─── */}
+        {/* ─── 1. Performance: orders, order value, new clients ─── */}
         <Suspense fallback={<KpiCardsSkeleton />}>
-          <KpiCardsSection userId={userId} />
+          <PerformanceCardsSection userId={userId} />
         </Suspense>
 
-        {/* ─── 2. KPI Score (hero) ─── */}
-        <Suspense fallback={<KpiScoreSkeleton />}>
-          <KpiScoreCard userId={userId} />
-        </Suspense>
+        {/* ─── 2. Pipeline: where your clients are ─── */}
+        <div className="space-y-2">
+          <h2 className="text-sm font-semibold text-foreground">Your pipeline</h2>
+          <Suspense fallback={<KpiCardsSkeleton />}>
+            <KpiCardsSection userId={userId} />
+          </Suspense>
+        </div>
 
         {/* ─── 3 & 4. Charts side by side on desktop ─── */}
         <div className="grid gap-5 lg:grid-cols-2">

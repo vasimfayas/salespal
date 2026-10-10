@@ -23,7 +23,7 @@ import {
   type AlertItem,
 } from "@/components/dashboard/SmartAlertBanner";
 import { MonthlyTrendChartWrapper } from "@/components/dashboard/MonthlyTrendChartWrapper";
-import { cn, titleCase, formatDate } from "@/lib/utils";
+import { cn, formatAmount, titleCase, formatDate } from "@/lib/utils";
 import {
   TrendingUp,
   TrendingDown,
@@ -229,8 +229,9 @@ export async function CompanyHeroSection({
     .slice(0, 2)
     .sort((a, b) => a.orgName.localeCompare(b.orgName));
 
-  const betterIdx = orgData[0].kpiScore >= orgData[1].kpiScore ? 0 : 1;
-  const maxTeamKpi = Math.max(orgData[0].teamKpi, orgData[1].teamKpi, 1);
+  // "Top performer" = the company whose team brought in more order value this month.
+  const betterIdx = orgData[0].teamValue >= orgData[1].teamValue ? 0 : 1;
+  const maxTeamValue = Math.max(orgData[0].teamValue, orgData[1].teamValue, 1);
 
   // If filtering by a single org, only show that one
   const displayData = orgId ? orgData.filter((d) => d.oid === orgId) : orgData;
@@ -271,8 +272,8 @@ export async function CompanyHeroSection({
               pipelineBreakdown={pipelineBreakdown}
               totalClients={d.total}
               managerName={d.managerName}
-              teamKpi={d.teamKpi}
-              maxTeamKpi={maxTeamKpi}
+              teamValue={d.teamValue}
+              maxTeamValue={maxTeamValue}
             />
           );
         })}
@@ -296,16 +297,17 @@ export async function SalesmanLeaderboardSection({
 }) {
   const rankedSalesmen = await getAdminLeaderboard(orgId ?? null);
 
-  const maxKpi = rankedSalesmen[0]?.kpi || 1;
+  const maxValue = rankedSalesmen[0]?.perf.value || 1;
   const rankIcons = ["🥇", "🥈", "🥉"];
 
   return (
     <Card className={cn("rounded-2xl h-[400px] flex flex-col", className)}>
       <div className="flex items-center gap-2 mb-4 shrink-0">
         <Trophy size={16} className="text-warning-foreground" />
-        <h3 className="text-sm font-semibold text-foreground">
-          Salesman Leaderboard
-        </h3>
+        <div>
+          <h3 className="text-sm font-semibold text-foreground">Salesman Leaderboard</h3>
+          <p className="text-xs text-muted-foreground">Order value this month</p>
+        </div>
       </div>
       <div className="space-y-2.5 overflow-y-auto flex-1 pr-1">
         {rankedSalesmen.map((s, idx) => (
@@ -325,7 +327,7 @@ export async function SalesmanLeaderboardSection({
                   {s.name}
                 </p>
                 <span className="text-xs font-semibold text-foreground tabular-nums">
-                  {s.kpi}
+                  {formatAmount(s.perf.value)}
                 </span>
               </div>
               <div className="flex items-center gap-2">
@@ -341,11 +343,11 @@ export async function SalesmanLeaderboardSection({
                             ? "bg-warning"
                             : "bg-border-strong",
                     )}
-                    style={{ width: `${Math.max((s.kpi / maxKpi) * 100, 4)}%` }}
+                    style={{ width: `${Math.max((s.perf.value / maxValue) * 100, s.perf.value > 0 ? 4 : 0)}%` }}
                   />
                 </div>
-                <span className="text-[10px] text-muted-foreground/80 font-medium shrink-0">
-                  {s.company}
+                <span className="text-[10px] text-muted-foreground/80 font-medium shrink-0 tabular-nums">
+                  {s.perf.orders} orders · {s.perf.newClients} new · {s.company}
                 </span>
               </div>
             </div>
@@ -700,11 +702,11 @@ export function KpiSkeleton() {
 }
 
 export function HeroSkeleton() {
-  const dark = "animate-pulse rounded-lg bg-primary";
+  const dark = "skeleton rounded-lg";
   return (
     <div className="grid gap-4 lg:grid-cols-2">
       {[0, 1].map((i) => (
-        <div key={i} className="space-y-4 rounded-2xl border border-foreground bg-primary p-6 pt-7">
+        <div key={i} className="space-y-4 rounded-card border border-border bg-card shadow-card p-6 pt-7">
           <div className="flex justify-between">
             <div className={cn(dark, "h-6 w-28")} />
             <div className={cn(dark, "h-6 w-28 rounded-full")} />

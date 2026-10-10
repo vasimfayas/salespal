@@ -22,6 +22,7 @@ export const navConfig: Record<number, { label: string; href: string }[]> = {
     { label: "Clients", href: "/dashboard/manager/clients" },
     { label: "Enquiries", href: "/dashboard/manager/enquiries" },
     { label: "Orders", href: "/dashboard/manager/orders" },
+    { label: "Shipping Rates", href: "/dashboard/manager/shipping-rates" },
   ],
   3: [
     { label: "Dashboard", href: "/dashboard/salesman/dashboard-org" },

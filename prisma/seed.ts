@@ -46,6 +46,7 @@ const N = {
   kpiLogs: SMALL ? 1000 : 20000,
   tasks: SMALL ? 2000 : 40000,
   clientTasks: SMALL ? 500 : 10000,
+  leadTasks: SMALL ? 200 : 4000,
   enquiries: SMALL ? 800 : 15000,
   rates: 300,
 };
@@ -115,7 +116,7 @@ const JOB_REFS_BY_MODE: Record<string, JobRef[]> = {
 
 async function wipe() {
   const tables = [
-    "enquiry_events", "enquiry_follow_ups", "order_payments", "orders", "tasks", "enquiries", "client_tasks",
+    "enquiry_events", "enquiry_follow_ups", "order_payments", "orders", "task_updates", "tasks", "enquiries", "client_tasks",
     "client_documents", "client_logs", "salesman_kpi_logs", "salesman_targets", "shipping_rates", "clients",
     "company_documents", "manager_salesman", "manager_org", "accountant_org", "users", "organizations", "roles",
   ];
@@ -146,6 +147,8 @@ async function main() {
       address: `Building ${12 + i * 7}, Street ${300 + i * 11}, ${QATAR_AREAS[i]}, Doha, Qatar`,
       phone: `+974 4400 ${String(1100 + i).padStart(4, "0")}`,
       email: `info@company-${l.toLowerCase()}.qa`,
+      prefix: `SP${l}`, // enquiry IDs like SPA-ENQ-00012
+      export_office_no: `EO-${2024000 + i * 137}`,
     })),
   });
   const [orgA, orgB, orgC, orgD] = orgs;
@@ -594,7 +597,50 @@ async function main() {
       category,
     });
   }
+  // Closed tasks get a closed date (the 6-month cleanup keys off it).
+  for (const t of taskRows) if (t.status === "achieved" || t.status === "unsuccessful") t.closed_at = t.due_date as Date;
   await inChunks(taskRows, 10000, (chunk) => prisma.task.createMany({ data: chunk }));
+
+  // Lead follow-up tasks (manager assigned a lead) with their outcomes, mirroring lib/task-outcomes.ts.
+  const leadCandidates = clients.filter((c) => ["lead", "contacted", "follow_up", "lost"].includes(finalStatus.get(c.id)!)).slice(0, N.leadTasks);
+  const leadRows: Prisma.TaskCreateManyInput[] = leadCandidates.map((c) => {
+    const st = finalStatus.get(c.id)!;
+    const assigned = between(c.created_at, new Date(NOW));
+    const due = new Date(assigned.getTime() + 30 * DAY);
+    const outcome = st === "contacted" ? "contacted" : st === "follow_up" ? "follow_up" : st === "lost" ? "rejected" : null;
+    return {
+      category: "lead_follow_up",
+      client_id: c.id,
+      assigned_to_id: c.assigned_salesman_id,
+      created_by_id: managerOf.get(`${c.assigned_salesman_id}:${c.org_id}`) ?? c.assigned_salesman_id,
+      description: `New lead assigned: ${c.name}. Contact them and record the outcome (contacted, follow-up or rejected).`,
+      due_date: outcome === "follow_up" ? new Date(NOW + int(2, 20) * DAY) : due,
+      status: outcome === "contacted" ? "achieved" : outcome === "rejected" ? "unsuccessful" : outcome === "follow_up" ? "in_process" : "pending",
+      outcome,
+      closed_at: outcome === "contacted" || outcome === "rejected" ? between(assigned, new Date(Math.min(NOW, due.getTime()))) : null,
+      notification: true,
+    };
+  });
+  const leadTasks: { id: number; outcome: string | null; assigned_to_id: number; due_date: Date; closed_at: Date | null }[] = [];
+  await inChunks(leadRows, 5000, async (chunk) => {
+    leadTasks.push(...(await prisma.task.createManyAndReturn({ data: chunk, select: { id: true, outcome: true, assigned_to_id: true, due_date: true, closed_at: true } })));
+  });
+  const updateRows: Prisma.TaskUpdateCreateManyInput[] = leadTasks
+    .filter((t) => t.outcome)
+    .map((t) => ({
+      task_id: t.id,
+      action: t.outcome!,
+      note:
+        t.outcome === "contacted" ? `Contacted ${pick(FIRST)} ${pick(LAST)} (${pick(DESIGNATIONS)}) — ${pick(["Interested, asked for a rate card", "Wants a quote for next month", "Will share shipment details"])}`
+        : t.outcome === "follow_up" ? pick(["Asked to call back next week", "Decision maker travelling", "Comparing with current forwarder"])
+        : pick(LOST_REASONS),
+      prev_due_date: t.outcome === "follow_up" ? new Date(t.due_date.getTime() - int(5, 20) * DAY) : null,
+      new_due_date: t.outcome === "follow_up" ? t.due_date : null,
+      created_by_id: t.assigned_to_id,
+      created_at: t.closed_at ?? new Date(NOW - int(1, 10) * DAY),
+    }));
+  await inChunks(updateRows, 10000, (chunk) => prisma.taskUpdate.createMany({ data: chunk }));
+  log(`lead tasks: ${leadTasks.length} · task updates: ${updateRows.length}`);
   const clientTaskRows: Prisma.ClientTaskCreateManyInput[] = Array.from({ length: N.clientTasks }, (_, i) => {
     const c = clients[(i * 7) % clients.length];
     const due = daysAgo(int(-30, 60));

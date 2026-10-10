@@ -36,12 +36,16 @@ import {
 } from "@/lib/actions/company-actions";
 
 import { buttonVariants } from "@/components/ui/Button";
+import { EMPTY_PERFORMANCE, type Performance } from "@/lib/performance";
+import { formatAmount } from "@/lib/utils";
 interface Org {
   id: number;
   name: string;
   address: string | null;
   phone: string | null;
   email: string | null;
+  prefix: string | null;
+  export_office_no: string | null;
   /** Client counts by status, and the total, for this company. */
   clientStatusCounts: Record<string, number>;
   clientTotal: number;
@@ -95,7 +99,8 @@ export function CompaniesClient({
   accountantsList,
   salesmenList,
   managerSalesmen,
-  clientCounts
+  clientCounts,
+  performanceByOrg
 }: {
   companies: Org[];
   managersList: User[];
@@ -103,6 +108,8 @@ export function CompaniesClient({
   salesmenList: User[];
   managerSalesmen: ManagerSalesmanRow[];
   clientCounts: ClientCountRow[];
+  /** org id → salesman id → this month's orders / value / new clients for that company. */
+  performanceByOrg: Record<number, Record<number, Performance>>;
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -161,33 +168,14 @@ export function CompaniesClient({
     return { onboarded: totalOnboarded, lost, score };
   };
 
-  // Helper: Get manager's team KPI
-  const getManagerKpi = (managerId: number, orgId: number) => {
-    // Salesmen working under this manager for this company
-    const assignedSalesmen = localSalesmenList.filter((s) =>
-      localManagerSalesmen.some((ms) => ms.manager_id === managerId && ms.org_id === orgId && ms.salesman_id === s.id)
-    );
+  // This month's performance of a salesman for one company (orders from that company's clients).
+  const perfFor = (orgId: number, salesmanId: number): Performance => performanceByOrg[orgId]?.[salesmanId] ?? EMPTY_PERFORMANCE;
 
-    let totalOnboarded = 0;
-    let totalFollowUp = 0;
-    let totalLead = 0;
-    let totalLost = 0;
-
-    for (const s of assignedSalesmen) {
-      const counts = clientCounts.filter((c) => c.assigned_salesman_id === s.id);
-      const onboarded = counts.find((c) => c.status === "onboarded")?._count.id ?? 0;
-        const followUp = counts.find((c) => c.status === "follow_up")?._count.id ?? 0;
-      const lead = counts.find((c) => c.status === "lead")?._count.id ?? 0;
-      const lost = counts.find((c) => c.status === "lost")?._count.id ?? 0;
-
-      totalOnboarded += onboarded;
-      totalFollowUp += followUp;
-      totalLead += lead;
-      totalLost += lost;
-    }
-
-    return totalOnboarded * 5 + totalFollowUp * 2 + totalLead * 1 - totalLost * 1;
-  };
+  // Order value this month of a manager's team for one company.
+  const getTeamValue = (managerId: number, orgId: number) =>
+    localManagerSalesmen
+      .filter((ms) => ms.manager_id === managerId && ms.org_id === orgId)
+      .reduce((sum, ms) => sum + perfFor(orgId, ms.salesman_id).value, 0);
 
   // Helper: Avatar Initials
   const getInitials = (userName: string) => {
@@ -478,6 +466,11 @@ export function CompaniesClient({
                   <div className="min-w-0 space-y-1.5">
                     <div className="flex items-center gap-1.5">
                       <h2 className="text-xl font-semibold tracking-tight text-foreground">{company.name}</h2>
+                      {company.prefix && (
+                        <span title="Enquiry ID prefix" className="rounded-md bg-muted px-1.5 py-0.5 font-mono text-xs font-medium text-muted-foreground">
+                          {company.prefix}
+                        </span>
+                      )}
                       <button
                         onClick={() =>
                           setCompanyForm({
@@ -487,7 +480,9 @@ export function CompaniesClient({
                               name: company.name,
                               address: company.address,
                               phone: company.phone,
-                              email: company.email
+                              email: company.email,
+                              prefix: company.prefix,
+                              export_office_no: company.export_office_no
                             }
                           })
                         }
@@ -507,7 +502,7 @@ export function CompaniesClient({
                         <Trash2 size={15} />
                       </button>
                     </div>
-                    {(company.address || company.phone || company.email) && (
+                    {(company.address || company.phone || company.email || company.export_office_no) && (
                       <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
                         {company.address && (
                           <span className="inline-flex items-center gap-1"><MapPin size={12} aria-hidden /> {company.address}</span>
@@ -517,6 +512,9 @@ export function CompaniesClient({
                         )}
                         {company.email && (
                           <span className="inline-flex items-center gap-1"><Mail size={12} aria-hidden /> {company.email}</span>
+                        )}
+                        {company.export_office_no && (
+                          <span className="inline-flex items-center gap-1"><Building size={12} aria-hidden /> Export office no. {company.export_office_no}</span>
                         )}
                       </div>
                     )}
@@ -553,7 +551,7 @@ export function CompaniesClient({
                   <div className="flex flex-row gap-6 overflow-x-auto pb-4 w-full scrollbar-thin">
                     {company.managers.map((m) => {
                       const manager = m.manager;
-                      const managerTeamScore = getManagerKpi(manager.id, company.id);
+                      const managerTeamValue = getTeamValue(manager.id, company.id);
 
                       // Salesmen working under this manager for this company
                       const managerSalesmenList = localSalesmenList.filter((s) =>
@@ -600,10 +598,10 @@ export function CompaniesClient({
                             {/* Team KPI metrics */}
                             <div className="bg-subtle/50 border border-border rounded-xl p-3 flex items-center justify-between">
                               <span className="text-xs font-semibold text-muted-foreground/80">
-                                Team KPI Score
+                                Order value · this month
                               </span>
                               <span className={teamKpiText}>
-                                {managerTeamScore}
+                                {formatAmount(managerTeamValue)}
                               </span>
                             </div>
 
@@ -614,7 +612,8 @@ export function CompaniesClient({
                               </p>
                               <div className="space-y-2 max-h-[190px] overflow-y-auto pr-1">
                                 {managerSalesmenList.map((salesman) => {
-                                  const { onboarded, lost, score } = getSalesmanKpi(salesman.id);
+                                  const { onboarded, lost } = getSalesmanKpi(salesman.id);
+                                  const perf = perfFor(company.id, salesman.id);
                                   return (
                                     <div
                                       key={salesman.id}
@@ -636,7 +635,7 @@ export function CompaniesClient({
 
                                       <div className="flex items-center gap-1.5 shrink-0">
                                         <span className={`px-1.5 py-0.5 rounded text-[9px] font-semibold border ${salesmanKpiPill}`}>
-                                          KPI: {score}
+                                          {formatAmount(perf.value)} · {perf.orders} orders
                                         </span>
                                         <button
                                           onClick={() => handleUnassignSalesman(salesman.id, manager.id, company.id, company.name)}

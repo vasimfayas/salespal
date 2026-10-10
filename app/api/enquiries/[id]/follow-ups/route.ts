@@ -34,7 +34,7 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
       data: { enquiry_id: enquiry.id, comment, created_by_id: getTokenUserId(token) },
     });
     await tx.enquiry.update({ where: { id: enquiry.id }, data: { next_follow_up_at: nextFollowUpDate() } });
-    await closeFollowUpTasks(tx, enquiry.id, "achieved");
+    await closeFollowUpTasks(tx, enquiry.id, "achieved", { action: "enquiry_follow_up", note: comment, by: getTokenUserId(token) });
     return created;
   });
 

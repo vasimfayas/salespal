@@ -76,6 +76,8 @@ export type CompanyProfile = {
   address: string | null;
   phone: string | null;
   email: string | null;
+  prefix: string | null;
+  export_office_no: string | null;
   documents: CompanyDocumentItem[];
 };
 
@@ -90,6 +92,8 @@ export async function getCompanyProfiles(orgIds: number[]): Promise<CompanyProfi
       address: true,
       phone: true,
       email: true,
+      prefix: true,
+      export_office_no: true,
       documents: { include: { uploadedBy: { select: { name: true } } }, orderBy: [{ label: "asc" }, { id: "asc" }] },
     },
     orderBy: { name: "asc" },

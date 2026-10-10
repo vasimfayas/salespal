@@ -2,8 +2,9 @@ import { Prisma } from "@prisma/client";
 import { unstable_cache } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { literal } from "@/lib/list-params";
-import { calculateKpiScore } from "@/lib/kpi";
 
+import { byPerformance, getPerformance, monthPeriod } from "@/lib/performance";
+import { VOID_ORDER_STATUSES } from "@/types/order";
 /**
  * Owner dashboard aggregates. Everything is counted in Postgres and returns a few hundred bytes,
  * so results fit the Next data cache (the old load-everything queries were over its 2 MB limit).
@@ -53,9 +54,8 @@ export const getAdminKpiCounts = unstable_cache(
 /** Company scorecards: per-company status counts, the company's (first) manager and that manager's team KPI. */
 export const getAdminCompanyScorecards = unstable_cache(
   async () => {
-    const [byOrg, bySalesman, orgs, managers] = await Promise.all([
+    const [byOrg, orgs, managers] = await Promise.all([
       prisma.client.groupBy({ by: ["org_id", "status"], _count: { _all: true } }),
-      prisma.client.groupBy({ by: ["assigned_salesman_id", "status"], _count: { _all: true } }),
       prisma.organization.findMany({ select: { id: true, name: true } }),
       prisma.user.findMany({
         where: { role_id: 2 },
@@ -70,71 +70,62 @@ export const getAdminCompanyScorecards = unstable_cache(
       c[r.status] = r._count._all;
       orgCounts.set(r.org_id, c);
     }
-    const salesmanKpi = new Map<number, Counts>();
-    for (const r of bySalesman) {
-      const c = salesmanKpi.get(r.assigned_salesman_id) ?? {};
-      c[r.status] = r._count._all;
-      salesmanKpi.set(r.assigned_salesman_id, c);
-    }
 
     // Companies that have clients, lowest id first (as before).
-    return [...orgCounts.keys()]
-      .sort((a, b) => a - b)
-      .map((oid) => {
-        const counts = orgCounts.get(oid)!;
-        const mgr = managers.find((m) => m.managerOrgs.some((mo) => mo.org_id === oid));
-        const teamKpi = mgr
-          ? mgr.managerSalesmen
-              .filter((ms) => ms.org_id === oid) // only the salesmen working for this company
-              .reduce((sum, ms) => sum + calculateKpiScore(salesmanKpi.get(ms.salesman_id) ?? {}), 0)
-          : 0;
-        return {
-          oid,
-          orgName: orgs.find((o) => o.id === oid)?.name ?? `Org ${oid}`,
-          counts,
-          kpiScore: calculateKpiScore(counts),
-          managerName: mgr?.name ?? "Unassigned",
-          teamKpi,
-          total: Object.values(counts).reduce((a, b) => a + b, 0),
-        };
-      });
+    const orgIds = [...orgCounts.keys()].sort((x, y) => x - y);
+    // Order value this month per company: every non-void order from that company's clients, whoever raised it.
+    const { from, to } = monthPeriod(0);
+    const valueRows = await prisma.order.groupBy({
+      by: ["client_id"],
+      where: { status: { notIn: [...VOID_ORDER_STATUSES] }, created_at: { gte: from, lt: to }, client: { org_id: { in: orgIds } } },
+      _sum: { amount: true },
+    });
+    const clientOrg = new Map(
+      (await prisma.client.findMany({ where: { id: { in: valueRows.map((r) => r.client_id) } }, select: { id: true, org_id: true } })).map((c) => [c.id, c.org_id]),
+    );
+    const valueByOrg = new Map<number, number>();
+    for (const r of valueRows) {
+      const org = clientOrg.get(r.client_id)!;
+      valueByOrg.set(org, (valueByOrg.get(org) ?? 0) + (r._sum.amount?.toNumber() ?? 0));
+    }
+    const teamValues = orgIds.map((oid) => valueByOrg.get(oid) ?? 0);
+    return orgIds.map((oid, i) => {
+      const counts = orgCounts.get(oid)!;
+      const mgr = managers.find((m) => m.managerOrgs.some((mo) => mo.org_id === oid));
+      return {
+        oid,
+        orgName: orgs.find((o) => o.id === oid)?.name ?? `Org ${oid}`,
+        counts,
+        managerName: mgr?.name ?? "Unassigned",
+        teamValue: teamValues[i],
+        total: Object.values(counts).reduce((x, y) => x + y, 0),
+      };
+    });
   },
   ["admin-company-scorecards"],
   CACHE
 );
 
-/** Leaderboard: every salesman's KPI over their clients (optionally only clients of one company). */
+/** Leaderboard: every salesman's orders, order value and new clients this month (optionally one company), by value. */
 export const getAdminLeaderboard = unstable_cache(
   async (orgId: number | null) => {
-    const [salesmen, grouped] = await Promise.all([
-      prisma.user.findMany({
-        where: { role_id: 3 },
-        select: {
-          id: true,
-          name: true,
-          salesmanManager: { select: { managerOrg: { select: { org: { select: { name: true } } } } } },
-        },
-      }),
-      prisma.client.groupBy({ by: ["assigned_salesman_id", "status"], where: orgId ? { org_id: orgId } : {}, _count: { _all: true } }),
-    ]);
-    const counts = new Map<number, Counts>();
-    for (const r of grouped) {
-      const c = counts.get(r.assigned_salesman_id) ?? {};
-      c[r.status] = r._count._all;
-      counts.set(r.assigned_salesman_id, c);
-    }
+    const salesmen = await prisma.user.findMany({
+      where: { role_id: 3 },
+      select: {
+        id: true,
+        name: true,
+        salesmanManager: { select: { managerOrg: { select: { org: { select: { name: true } } } } } },
+      },
+    });
+    const perf = await getPerformance(salesmen.map((s) => s.id), monthPeriod(0), { orgId });
     return salesmen
-      .map((s) => {
-        const c = counts.get(s.id) ?? {};
-        return {
-          id: s.id,
-          name: s.name,
-          kpi: calculateKpiScore(c),
-          clients: Object.values(c).reduce((a, b) => a + b, 0),
-          company: [...new Set(s.salesmanManager.map((l) => l.managerOrg.org.name))].join(", ") || "—",
-        };
-      })
-      .sort((a, b) => b.kpi - a.kpi);
+      .map((s) => ({
+        id: s.id,
+        name: s.name,
+        perf: perf.get(s.id)!,
+        company: [...new Set(s.salesmanManager.map((l) => l.managerOrg.org.name))].join(", ") || "—",
+      }))
+      .sort(byPerformance);
   },
   ["admin-leaderboard"],
   CACHE

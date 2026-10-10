@@ -20,7 +20,10 @@ export function CompanyInfoCard({ company }: { company: CompanyProfile }) {
             <Building size={18} aria-hidden />
           </div>
           <div className="min-w-0 space-y-1.5">
-            <h2 className="text-lg font-semibold tracking-tight text-foreground">{company.name}</h2>
+            <h2 className="flex items-center gap-2 text-lg font-semibold tracking-tight text-foreground">
+              {company.name}
+              {company.prefix && <span className="rounded-md bg-muted px-1.5 py-0.5 font-mono text-xs font-medium text-muted-foreground">{company.prefix}</span>}
+            </h2>
             <dl className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
               <dt className="font-semibold text-muted-foreground/80">CR No.</dt>
               <dd className="font-mono font-semibold text-foreground">{cr?.doc_number ?? <span className="font-sans font-normal italic text-muted-foreground/80">Not on file</span>}</dd>
@@ -28,6 +31,12 @@ export function CompanyInfoCard({ company }: { company: CompanyProfile }) {
                 <dd className="flex items-center gap-1.5 text-muted-foreground">
                   · expires {formatDate(cr.expiry_date)} <DocumentExpiryBadge expiryDate={cr.expiry_date} />
                 </dd>
+              )}
+              {company.export_office_no && (
+                <>
+                  <dt className="ml-2 font-semibold text-muted-foreground/80">Export Office No.</dt>
+                  <dd className="font-mono font-semibold text-foreground">{company.export_office_no}</dd>
+                </>
               )}
             </dl>
             {(company.address || company.phone || company.email) && (

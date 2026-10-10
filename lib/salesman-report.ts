@@ -1,6 +1,5 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { calculateKpiScore } from "@/lib/kpi";
 import { clientStatusCounts } from "@/lib/clients-list";
 import { enquiryStatuses, type EnquiryStatus } from "@/types/enquiry";
 
@@ -96,8 +95,8 @@ export async function getSalesmanMonthlyReport(salesmanId: number, monthKey: str
       WHERE e.created_by_id = ${salesmanId} AND e.enquiry_date >= ${S} AND e.enquiry_date < ${E}
       GROUP BY 1, 2 ORDER BY 3 DESC, 4 DESC LIMIT 5`),
 
-    prisma.$queryRaw<{ id: number; client: string; from: string; to: string; mode: string; value: Num; reason: string | null; lost_at: Date; by: string | null }[]>(Prisma.sql`
-      SELECT e.id, c.name AS client, e."from", e."to", e.mode,
+    prisma.$queryRaw<{ id: number; prefix: string | null; client: string; from: string; to: string; mode: string; value: Num; reason: string | null; lost_at: Date; by: string | null }[]>(Prisma.sql`
+      SELECT e.id, (SELECT org.prefix FROM organizations org WHERE org.id = c.org_id) AS prefix, c.name AS client, e."from", e."to", e.mode,
              (e.provisional_cost + e.provisional_profit)::float8 AS value,
              e.cancel_reason AS reason, e.cancelled_at AS lost_at, u.name AS by
       FROM enquiries e
@@ -243,7 +242,6 @@ export async function getSalesmanMonthlyReport(salesmanId: number, monthKey: str
       phone: salesman.phone,
       managers: [...new Set(salesman.salesmanManager.map((m) => m.manager.name))],
     },
-    kpiScore: calculateKpiScore(clientCounts),
     portfolio: clientCounts,
     onboarded: {
       count: onboardedRows.length,
@@ -261,7 +259,7 @@ export async function getSalesmanMonthlyReport(salesmanId: number, monthKey: str
       prev: lostPrev,
       value: lostRows.reduce((a, r) => a + n(r.value), 0),
       reasons: reasonRows.map((r) => ({ reason: r.reason, count: n(r.count), value: n(r.value) })),
-      items: lostRows.map((r) => ({ id: r.id, client: r.client, from: r.from, to: r.to, mode: r.mode, value: r.value === null ? null : n(r.value), reason: r.reason, lostAt: r.lost_at, by: r.by })),
+      items: lostRows.map((r) => ({ id: r.id, prefix: r.prefix, client: r.client, from: r.from, to: r.to, mode: r.mode, value: r.value === null ? null : n(r.value), reason: r.reason, lostAt: r.lost_at, by: r.by })),
     },
     orders,
     ordersPrev,

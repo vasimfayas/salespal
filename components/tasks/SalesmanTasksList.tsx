@@ -15,8 +15,10 @@ import {
   MessageSquareText,
   Package,
   Search,
+  UserPlus,
   Wallet
 } from "lucide-react";
+import { TaskActions, TaskStatusPill, isGuidedTask } from "@/components/tasks/TaskActions";
 import { enquiryRef } from "@/types/enquiry";
 import { Modal } from "@/components/ui/Modal";
 import { Input } from "@/components/ui/Input";
@@ -37,13 +39,16 @@ type Task = {
   clientId?: number | null;
   clientName?: string | null;
   /** Set on automatic enquiry follow-up tasks. */
-  enquiry?: { id: number; status: string } | null;
+  enquiry?: { id: number; status: string; prefix?: string | null } | null;
   kind?: TaskKind;
+  /** Lead follow-up result: contacted | follow_up | rejected. */
+  outcome?: string | null;
 };
 
 const VIEWS: { key: TaskView; label: string }[] = [
   { key: "all", label: "All" },
   { key: "mine", label: "My tasks" },
+  { key: "lead", label: "New leads" },
   { key: "enquiry", label: "Enquiry follow-up" },
   { key: "order", label: "Order follow-up" },
   { key: "payment", label: "Payment follow-up" },
@@ -53,6 +58,7 @@ const VIEWS: { key: TaskView; label: string }[] = [
 const EMPTY_MESSAGES: Record<TaskView, string> = {
   all: "No tasks yet.",
   mine: "No open tasks you created.",
+  lead: "No new leads to follow up. Leads your manager assigns to you appear here.",
   enquiry: "No open enquiry follow-ups.",
   order: "No open order follow-ups. Tag a task as “Order follow-up” when you add it.",
   payment: "No open payment follow-ups.",
@@ -61,6 +67,7 @@ const EMPTY_MESSAGES: Record<TaskView, string> = {
 
 const KIND_BADGE: Record<TaskKind, { icon: typeof ListTodo; className: string }> = {
   general: { icon: ListTodo, className: "bg-muted text-muted-foreground" },
+  lead_follow_up: { icon: UserPlus, className: "bg-success-soft text-success-foreground" },
   enquiry_follow_up: { icon: MessageSquareText, className: "bg-warning-soft text-warning-foreground" },
   order_follow_up: { icon: Package, className: "bg-info-soft text-info-foreground" },
   payment_follow_up: { icon: Wallet, className: "bg-primary-soft text-primary-soft-foreground" },
@@ -83,6 +90,7 @@ const isOpen = (status: string) => status === "pending" || status === "in_proces
 
 function assignedByLabel(task: Task, currentUserId: number) {
   if (task.enquiry) return "Auto follow-up";
+  if (task.kind === "lead_follow_up" && task.created_by_id !== currentUserId && task.createdBy?.name) return `${task.createdBy.name} (lead)`;
   return task.created_by_id === currentUserId || !task.createdBy?.name ? "You" : (task.createdBy.name ?? "You");
 }
 
@@ -93,7 +101,7 @@ function KindBadge({ task }: { task: Task }) {
   return (
     <span className={cn("inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-medium", badge.className)}>
       <Icon size={11} aria-hidden />
-      {task.enquiry ? `${taskKindLabels[kind]} · ${enquiryRef(task.enquiry.id)}` : taskKindLabels[kind]}
+      {task.enquiry ? `${taskKindLabels[kind]} · ${enquiryRef(task.enquiry.id, task.enquiry.prefix)}` : taskKindLabels[kind]}
     </span>
   );
 }
@@ -153,16 +161,15 @@ function StatusSelect({
   );
 }
 
-function FollowUpLink({ task }: { task: Task }) {
-  if (!(task.enquiry && isOpen(task.status) && task.enquiry.status === "open")) return null;
-  return (
-    <Link
-      href={`/dashboard/salesman/enquiries?followUp=${task.enquiry.id}`}
-      className="inline-flex items-center gap-1 whitespace-nowrap rounded-control bg-warning px-2.5 py-1.5 text-xs font-medium text-white shadow-xs transition hover:bg-warning/90 dark:text-foreground"
-    >
-      <MessageSquareText size={12} aria-hidden />
-      Follow up
+/** Client the task is about, linked to its page. */
+function ClientChip({ task }: { task: Task }) {
+  if (!task.clientName) return null;
+  return task.clientId ? (
+    <Link href={`/dashboard/salesman/clients/${task.clientId}`} className="truncate text-xs font-medium text-muted-foreground hover:text-primary hover:underline">
+      · {task.clientName}
     </Link>
+  ) : (
+    <span className="truncate text-xs font-medium text-muted-foreground">· {task.clientName}</span>
   );
 }
 
@@ -378,8 +385,8 @@ export function SalesmanTasksList({ data, currentUserId }: SalesmanTasksListProp
                     <th scope="col" className="px-4 py-3 font-medium">Task</th>
                     <th scope="col" className="hidden w-[16%] px-4 py-3 font-medium lg:table-cell">Assigned by</th>
                     <th scope="col" className="w-[130px] px-4 py-3 font-medium">Due</th>
-                    <th scope="col" className="w-[150px] px-4 py-3 font-medium">Status</th>
-                    <th scope="col" className="w-[150px] px-4 py-3 text-right font-medium"><span className="sr-only">Actions</span></th>
+                    <th scope="col" className="w-[130px] px-4 py-3 font-medium">Status</th>
+                    <th scope="col" className="w-[340px] px-4 py-3 text-right font-medium"><span className="sr-only">Actions</span></th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
@@ -388,9 +395,7 @@ export function SalesmanTasksList({ data, currentUserId }: SalesmanTasksListProp
                       <td className="px-4 py-3">
                         <div className="flex flex-wrap items-center gap-1.5">
                           <KindBadge task={task} />
-                          {task.isClientTask && task.clientName && (
-                            <span className="truncate text-xs font-medium text-muted-foreground">· {task.clientName}</span>
-                          )}
+                          <ClientChip task={task} />
                         </div>
                         <p className="mt-1 line-clamp-2 text-foreground" title={task.description}>{task.description}</p>
                       </td>
@@ -401,10 +406,14 @@ export function SalesmanTasksList({ data, currentUserId }: SalesmanTasksListProp
                         <DueDate task={task} now={now} />
                       </td>
                       <td className="px-4 py-3">
-                        <StatusSelect task={task} updating={updatingTaskId === task.id} onChange={handleStatusChange} />
+                        {isGuidedTask(task) ? (
+                          <TaskStatusPill task={task} />
+                        ) : (
+                          <StatusSelect task={task} updating={updatingTaskId === task.id} onChange={handleStatusChange} />
+                        )}
                       </td>
                       <td className="px-4 py-3 text-right">
-                        <FollowUpLink task={task} />
+                        <TaskActions task={task} enquiriesPath="/dashboard/salesman/enquiries" />
                       </td>
                     </tr>
                   ))}
@@ -418,9 +427,13 @@ export function SalesmanTasksList({ data, currentUserId }: SalesmanTasksListProp
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex min-w-0 flex-wrap items-center gap-1.5">
                       <KindBadge task={task} />
-                      {task.isClientTask && task.clientName && <span className="truncate text-xs text-muted-foreground">· {task.clientName}</span>}
+                      <ClientChip task={task} />
                     </div>
-                    <StatusSelect task={task} updating={updatingTaskId === task.id} onChange={handleStatusChange} />
+                    {isGuidedTask(task) ? (
+                      <TaskStatusPill task={task} />
+                    ) : (
+                      <StatusSelect task={task} updating={updatingTaskId === task.id} onChange={handleStatusChange} />
+                    )}
                   </div>
                   <p className="text-sm text-foreground">{task.description}</p>
                   <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
@@ -429,7 +442,7 @@ export function SalesmanTasksList({ data, currentUserId }: SalesmanTasksListProp
                       <span aria-hidden>·</span>
                       {assignedByLabel(task, currentUserId)}
                     </span>
-                    <FollowUpLink task={task} />
+                    <TaskActions task={task} enquiriesPath="/dashboard/salesman/enquiries" />
                   </div>
                 </li>
               ))}

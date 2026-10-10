@@ -140,6 +140,9 @@ export type CompanyInput = {
   address?: string;
   phone?: string;
   email?: string;
+  /** Used in enquiry IDs (SPA → SPA-ENQ-00012). */
+  prefix?: string;
+  export_office_no?: string;
 };
 
 function cleanCompanyInput(data: CompanyInput) {
@@ -148,7 +151,17 @@ function cleanCompanyInput(data: CompanyInput) {
     address: data.address?.trim() || null,
     phone: data.phone?.trim() || null,
     email: data.email?.trim().toLowerCase() || null,
+    prefix: data.prefix?.trim().toUpperCase() || null,
+    export_office_no: data.export_office_no?.trim() || null,
   };
+}
+
+/** Problem with the prefix (format or already used by another company), or null. */
+async function prefixError(prefix: string | null, orgId?: number) {
+  if (!prefix) return null;
+  if (!/^[A-Z0-9]{2,6}$/.test(prefix)) return "Prefix must be 2–6 letters or digits, e.g. SPA.";
+  const clash = await prisma.organization.findFirst({ where: { prefix, ...(orgId ? { id: { not: orgId } } : {}) }, select: { name: true } });
+  return clash ? `Prefix ${prefix} is already used by ${clash.name}.` : null;
 }
 
 export async function createCompanyAction(data: CompanyInput) {
@@ -158,6 +171,8 @@ export async function createCompanyAction(data: CompanyInput) {
 
   const existing = await prisma.organization.findUnique({ where: { name: input.name } });
   if (existing) return { success: false, error: "A company with this name already exists." };
+  const badPrefix = await prefixError(input.prefix);
+  if (badPrefix) return { success: false, error: badPrefix };
 
   const org = await prisma.organization.create({ data: input });
   revalidateCompanies();
@@ -171,6 +186,8 @@ export async function updateCompanyAction(orgId: number, data: CompanyInput) {
 
   const clash = await prisma.organization.findFirst({ where: { name: input.name, id: { not: orgId } } });
   if (clash) return { success: false, error: "A company with this name already exists." };
+  const badPrefix = await prefixError(input.prefix, orgId);
+  if (badPrefix) return { success: false, error: badPrefix };
 
   await prisma.organization.update({ where: { id: orgId }, data: input });
   revalidateCompanies();

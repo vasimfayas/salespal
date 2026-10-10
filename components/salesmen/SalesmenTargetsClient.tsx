@@ -13,6 +13,7 @@ import { cn, formatAmount, formatDate } from "@/lib/utils";
 import type { SalesmanTargetRow, SalesmanTargetView, TargetState } from "@/types/salesman-target";
 
 import { buttonVariants } from "@/components/ui/Button";
+import type { Performance } from "@/lib/performance";
 const stateStyles: Record<TargetState, string> = {
   active: "bg-info-soft text-info-foreground ring-info/30",
   upcoming: "bg-primary-soft text-primary ring-primary/30",
@@ -81,14 +82,14 @@ const currentMonth = () => new Date().toISOString().slice(0, 7);
 export function SalesmenTargetsClient({
   salesmen,
   canAssign,
-  kpiScores,
+  performance,
   salesmanHref,
   renderActions,
 }: {
   salesmen: SalesmanTargetRow[];
   canAssign: boolean;
-  /** When given, a KPI score column is shown. */
-  kpiScores?: Record<number, number>;
+  /** When given, a "This month" column shows each salesman's orders, value and new clients. */
+  performance?: Record<number, Performance>;
   salesmanHref?: (id: number) => string;
   /** Extra per-row actions, rendered after Set target / History. */
   renderActions?: (row: SalesmanTargetRow) => React.ReactNode;
@@ -147,7 +148,7 @@ export function SalesmenTargetsClient({
             <tr>
               <th className="px-5 py-3.5">Salesman</th>
               <th className="px-5 py-3.5">Clients</th>
-              {kpiScores && <th className="px-5 py-3.5">KPI</th>}
+              {performance && <th className="px-5 py-3.5 text-right" title="Orders they created this month (cancelled excluded) and new clients">This month</th>}
               <th className="px-5 py-3.5 text-right" title="Actual profit from enquiries whose order is fully paid">Completed profit</th>
               <th className="px-5 py-3.5">Target</th>
               <th className="px-5 py-3.5">Period</th>
@@ -170,7 +171,14 @@ export function SalesmenTargetsClient({
                   <span className="mt-0.5 block text-[11px] font-medium text-muted-foreground/80">{row.email}</span>
                 </td>
                 <td className="px-5 py-4 font-semibold text-foreground/85">{row.clientCount}</td>
-                {kpiScores && <td className="px-5 py-4 font-semibold text-foreground">{kpiScores[row.id] ?? 0}</td>}
+                {performance && (
+                  <td className="whitespace-nowrap px-5 py-4 text-right">
+                    <span className="block font-semibold tabular-nums text-foreground">{formatAmount(performance[row.id]?.value ?? 0)}</span>
+                    <span className="block text-[11px] text-muted-foreground/80">
+                      {performance[row.id]?.orders ?? 0} orders · {performance[row.id]?.newClients ?? 0} new clients
+                    </span>
+                  </td>
+                )}
                 <td className="whitespace-nowrap px-5 py-4 text-right">
                   <span className={cn("block font-semibold", row.completedProfit.profit < 0 ? "text-danger-foreground" : "text-success-foreground")}>
                     {formatAmount(row.completedProfit.profit)}

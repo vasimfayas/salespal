@@ -9,6 +9,8 @@ import { normalizeCrNo, parseCrExpiryDate } from "@/lib/client-fields";
 import { canSetStatus, isClientStatus } from "@/lib/client-status-flow";
 import { cleanText, contactRequiredMessage, missingContactFields, statusRequiresContact } from "@/lib/client-contact";
 
+import { createLeadTasks } from "@/lib/lead-tasks";
+import { revalidateTaskViews } from "@/lib/enquiry-follow-ups";
 export async function GET(request: NextRequest) {
   const token = await getToken({ req: request, secret: process.env.NEXTAUTH_SECRET });
   if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -130,6 +132,16 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "CR number already exists" }, { status: 409 });
     }
     throw error;
+  }
+
+  // A manager / owner handing a new lead to someone else: that salesman gets a follow-up task.
+  if (isRole(token, [1, 2]) && assignedSalesmanId !== getTokenUserId(token)) {
+    const { created } = await createLeadTasks(prisma, {
+      clients: [{ id: client.id, name: client.name, status: client.status, contact_person_name: client.contact_person_name, contact_no: client.contact_no }],
+      salesmanId: assignedSalesmanId,
+      assignedById: getTokenUserId(token),
+    });
+    if (created) revalidateTaskViews();
   }
   revalidateTag("salesman-dashboard", { expire: 0 });
   revalidateTag("salesman-clients", { expire: 0 });

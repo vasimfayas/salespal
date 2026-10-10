@@ -15,8 +15,10 @@ export type UnifiedTaskRow = {
   created_by_id: number;
   assignedTo: { name: string };
   createdBy: { name: string };
-  enquiry: { id: number; status: string } | null;
+  enquiry: { id: number; status: string; prefix: string | null } | null;
   kind: TaskKind;
+  /** Lead follow-up result once recorded: contacted | follow_up | rejected. */
+  outcome: string | null;
 };
 
 type Scope =
@@ -33,9 +35,11 @@ function scopeSql(scope: Scope, alias: string) {
 
 function unionSql(scope: Scope) {
   return Prisma.sql`
-    SELECT t.id, t.description, t.due_date, t.status, false AS is_client_task, NULL::int AS client_id, NULL::text AS client_name,
+    SELECT t.id, t.description, t.due_date, t.status, false AS is_client_task, t.client_id, cl.name AS client_name,
            t.assigned_to_id, t.created_by_id, a.name AS assigned_name, cb.name AS created_name, t.enquiry_id, e.status AS enquiry_status,
-           CASE WHEN t.enquiry_id IS NOT NULL THEN 'enquiry_follow_up'
+           eo.prefix AS enquiry_prefix, t.outcome,
+           CASE WHEN t.category = 'lead_follow_up' THEN 'lead_follow_up'
+                WHEN t.enquiry_id IS NOT NULL THEN 'enquiry_follow_up'
                 -- Accountant payment reminders created before tasks had a category
                 WHEN t.category = 'payment_follow_up' OR t.description LIKE 'Payment reminder:%' THEN 'payment_follow_up'
                 WHEN t.category = 'order_follow_up' THEN 'order_follow_up'
@@ -44,10 +48,13 @@ function unionSql(scope: Scope) {
     JOIN users a ON a.id = t.assigned_to_id
     JOIN users cb ON cb.id = t.created_by_id
     LEFT JOIN enquiries e ON e.id = t.enquiry_id
+    LEFT JOIN clients ec ON ec.id = e.client_id
+    LEFT JOIN organizations eo ON eo.id = ec.org_id
+    LEFT JOIN clients cl ON cl.id = t.client_id
     WHERE ${scopeSql(scope, "t")}
     UNION ALL
     SELECT ct.id, ct.description, ct.due_date, ct.status, true, ct.client_id, cl.name,
-           ct.assigned_to_id, ct.created_by_id, a.name, cb.name, NULL::int, NULL::text, 'general'
+           ct.assigned_to_id, ct.created_by_id, a.name, cb.name, NULL::int, NULL::text, NULL::text, NULL::text, 'general'
     FROM client_tasks ct
     JOIN users a ON a.id = ct.assigned_to_id
     JOIN users cb ON cb.id = ct.created_by_id
@@ -59,14 +66,16 @@ const OPEN = Prisma.sql`x.status IN ('pending', 'in_process')`;
 const CLOSED = Prisma.sql`x.status IN ('achieved', 'unsuccessful')`;
 
 /** Salesman task tabs. Follow-up tabs and "mine" list open work; "completed" lists closed tasks. */
-export const taskViews = ["all", "mine", "enquiry", "order", "payment", "completed"] as const;
+export const taskViews = ["all", "mine", "lead", "enquiry", "order", "payment", "completed"] as const;
 export type TaskView = (typeof taskViews)[number];
 
 function viewSql(view: TaskView, userId: number) {
   switch (view) {
     case "mine":
       // Tasks the salesman wrote themselves (not system enquiry follow-ups or reminders from others)
-      return Prisma.sql`x.created_by_id = ${userId} AND x.kind <> 'enquiry_follow_up' AND ${OPEN}`;
+      return Prisma.sql`x.created_by_id = ${userId} AND x.kind NOT IN ('enquiry_follow_up', 'lead_follow_up') AND ${OPEN}`;
+    case "lead":
+      return Prisma.sql`x.kind = 'lead_follow_up' AND ${OPEN}`;
     case "enquiry":
       return Prisma.sql`x.kind = 'enquiry_follow_up' AND ${OPEN}`;
     case "order":
@@ -114,6 +123,8 @@ type RawRow = {
   created_name: string;
   enquiry_id: number | null;
   enquiry_status: string | null;
+  enquiry_prefix: string | null;
+  outcome: string | null;
   kind: TaskKind;
 };
 
@@ -150,7 +161,7 @@ export async function getTasksPage(scope: Scope, params: SearchParams): Promise<
              COUNT(*) FILTER (WHERE x.assigned_to_id = ${userId} AND x.created_by_id <> ${userId})::int AS assigned
       FROM (${union}) x ${where}`),
     prisma.$queryRaw<Record<TaskView, number>[]>(Prisma.sql`
-      SELECT ${countFor("all")} AS "all", ${countFor("mine")} AS mine, ${countFor("enquiry")} AS enquiry,
+      SELECT ${countFor("all")} AS "all", ${countFor("mine")} AS mine, ${countFor("lead")} AS lead, ${countFor("enquiry")} AS enquiry,
              ${countFor("order")} AS "order", ${countFor("payment")} AS payment, ${countFor("completed")} AS completed
       FROM (${union}) x ${baseWhere}`),
   ]);
@@ -167,8 +178,9 @@ export async function getTasksPage(scope: Scope, params: SearchParams): Promise<
       created_by_id: r.created_by_id,
       assignedTo: { name: r.assigned_name },
       createdBy: { name: r.created_name },
-      enquiry: r.enquiry_id ? { id: r.enquiry_id, status: r.enquiry_status ?? "open" } : null,
+      enquiry: r.enquiry_id ? { id: r.enquiry_id, status: r.enquiry_status ?? "", prefix: r.enquiry_prefix } : null,
       kind: r.kind,
+      outcome: r.outcome,
     })),
     total: Number(totals[0].total),
     page,

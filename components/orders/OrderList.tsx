@@ -232,7 +232,7 @@ export function OrderList({ data, role, detailBasePath }: OrderListProps) {
                             title="Open enquiry"
                             className="rounded bg-warning-soft px-1.5 py-0.5 font-mono text-[10px] font-semibold text-warning-foreground transition hover:bg-warning-soft hover:underline"
                           >
-                            {enquiryRef((order.enquiry_id ?? order.origin_enquiry_id)!)}
+                            {enquiryRef((order.enquiry_id ?? order.origin_enquiry_id)!, order.client?.organization?.prefix)}
                           </Link>
                         )}
                       </div>

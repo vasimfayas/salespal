@@ -13,6 +13,7 @@ import {
 import { CompaniesClient } from "./CompaniesClient";
 import { Skeleton } from "@/components/ui/Skeleton";
 
+import { getPerformance, monthPeriod, type Performance } from "@/lib/performance";
 async function CompaniesDashboardWrapper() {
   const [
     companies,
@@ -30,6 +31,16 @@ async function CompaniesDashboardWrapper() {
     getCachedAdminCompaniesPageClientCounts()
   ]);
 
+  // This month's performance per company: each company's salesmen, counting only that company's clients.
+  const performanceByOrg: Record<number, Record<number, Performance>> = {};
+  await Promise.all(
+    companies.map(async (org) => {
+      const salesmanIds = [...new Set(managerSalesmen.filter((ms) => ms.org_id === org.id).map((ms) => ms.salesman_id))];
+      const perf = await getPerformance(salesmanIds, monthPeriod(0), { orgId: org.id });
+      performanceByOrg[org.id] = Object.fromEntries(perf);
+    }),
+  );
+
   return (
     <CompaniesClient
       companies={companies}
@@ -38,6 +49,7 @@ async function CompaniesDashboardWrapper() {
       salesmenList={salesmenList}
       managerSalesmen={managerSalesmen}
       clientCounts={clientCounts}
+      performanceByOrg={performanceByOrg}
     />
   );
 }
