@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { getToken } from "next-auth/jwt";
 import { prisma } from "@/lib/prisma";
-import { getTokenUserId, isRole } from "@/lib/scoping";
+import { getTokenUserId, hasRole } from "@/lib/scoping";
 import { parseDateOnly } from "@/lib/salesman-targets";
 import { readDocumentFile, removeDocumentFile, storeUploadedFile, validateDocumentFile } from "@/lib/company-documents";
 import { CLIENT_DOCUMENT_EDITOR_ROLES, canDeleteClientDocument, findScopedClient, serializeClientDocument } from "@/lib/client-documents";
@@ -47,7 +47,7 @@ export async function PATCH(request: NextRequest, context: Params) {
   const found = await load(request, context);
   if ("error" in found) return found.error;
   const { token, doc } = found;
-  if (!isRole(token, CLIENT_DOCUMENT_EDITOR_ROLES)) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (!hasRole(token, CLIENT_DOCUMENT_EDITOR_ROLES)) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   const form = await request.formData();
   const description = String(form.get("description") ?? "").trim();

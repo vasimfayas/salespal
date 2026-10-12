@@ -64,10 +64,17 @@ export function CompanyReportPdf({ report: r, logo }: { report: CompanyReport; l
         <View style={s.row}>
           <Kpi label="Total order value" value={compact(t.orderValue)} accent={C.primary} foot={`${int(t.orders)} order${t.orders === 1 ? "" : "s"}`} />
           <Kpi label="Provisional profit" value={compact(t.profit)} accent="#8B5CF6" foot={`Margin ${pct(t.orderValue > 0 ? (t.profit / t.orderValue) * 100 : null, 1)}`} />
+          <Kpi
+            label="Actual profit"
+            value={compact(t.actualProfit)}
+            accent="#059669"
+            foot={`${int(t.invoiced)} invoiced · margin ${pct(t.actualCost + t.actualProfit > 0 ? (t.actualProfit / (t.actualCost + t.actualProfit)) * 100 : null, 1)}`}
+          />
         </View>
         <View style={[s.row, { marginTop: 8 }]}>
           <Kpi label="Total enquiries" value={int(t.enquiries)} accent={C.info} foot={`${int(t.confirmed)} confirmed · ${pct(t.conversion)} conversion`} />
           <Kpi label="Lost" value={int(t.lost)} accent={C.danger} foot={`${int(t.lostEnquiries)} enquir${t.lostEnquiries === 1 ? "y" : "ies"} · ${int(t.lostOrders)} order${t.lostOrders === 1 ? "" : "s"} · ${money(t.lostValue)}`} />
+          <View style={{ flex: 1 }} />
         </View>
 
         <Section title="Lost — reason breakdown" note={`${int(t.lost)} lost in the period`}>
@@ -95,7 +102,8 @@ export function CompanyReportPdf({ report: r, logo }: { report: CompanyReport; l
 
         <Text style={{ fontSize: 7, color: C.faint, marginTop: 14, lineHeight: 1.5 }}>
           Orders are those created in the period; value and profit leave out cancelled orders and orders sent back for revision ({int(t.voidedOrders)} in the
-          period). Provisional profit is the profit quoted on each order&apos;s enquiry. Enquiries are those dated in the period, at their current stage. Lost counts
+          period). Provisional profit is the profit quoted on each order&apos;s enquiry. Actual profit is what accounts entered on orders invoiced in the period
+          (by invoice date), so it can include orders created earlier. Enquiries are those dated in the period, at their current stage. Lost counts
           enquiries marked lost in the period; a lost order is one whose order was cancelled.
         </Text>
         <Footer r={r} />
@@ -108,14 +116,15 @@ export function CompanyReportPdf({ report: r, logo }: { report: CompanyReport; l
             empty="No staff for this company"
             rows={r.staff}
             cols={[
-              { label: "Staff", width: "22%", strong: true, render: (x) => x.name },
-              { label: "Orders", width: "9%", align: "right", render: (x) => int(x.orders) },
-              { label: "Order value", width: "15%", align: "right", render: (x) => money(x.value) },
-              { label: "Prov. profit", width: "15%", align: "right", render: (x) => money(x.profit) },
-              { label: "Enquiries", width: "11%", align: "right", render: (x) => int(x.enquiries) },
-              { label: "Confirmed", width: "11%", align: "right", render: (x) => int(x.confirmed) },
-              { label: "Lost", width: "8%", align: "right", render: (x) => int(x.lost) },
-              { label: "Target", width: "9%", align: "right", render: (x) => (x.target ? pct(x.target.percent) : "—") },
+              { label: "Staff", width: "19%", strong: true, render: (x) => x.name },
+              { label: "Orders", width: "8%", align: "right", render: (x) => int(x.orders) },
+              { label: "Order value", width: "14%", align: "right", render: (x) => money(x.value) },
+              { label: "Prov. profit", width: "13%", align: "right", render: (x) => money(x.profit) },
+              { label: "Actual profit", width: "13%", align: "right", render: (x) => money(x.actualProfit) },
+              { label: "Enquiries", width: "9%", align: "right", render: (x) => int(x.enquiries) },
+              { label: "Confirmed", width: "9%", align: "right", render: (x) => int(x.confirmed) },
+              { label: "Lost", width: "7%", align: "right", render: (x) => int(x.lost) },
+              { label: "Target", width: "8%", align: "right", render: (x) => (x.target ? pct(x.target.percent) : "—") },
             ]}
           />
         </Section>
@@ -172,20 +181,21 @@ export function CompanyReportPdf({ report: r, logo }: { report: CompanyReport; l
 
       {/* 3+ · Details */}
       <Page size="A4" orientation="landscape" style={s.page}>
-        <Section title="Orders" note={`${int(t.orders)} counted · ${money(t.orderValue)} · profit ${money(t.profit)}`}>
+        <Section title="Orders" note={`${int(t.orders)} counted · ${money(t.orderValue)} · prov. profit ${money(t.profit)}`}>
           <Table
             empty="No orders in this period"
             rows={r.details.orders.rows}
             cols={[
-              { label: "Order", width: "9%", strong: true, render: (x) => x.job_no ?? `#${x.id}` },
-              { label: "Enquiry", width: "10%", render: (x) => ref(x.enquiry_id) },
-              { label: "Date", width: "9%", render: (x) => date(x.created_at) },
-              { label: "Client", width: "16%", render: (x) => x.client },
-              { label: "Staff", width: "12%", render: (x) => x.by },
-              { label: "Route", width: "17%", render: (x) => `${title(x.mode)} · ${x.from} › ${x.to}` },
+              { label: "Order", width: "8%", strong: true, render: (x) => x.job_no ?? `#${x.id}` },
+              { label: "Enquiry", width: "9%", render: (x) => ref(x.enquiry_id) },
+              { label: "Date", width: "8%", render: (x) => date(x.created_at) },
+              { label: "Client", width: "15%", render: (x) => x.client },
+              { label: "Staff", width: "11%", render: (x) => x.by },
+              { label: "Route", width: "16%", render: (x) => `${title(x.mode)} · ${x.from} › ${x.to}` },
               { label: "Status", width: "9%", render: (x) => orderStatusLabel(x.status) },
-              { label: "Value", width: "9%", align: "right", render: (x) => money(x.amount) },
-              { label: "Prov. profit", width: "9%", align: "right", render: (x) => (x.profit === null ? "—" : money(x.profit)) },
+              { label: "Value", width: "8%", align: "right", render: (x) => money(x.amount) },
+              { label: "Prov. profit", width: "8%", align: "right", render: (x) => (x.profit === null ? "—" : money(x.profit)) },
+              { label: "Actual profit", width: "8%", align: "right", render: (x) => (x.actual_profit === null ? "—" : money(x.actual_profit)) },
             ]}
           />
           <Cut show={r.details.orders.truncated} />

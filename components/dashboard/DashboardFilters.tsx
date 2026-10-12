@@ -1,6 +1,7 @@
 "use client";
 
 import { SegmentedControl } from "@/components/ui/SegmentedControl";
+import { cn } from "@/lib/utils";
 
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { useCallback, useState, useEffect } from "react";
@@ -9,6 +10,9 @@ interface Org {
   id: number;
   name: string;
 }
+
+const selectClass =
+  "h-8 w-full cursor-pointer rounded-control border border-input bg-card px-3 text-sm text-foreground shadow-xs outline-none transition-[border-color,box-shadow] duration-150 hover:border-border-strong focus:border-ring focus:ring-3 focus:ring-ring/15";
 
 export function DashboardFilters({ orgs }: { orgs: Org[] }) {
   const router = useRouter();
@@ -61,21 +65,28 @@ export function DashboardFilters({ orgs }: { orgs: Org[] }) {
 
   return (
     <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-      {/* Company filter */}
-      <SegmentedControl
-        label="Company"
-        size="sm"
-        value={selectedOrg}
-        onChange={handleOrgChange}
-        options={[{ value: "all", label: "All" }, ...orgs.map((org) => ({ value: String(org.id), label: <span className="whitespace-nowrap">{org.name}</span> }))]}
-      />
+      {/* Company filter: buttons for two companies, a dropdown beyond that so names never squash. */}
+      {orgs.length <= 2 ? (
+        <SegmentedControl
+          label="Company"
+          size="sm"
+          value={selectedOrg}
+          onChange={handleOrgChange}
+          options={[{ value: "all", label: "All" }, ...orgs.map((org) => ({ value: String(org.id), label: <span className="whitespace-nowrap">{org.name}</span> }))]}
+        />
+      ) : (
+        <select aria-label="Company" value={selectedOrg} onChange={(e) => handleOrgChange(e.target.value)} className={cn(selectClass, "sm:w-44")}>
+          <option value="all">All companies</option>
+          {orgs.map((org) => (
+            <option key={org.id} value={String(org.id)}>
+              {org.name}
+            </option>
+          ))}
+        </select>
+      )}
 
       {/* Period dropdown */}
-      <select
-        value={selectedPeriod}
-        onChange={(e) => handlePeriodChange(e.target.value)}
-        className="w-full rounded-control border border-input bg-card px-3 text-sm text-foreground shadow-xs outline-none transition-[border-color,box-shadow] duration-150 placeholder:text-muted-foreground/70 hover:border-border-strong focus:border-ring focus:ring-3 focus:ring-ring/15 disabled:cursor-not-allowed disabled:bg-muted disabled:opacity-70 h-8 cursor-pointer"
-      >
+      <select aria-label="Period" value={selectedPeriod} onChange={(e) => handlePeriodChange(e.target.value)} className={cn(selectClass, "sm:w-36")}>
         <option value="this_month">This Month</option>
         <option value="last_month">Last Month</option>
         <option value="quarter">{quarterLabel}</option>

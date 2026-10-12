@@ -10,6 +10,7 @@ import { DocumentExpiryBadge } from "@/components/companies/DocumentExpiryBadge"
 import { cn, formatDate } from "@/lib/utils";
 import { COMPANY_DOCUMENT_ACCEPT, COMPANY_DOCUMENT_MAX_BYTES, documentExpiryState, formatFileSize } from "@/types/company";
 import type { ClientDocumentItem } from "@/types/client";
+import { isOwnerRole } from "@/lib/roles";
 
 const MAX_FILES = 10;
 const fileUrl = (clientId: number, docId: number, download = false) => `/api/clients/${clientId}/documents/${docId}${download ? "?download=1" : ""}`;
@@ -33,8 +34,8 @@ export function ClientDocumentsCard({
   const router = useRouter();
   const [dialog, setDialog] = useState<DialogState>(null);
   const [deleting, startDelete] = useTransition();
-  const canEdit = [1, 2, 3].includes(currentUser.role_id);
-  const canDelete = (doc: ClientDocumentItem) => currentUser.role_id === 1 || currentUser.role_id === 2 || doc.uploaded_by_id === currentUser.id;
+  const canEdit = isOwnerRole(currentUser.role_id) || [2, 3].includes(currentUser.role_id);
+  const canDelete = (doc: ClientDocumentItem) => isOwnerRole(currentUser.role_id) || currentUser.role_id === 2 || doc.uploaded_by_id === currentUser.id;
   const attention = documents.filter((d) => ["expired", "expiring"].includes(documentExpiryState(d.expiry_date))).length;
 
   function remove(doc: ClientDocumentItem) {

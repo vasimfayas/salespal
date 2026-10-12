@@ -10,7 +10,7 @@ import { LostReasonDialog } from "@/components/shared/LostReasonDialog";
 import { formatAmount } from "@/lib/utils";
 import type { EnquiryListItem } from "@/types/enquiry";
 
-type Action = "send_agent" | "quote" | "requote" | "confirm" | "lose";
+export type Action = "send_agent" | "quote" | "requote" | "confirm" | "lose";
 
 async function stage(id: number, body: Record<string, unknown>) {
   const res = await fetch(`/api/enquiries/${id}/stage`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });

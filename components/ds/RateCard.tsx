@@ -2,7 +2,6 @@
 
 import {
   MapPin,
-  Anchor,
   ArrowRight,
   Clock,
   Calendar,
@@ -13,11 +12,13 @@ import {
   Edit3,
   Trash2,
   Loader2,
+  type LucideIcon,
 } from "lucide-react";
 import { Badge, type BadgeVariant } from "@/components/ds/Badge";
 import { cn, formatDate } from "@/lib/utils";
+import { containerLabel as labelFor } from "@/types/shipping-rate";
 
-const MODE_ICON: Record<string, React.ComponentType<{ size?: number; className?: string }>> = {
+const MODE_ICON: Record<string, LucideIcon> = {
   air: Plane,
   sea: Ship,
   land: Truck,
@@ -29,7 +30,8 @@ interface RateCardProps {
   carrier?: string | null;
   container: string;
   price: string;
-  currency?: string;
+  /** "per kg" / "per container" */
+  unit?: string;
   mode: string;
   origin: string;
   destination: string;
@@ -56,7 +58,7 @@ export function RateCard({
   carrier,
   container,
   price,
-  currency = "USD",
+  unit,
   mode,
   origin,
   destination,
@@ -72,8 +74,7 @@ export function RateCard({
 }: RateCardProps) {
   const ModeIcon = MODE_ICON[mode] ?? Ship;
   const badgeInfo = badge !== "none" ? BADGE_MAP[badge] : null;
-  const containerLabel = container === "20gp" ? "20FT" : container === "40hc" ? "40FT HC" : container.toUpperCase();
-  const currencyLabel = currency === "QAR" ? "QAR" : "USD";
+  const containerLabel = labelFor(container);
 
   return (
     <div
@@ -104,7 +105,7 @@ export function RateCard({
           {origin}
         </span>
         <ArrowRight size={12} className="shrink-0" style={{ color: "var(--ds-text-muted)" }} />
-        <Anchor size={13} className="shrink-0" style={{ color: "var(--ss-blue-600)" }} />
+        <ModeIcon size={13} className="shrink-0" style={{ color: "var(--ss-blue-600)" }} />
         <span className="font-semibold truncate" style={{ color: "var(--ds-text-primary)" }}>
           {destination}
         </span>
@@ -115,7 +116,7 @@ export function RateCard({
         <span className={cn("ss-type-price-lg", selected && "ss-text-brand")}>
           {price}
         </span>
-        <span className="ss-type-caption">{currencyLabel}</span>
+        {unit && <span className="ss-type-caption">{unit}</span>}
       </div>
 
       {/* Details: updated date */}

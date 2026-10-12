@@ -4,11 +4,12 @@ import { prisma } from "@/lib/prisma";
 import { getSalesPalSession } from "@/lib/auth";
 import { parseDateOnly } from "@/lib/salesman-targets";
 import { removeDocumentFile, serializeCompanyDocument, storeDocumentFile, validateDocumentFile } from "@/lib/company-documents";
+import { isOwnerRole } from "@/lib/roles";
 
 /** Owner uploads a company document (multipart: label, doc_number?, expiry_date?, file). */
 export async function POST(req: Request, context: { params: Promise<{ id: string }> }) {
   const session = await getSalesPalSession();
-  if (!session || session.user.role_id !== 1) {
+  if (!session || !isOwnerRole(session.user.role_id)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

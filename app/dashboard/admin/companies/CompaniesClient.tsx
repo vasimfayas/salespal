@@ -60,6 +60,10 @@ interface Org {
       phone: string | null;
     };
   }>;
+  operations: Array<{
+    user_id: number;
+    user: { id: number; name: string; email: string; phone: string | null };
+  }>;
   accountants: Array<{
     accountant_id: number;
     accountant: {
@@ -761,13 +765,23 @@ export function CompaniesClient({
 
                 {/* 3. Accountants + company documents */}
                 <div className="border-t border-border/60 pt-6 grid gap-6 grid-cols-1 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
-                  <CompanyAccountantsPanel
-                    orgId={company.id}
-                    orgName={company.name}
-                    assigned={company.accountants.map((a) => a.accountant)}
-                    allAccountants={accountantsList}
-                    labelClass={labelText}
-                  />
+                  <div className="space-y-6">
+                    <CompanyAccountantsPanel
+                      orgId={company.id}
+                      orgName={company.name}
+                      assigned={company.accountants.map((a) => a.accountant)}
+                      allAccountants={accountantsList.filter((u) => u.role_id === 4)}
+                      labelClass={labelText}
+                    />
+                    <CompanyAccountantsPanel
+                      kind="operations"
+                      orgId={company.id}
+                      orgName={company.name}
+                      assigned={company.operations.map((o) => o.user)}
+                      allAccountants={accountantsList.filter((u) => u.role_id === 5)}
+                      labelClass={labelText}
+                    />
+                  </div>
                   <CompanyDocumentsPanel
                     orgId={company.id}
                     orgName={company.name}

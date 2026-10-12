@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { getToken } from "next-auth/jwt";
 import { prisma } from "@/lib/prisma";
-import { getTokenUserId, isRole } from "@/lib/scoping";
+import { getTokenUserId, hasRole } from "@/lib/scoping";
 import { parseDateOnly } from "@/lib/salesman-targets";
 import { removeDocumentFile, storeUploadedFile, validateDocumentFile } from "@/lib/company-documents";
 import {
@@ -29,7 +29,7 @@ export async function GET(request: NextRequest, context: Params) {
 export async function POST(request: NextRequest, context: Params) {
   const token = await getToken({ req: request, secret: process.env.NEXTAUTH_SECRET });
   if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  if (!isRole(token, CLIENT_DOCUMENT_EDITOR_ROLES)) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (!hasRole(token, CLIENT_DOCUMENT_EDITOR_ROLES)) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   const client = await findScopedClient(token, Number((await context.params).id));
   if (!client) return NextResponse.json({ error: "Client not found" }, { status: 404 });

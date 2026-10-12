@@ -17,7 +17,7 @@ import { StatusBadge } from "@/components/shared/StatusBadge";
 import { Button, buttonVariants } from "@/components/ui/Button";
 import { SimpleTooltip } from "@/components/ui/tooltip";
 import { FollowUpModal } from "@/components/enquiries/EnquiryFollowUpModals";
-import { EnquiryStageActions, rowActions } from "@/components/enquiries/EnquiryStageActions";
+import { EnquiryStageActions, rowActions, type Action } from "@/components/enquiries/EnquiryStageActions";
 import { Modal } from "@/components/ui/Modal";
 import { Toast } from "@/components/ui/Toast";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -55,6 +55,7 @@ export function EnquiriesClient({
   role,
   canCreate,
   canFollowUp = false,
+  stageOnly,
   companies = [],
 }: {
   data: EnquiryPage;
@@ -65,6 +66,8 @@ export function EnquiriesClient({
   canCreate: boolean;
   /** Salesmen / managers: log follow-up comments and cancel open enquiries. */
   canFollowUp?: boolean;
+  /** Without canFollowUp: the only stage moves offered (operations: quote / requote). */
+  stageOnly?: Action[];
 }) {
   const router = useRouter();
   const { get, set, isPending } = useUrlFilters();
@@ -332,6 +335,7 @@ export function EnquiriesClient({
                           {canFollowUp && rowActions(e.status).length > 0 && !e.follow_up_due && (
                             <EnquiryStageActions enquiry={e} only={rowActions(e.status)} onDone={flash} />
                           )}
+                          {!canFollowUp && stageOnly && <EnquiryStageActions enquiry={e} only={stageOnly} onDone={flash} />}
                           {canFollowUp && isActiveEnquiry(e.status) && e.follow_up_due && (
                             <Button
                               size="sm"
@@ -415,6 +419,7 @@ export function EnquiriesClient({
         enquiry={detailFor}
         daysOpen={daysOpen}
         canFollowUp={canFollowUp}
+        stageOnly={stageOnly}
         onClose={closeDetail}
         orderLink={orderLink}
         onEdit={canFollowUp ? openEdit : undefined}

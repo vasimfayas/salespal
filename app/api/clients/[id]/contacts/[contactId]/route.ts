@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { getToken } from "next-auth/jwt";
 import { prisma } from "@/lib/prisma";
-import { getTokenUserId, isRole } from "@/lib/scoping";
+import { getTokenUserId, hasRole } from "@/lib/scoping";
 import { findScopedClient } from "@/lib/client-documents";
 import { parseContact } from "@/lib/client-contacts";
 
@@ -9,7 +9,7 @@ type Params = { params: Promise<{ id: string; contactId: string }> };
 
 async function load(request: NextRequest, context: Params) {
   const token = await getToken({ req: request, secret: process.env.NEXTAUTH_SECRET });
-  if (!token || !isRole(token, [1, 2, 3])) return { error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) } as const;
+  if (!token || !hasRole(token, [1, 2, 3])) return { error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) } as const;
   const { id, contactId } = await context.params;
   const client = await findScopedClient(token, Number(id));
   const contact = client ? await prisma.clientContact.findFirst({ where: { id: Number(contactId), client_id: client.id } }) : null;

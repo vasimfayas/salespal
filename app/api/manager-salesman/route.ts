@@ -2,11 +2,12 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSalesPalSession } from "@/lib/auth";
 import { assignSalesmanToCompany, revalidateTeamViews, TeamAssignmentError, unassignSalesman } from "@/lib/team-assignments";
+import { isOwnerRole } from "@/lib/roles";
 
 /** Owner: put a salesman on a manager's team for one company ({ managerId, salesmanId, orgId }). */
 export async function POST(req: Request) {
   const session = await getSalesPalSession();
-  if (!session || session.user.role_id !== 1) {
+  if (!session || !isOwnerRole(session.user.role_id)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -35,7 +36,7 @@ export async function POST(req: Request) {
 /** Owner: take a salesman off a manager's team — for one company with ?orgId=, otherwise for all of them. */
 export async function DELETE(req: Request) {
   const session = await getSalesPalSession();
-  if (!session || session.user.role_id !== 1) {
+  if (!session || !isOwnerRole(session.user.role_id)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

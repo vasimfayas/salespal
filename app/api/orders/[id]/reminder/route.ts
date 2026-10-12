@@ -2,14 +2,14 @@ import { NextResponse, type NextRequest } from "next/server";
 import { revalidateTag } from "next/cache";
 import { getToken } from "next-auth/jwt";
 import { prisma } from "@/lib/prisma";
-import { getTokenUserId, isRole, orderScopeWhere } from "@/lib/scoping";
+import { getTokenUserId, orderScopeWhere, hasRole } from "@/lib/scoping";
 import { orderPaymentsInclude, serializeOrder } from "@/lib/order-serialize";
 
 /** Accountant reminds the order's salesman to collect an outstanding payment (creates a task for them). */
 export async function POST(request: NextRequest, context: { params: Promise<{ id: string }> }) {
   const token = await getToken({ req: request, secret: process.env.NEXTAUTH_SECRET });
   if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  if (!isRole(token, 4)) return NextResponse.json({ error: "Only accountants can send payment reminders" }, { status: 403 });
+  if (!hasRole(token, 4)) return NextResponse.json({ error: "Only accountants can send payment reminders" }, { status: 403 });
 
   const { id } = await context.params;
   const raw = await prisma.order.findFirst({

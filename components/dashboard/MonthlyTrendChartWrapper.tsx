@@ -1,6 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
+import type { TrendPoint, TrendSeries } from "@/components/dashboard/MonthlyTrendChart";
 
 const MonthlyTrendChartLazy = dynamic(
   () =>
@@ -15,28 +16,10 @@ const MonthlyTrendChartLazy = dynamic(
   }
 );
 
-interface TrendPoint {
-  month: string;
-  companyA: number;
-  companyB: number;
-}
-
-export function MonthlyTrendChartWrapper({
-  data,
-  companyAName,
-  companyBName,
-}: {
-  data: TrendPoint[];
-  companyAName: string;
-  companyBName: string;
-}) {
+export function MonthlyTrendChartWrapper({ data, series, money }: { data: TrendPoint[]; series: TrendSeries[]; money?: boolean }) {
   return (
     <div className="h-[300px] w-full">
-      <MonthlyTrendChartLazy
-        data={data}
-        companyAName={companyAName}
-        companyBName={companyBName}
-      />
+      <MonthlyTrendChartLazy data={data} series={series} money={money} />
     </div>
   );
 }

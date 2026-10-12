@@ -77,6 +77,9 @@ export function SalesmanReportPdf({ report: r }: { report: NonNullable<SalesmanM
         </View>
         <View style={[s.row, { marginTop: 8 }]}>
           <Kpi label="Order value" value={compact(r.orders.value)} foot={`${int(r.orders.count)} order${r.orders.count === 1 ? "" : "s"} confirmed`} />
+          <Kpi label="Actual profit" value={compact(r.actualProfit.profit)} accent="#059669">
+            <Trend current={r.actualProfit.profit} previous={r.actualProfitPrev.profit} label={r.prevMonthLabel} />
+          </Kpi>
           <Kpi label="Payments collected" value={compact(r.collected.amount)} foot={`${int(r.collected.count)} payment${r.collected.count === 1 ? "" : "s"} recorded`} />
           <Kpi label="Quoted value" value={compact(e.quotedValue)} foot={`Avg. margin ${pct(e.margin, 1)}`} />
           <Kpi label="New clients" value={int(r.onboarded.newClients)} foot={`First order this month · ${int(portfolioTotal)} clients in portfolio`} />
@@ -222,6 +225,9 @@ export function SalesmanReportPdf({ report: r }: { report: NonNullable<SalesmanM
               {[
                 ["Confirmed orders", int(r.orders.count)],
                 ["Order value", money(r.orders.value)],
+                ["Invoiced this month", int(r.actualProfit.invoiced)],
+                ["Actual cost", money(r.actualProfit.cost)],
+                ["Actual profit", `${money(r.actualProfit.profit)} · ${pct(r.actualProfit.margin, 1)}`],
                 ["In transit", int(r.orders.transit)],
                 ["Delivered", int(r.orders.delivered)],
                 ["Completed", int(r.orders.completed)],
@@ -271,7 +277,8 @@ export function SalesmanReportPdf({ report: r }: { report: NonNullable<SalesmanM
 
         <Text style={{ fontSize: 7, color: C.faint, marginTop: 14, lineHeight: 1.5 }}>
           Onboarded = clients whose first order was created this month. Enquiries are those dated this month, shown at their current stage. Conversion = confirmed ÷
-          raised; win rate = confirmed ÷ (confirmed + lost). Order value excludes cancelled orders and orders sent back for revision. Amounts are as recorded in SalesPal.
+          raised; win rate = confirmed ÷ (confirmed + lost). Order value excludes cancelled orders and orders sent back for revision. Actual profit = profit accounts entered on orders invoiced this month (by invoice
+          date), margin = profit ÷ (cost + profit). Amounts are as recorded in SalesPal.
         </Text>
 
         <View style={s.footer} fixed>

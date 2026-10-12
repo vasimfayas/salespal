@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { revalidateTag } from "next/cache";
 import { getToken } from "next-auth/jwt";
 import { prisma } from "@/lib/prisma";
-import { clientScopeWhere, isRole, taskScopeWhere } from "@/lib/scoping";
+import { clientScopeWhere, taskScopeWhere, hasRole } from "@/lib/scoping";
 import { taskCategories, type TaskCategory } from "@/types/task";
 
 export async function GET(request: NextRequest) {
@@ -16,7 +16,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   const token = await getToken({ req: request, secret: process.env.NEXTAUTH_SECRET });
   if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  if (!isRole(token, [1, 2, 3])) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (!hasRole(token, [1, 2, 3])) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   const body = await request.json();
   const assignedToId = token.role_id === 3 ? Number(token.id) : Number(body.assigned_to_id);

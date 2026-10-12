@@ -2,16 +2,16 @@ import { NextResponse, type NextRequest } from "next/server";
 import { revalidateTag } from "next/cache";
 import { getToken } from "next-auth/jwt";
 import { prisma } from "@/lib/prisma";
-import { isRole } from "@/lib/scoping";
+import { hasRole } from "@/lib/scoping";
 import { orderModes } from "@/types/order";
-import { containerTypes } from "@/types/shipping-rate";
+import { containerTypesByMode, currencyTypes, DEFAULT_CURRENCY } from "@/types/shipping-rate";
 
 import { num } from "@/lib/decimal";
 export async function PATCH(request: NextRequest, context: { params: Promise<{ id: string }> }) {
   const token = await getToken({ req: request, secret: process.env.NEXTAUTH_SECRET });
   if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   // Accounts and managers update rates; only accounts delete them (DELETE below).
-  if (!isRole(token, [2, 4])) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (!hasRole(token, [2, 4])) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   const { id } = await context.params;
   const existing = await prisma.shippingRate.findUnique({ where: { id: Number(id) } });
@@ -24,7 +24,7 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
   const mode = body.mode ?? existing.mode;
   if (!orderModes.includes(mode)) return NextResponse.json({ error: "Invalid mode" }, { status: 400 });
   const container = body.container ?? existing.container;
-  if (!containerTypes.includes(container)) return NextResponse.json({ error: "Invalid container type" }, { status: 400 });
+  if (!containerTypesByMode[mode].includes(container)) return NextResponse.json({ error: "Pick a container or weight break that fits the mode" }, { status: 400 });
 
   let price = num(existing.price);
   if (body.price !== undefined) {
@@ -40,7 +40,7 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
   }
 
   const carrier = body.carrier !== undefined ? (body.carrier ? String(body.carrier).trim() : null) : (existing as any).carrier;
-  const currency = body.currency !== undefined ? (body.currency === "QAR" ? "QAR" : "USD") : (existing as any).currency ?? "USD";
+  const currency = body.currency !== undefined ? (currencyTypes.includes(body.currency) ? body.currency : DEFAULT_CURRENCY) : (existing as any).currency ?? "USD";
 
   const rate = await prisma.shippingRate.update({
     where: { id: existing.id },
@@ -54,7 +54,7 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
 export async function DELETE(request: NextRequest, context: { params: Promise<{ id: string }> }) {
   const token = await getToken({ req: request, secret: process.env.NEXTAUTH_SECRET });
   if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  if (!isRole(token, 4)) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (!hasRole(token, 4)) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   const { id } = await context.params;
   const existing = await prisma.shippingRate.findUnique({ where: { id: Number(id) } });

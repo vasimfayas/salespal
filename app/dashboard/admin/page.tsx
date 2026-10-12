@@ -39,7 +39,7 @@ export default async function AdminDashboardPage({
     month: "long",
     year: "numeric",
   });
-  const orgNames = orgs.map((o) => o.name).join(" & ");
+  const orgNames = orgs.length > 2 ? `${orgs.length} companies` : orgs.map((o) => o.name).join(" & ");
 
   return (
     <>

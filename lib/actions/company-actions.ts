@@ -6,10 +6,11 @@ import bcrypt from "bcryptjs";
 import { getSalesPalSession } from "@/lib/auth";
 import { removeDocumentFile } from "@/lib/company-documents";
 import { assignSalesmanToCompany, revalidateTeamViews, unassignSalesman } from "@/lib/team-assignments";
+import { isOwnerRole } from "@/lib/roles";
 
 async function verifyAdmin() {
   const session = await getSalesPalSession();
-  if (!session || session.user.role_id !== 1) {
+  if (!session || !isOwnerRole(session.user.role_id)) {
     throw new Error("Unauthorized");
   }
 }
@@ -92,41 +93,6 @@ export async function createUserAction(data: {
   revalidateTag("admin-companies", { expire: 0 });
   revalidatePath("/dashboard/admin/companies");
   return { success: true, userId: newUser.id };
-}
-
-/** Accountant role (id 4) — owner/admin-only, no org or manager assignment. */
-export async function createAccountantAction(data: {
-  name: string;
-  email: string;
-  phone?: string;
-}) {
-  await verifyAdmin();
-
-  const email = data.email.toLowerCase();
-  const existingUser = await prisma.user.findUnique({ where: { email } });
-  if (existingUser) {
-    return { success: false, error: "A user with this email address already exists." };
-  }
-
-  const defaultPasswordHash = bcrypt.hashSync("salespal123", 10);
-
-  try {
-    const newUser = await prisma.user.create({
-      data: {
-        name: data.name,
-        email,
-        phone: data.phone || null,
-        role_id: 4,
-        password: defaultPasswordHash,
-      },
-    });
-
-    revalidatePath("/dashboard/admin/users");
-    revalidateTag("admin-companies", { expire: 0 });
-    return { success: true, userId: newUser.id };
-  } catch (error: any) {
-    return { success: false, error: error.message || "Failed to create accountant." };
-  }
 }
 
 function revalidateCompanies() {
@@ -228,6 +194,31 @@ export async function assignAccountantToOrg(accountantId: number, orgId: number)
 
   revalidateCompanies();
   revalidateTag("accountant-orders", { expire: 0 });
+  return { success: true };
+}
+
+export async function assignOperationsToOrg(userId: number, orgId: number) {
+  await verifyAdmin();
+
+  const user = await prisma.user.findFirst({ where: { id: userId, role_id: 5 }, select: { id: true } });
+  if (!user) return { success: false, error: "Operations user not found." };
+
+  await prisma.operationsOrg.upsert({
+    where: { user_id_org_id: { user_id: userId, org_id: orgId } },
+    update: {},
+    create: { user_id: userId, org_id: orgId },
+  });
+
+  revalidateCompanies();
+  return { success: true };
+}
+
+export async function removeOperationsFromOrg(userId: number, orgId: number) {
+  await verifyAdmin();
+
+  await prisma.operationsOrg.deleteMany({ where: { user_id: userId, org_id: orgId } });
+
+  revalidateCompanies();
   return { success: true };
 }
 

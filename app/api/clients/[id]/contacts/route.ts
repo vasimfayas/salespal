@@ -1,14 +1,14 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { getToken } from "next-auth/jwt";
 import { prisma } from "@/lib/prisma";
-import { getTokenUserId, isRole } from "@/lib/scoping";
+import { getTokenUserId, hasRole } from "@/lib/scoping";
 import { findScopedClient } from "@/lib/client-documents";
 import { parseContact } from "@/lib/client-contacts";
 
 /** Add a contact person to a client (anyone who can see the client: salesman, manager, owner). */
 export async function POST(request: NextRequest, context: { params: Promise<{ id: string }> }) {
   const token = await getToken({ req: request, secret: process.env.NEXTAUTH_SECRET });
-  if (!token || !isRole(token, [1, 2, 3])) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!token || !hasRole(token, [1, 2, 3])) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const client = await findScopedClient(token, Number((await context.params).id));
   if (!client) return NextResponse.json({ error: "Client not found" }, { status: 404 });
 

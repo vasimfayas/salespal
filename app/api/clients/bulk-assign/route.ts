@@ -7,8 +7,8 @@ import { canAccessSalesman, clientScopeWhere, getManagerOrgIds, getTokenUserId, 
 import { createLeadTasks, leadClientSelect } from "@/lib/lead-tasks";
 import { revalidateTaskViews } from "@/lib/enquiry-follow-ups";
 /**
- * Managers reassign several of their organization's clients to one salesman on their team, optionally under another of
- * their companies. Body: salesman_id, and either client_ids or from_salesman_id (transfer all of that salesman's clients).
+ * Managers reassign several of their organization's clients to one salesman on their team — or to themselves —
+ * optionally under another of their companies. Body: salesman_id, and either client_ids or from_salesman_id (transfer all of that salesman's clients).
  */
 export async function POST(request: NextRequest) {
   const token = await getToken({ req: request, secret: process.env.NEXTAUTH_SECRET });
@@ -33,9 +33,10 @@ export async function POST(request: NextRequest) {
   if (clientIds.length === 0 || clientIds.some((id) => !Number.isInteger(id))) {
     return NextResponse.json({ error: "Select at least one client" }, { status: 400 });
   }
-  if (!(await canAccessSalesman(token, salesmanId))) return NextResponse.json({ error: "Salesman is not on your team" }, { status: 403 });
+  const toSelf = salesmanId === getTokenUserId(token);
+  if (!toSelf && !(await canAccessSalesman(token, salesmanId))) return NextResponse.json({ error: "Salesman is not on your team" }, { status: 403 });
 
-  const salesman = await prisma.user.findFirst({ where: { id: salesmanId, role_id: 3 }, select: { name: true } });
+  const salesman = await prisma.user.findFirst({ where: { id: salesmanId, role_id: toSelf ? 2 : 3 }, select: { name: true } });
   if (!salesman) return NextResponse.json({ error: "Salesman not found" }, { status: 404 });
 
   // Optional: move the clients to another company the manager is assigned to.
@@ -56,10 +57,10 @@ export async function POST(request: NextRequest) {
   });
   if (clients.length !== clientIds.length) return NextResponse.json({ error: "Some clients are outside your organization" }, { status: 403 });
 
-  // The salesman must work for each client's (target) company on this manager's team.
-  const salesmanOrgIds = (
-    await prisma.managerSalesman.findMany({ where: { manager_id: getTokenUserId(token), salesman_id: salesmanId }, select: { org_id: true } })
-  ).map((r) => r.org_id);
+  // The salesman must work for each client's (target) company on this manager's team; the manager for any of their companies.
+  const salesmanOrgIds = toSelf
+    ? await getManagerOrgIds(getTokenUserId(token))
+    : (await prisma.managerSalesman.findMany({ where: { manager_id: getTokenUserId(token), salesman_id: salesmanId }, select: { org_id: true } })).map((r) => r.org_id);
   const outside = new Set(clients.map((client) => org?.id ?? client.org_id).filter((id) => !salesmanOrgIds.includes(id)));
   if (outside.size) {
     const names = await prisma.organization.findMany({ where: { id: { in: [...outside] } }, select: { name: true } });

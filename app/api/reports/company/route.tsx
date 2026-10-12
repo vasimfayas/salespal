@@ -6,6 +6,7 @@ import { getManagerOrgIds } from "@/lib/scoping";
 import { readDocumentFile } from "@/lib/company-documents";
 import { getCompanyReport, parseRange } from "@/lib/company-report";
 import { CompanyReportPdf, type PdfLogo } from "@/components/reports/CompanyReportPdf";
+import { isOwnerRole } from "@/lib/roles";
 
 export const runtime = "nodejs";
 
@@ -14,7 +15,7 @@ export async function GET(request: Request) {
   const session = await getSalesPalSession();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const { id, role_id } = session.user;
-  if (role_id !== 1 && role_id !== 2) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (!isOwnerRole(role_id) && role_id !== 2) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   const params = new URL(request.url).searchParams;
   const orgId = Number(params.get("org"));

@@ -123,7 +123,7 @@ async function wipe() {
   const tables = [
     "enquiry_agent_requests", "agents", "enquiry_events", "enquiry_follow_ups", "order_payments", "orders", "task_updates", "tasks", "enquiries", "client_tasks",
     "client_documents", "client_logs", "salesman_kpi_logs", "salesman_targets", "shipping_rates", "clients",
-    "company_documents", "manager_salesman", "manager_org", "accountant_org", "users", "organizations", "roles",
+    "company_documents", "manager_salesman", "manager_org", "accountant_org", "operations_org", "users", "organizations", "roles",
   ];
   await prisma.$executeRawUnsafe(`TRUNCATE TABLE ${tables.map((t) => `"${t}"`).join(", ")} RESTART IDENTITY CASCADE`);
 }
@@ -143,6 +143,8 @@ async function main() {
       { id: 2, name: "Manager" },
       { id: 3, name: "Salesman" },
       { id: 4, name: "Accountant" },
+      { id: 5, name: "Operations" },
+      { id: 6, name: "Super Admin" },
     ],
   });
 
@@ -160,6 +162,7 @@ async function main() {
 
   const password = await bcrypt.hash("password123", 10);
   const owner = await prisma.user.create({ data: { name: "SalesPal Owner", role_id: 1, email: "owner@salespal.test", password, phone: "+97450000001" } });
+  await prisma.user.create({ data: { name: "SalesPal Super Admin", role_id: 6, email: "superadmin@salespal.test", password, phone: "+97450000000" } });
 
   const managerSpecs = [
     { name: "Amina Manager", email: "manager.a@salespal.test", orgs: [orgA, orgB] },

@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { getSalesPalSession } from "@/lib/auth";
 import { readDocumentFile, removeDocumentFile, storeUploadedFile } from "@/lib/company-documents";
 import { COMPANY_LOGO_MAX_BYTES } from "@/types/company";
+import { isOwnerRole } from "@/lib/roles";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -39,7 +40,7 @@ export async function GET(_req: Request, context: Params) {
 /** Owner uploads or replaces the logo (multipart: file). */
 export async function POST(req: Request, context: Params) {
   const session = await getSalesPalSession();
-  if (!session || session.user.role_id !== 1) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!session || !isOwnerRole(session.user.role_id)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const orgId = Number((await context.params).id);
   const org = await prisma.organization.findUnique({ where: { id: orgId }, select: { logo_path: true } });
   if (!org) return NextResponse.json({ error: "Company not found" }, { status: 404 });
@@ -64,7 +65,7 @@ export async function POST(req: Request, context: Params) {
 /** Owner removes the logo. */
 export async function DELETE(_req: Request, context: Params) {
   const session = await getSalesPalSession();
-  if (!session || session.user.role_id !== 1) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!session || !isOwnerRole(session.user.role_id)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const orgId = Number((await context.params).id);
   const org = await prisma.organization.findUnique({ where: { id: orgId }, select: { logo_path: true } });
   if (!org) return NextResponse.json({ error: "Company not found" }, { status: 404 });

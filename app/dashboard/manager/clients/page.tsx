@@ -13,7 +13,7 @@ export default async function ManagerClientsPage({ searchParams }: { searchParam
     <>
       <PageHeader
         title="Organization Clients"
-        subtitle="Manage and monitor clients under your assigned sales team."
+        subtitle="Your own clients and your sales team's. Filter by “Me” to see just yours."
       />
       <Suspense fallback={<ClientsTableSkeleton />}>
         <ManagerClientsSection params={params} />
@@ -31,16 +31,17 @@ async function ManagerClientsSection({ params }: { params: SearchParams }) {
     select: { id: true, name: true, salesmanManager: { where: { manager_id: managerId }, select: { org_id: true } } },
     orderBy: { name: "asc" },
   });
-  const salesmen = team.map((s) => ({ id: s.id, name: s.name, org_ids: s.salesmanManager.map((l) => l.org_id) }));
-  // Same scope as before: clients assigned to this manager's salesmen.
-  const [clients, managerOrgs] = await Promise.all([
-    getClientsPage({ assigned_salesman_id: { in: salesmen.map((s) => s.id) } }, params),
-    prisma.managerOrg.findMany({
-      where: { manager_id: Number(session!.user.id) },
-      select: { org: { select: { id: true, name: true } } },
-      orderBy: { org: { name: "asc" } },
-    }),
-  ]);
+  const managerOrgs = await prisma.managerOrg.findMany({
+    where: { manager_id: managerId },
+    select: { org: { select: { id: true, name: true } } },
+    orderBy: { org: { name: "asc" } },
+  });
+  // The manager's own clients come first ("Me"), then their salesmen's — so they can filter, add and assign to themselves.
+  const salesmen = [
+    { id: managerId, name: `Me (${session!.user.name})`, org_ids: managerOrgs.map((m) => m.org.id) },
+    ...team.map((s) => ({ id: s.id, name: s.name, org_ids: s.salesmanManager.map((l) => l.org_id) })),
+  ];
+  const clients = await getClientsPage({ assigned_salesman_id: { in: salesmen.map((s) => s.id) } }, params);
 
   return (
     <ManagerClientsList

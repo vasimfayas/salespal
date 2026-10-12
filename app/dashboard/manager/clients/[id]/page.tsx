@@ -58,7 +58,8 @@ async function ClientDetailContent({
   const salesmanIds = await getManagerSalesmanIds(managerId);
 
   const found = await prisma.client.findFirst({
-    where: { id: clientId, assigned_salesman_id: { in: salesmanIds } },
+    // The manager's own clients and their salesmen's (same scope as the client list).
+    where: { id: clientId, assigned_salesman_id: { in: [Number(managerId), ...salesmanIds] } },
     include: {
       logs: {
         include: { author: { select: { name: true } } },

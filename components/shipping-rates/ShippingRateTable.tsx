@@ -28,14 +28,18 @@ import {
   Zap,
   Filter,
   ChevronDown,
+  Coins,
 } from "lucide-react";
 import { ShippingRateModal } from "@/components/shipping-rates/ShippingRateModal";
 import { Toast } from "@/components/ui/Toast";
 import { Badge } from "@/components/ds/Badge";
 import { RateCard, type RateCardBadge } from "@/components/ds/RateCard";
 import { cn, formatAmount, formatDate, titleCase } from "@/lib/utils";
+import { Select } from "@/components/ui/Select";
+import { Pagination } from "@/components/ui/Pagination";
+import { convert, type ExchangeRates } from "@/lib/exchange-rates";
 import { orderModes } from "@/types/order";
-import { containerTypes, type ShippingRateListItem } from "@/types/shipping-rate";
+import { containerLabel, containerTypes, containerTypesByMode, currencyTypes, DEFAULT_CURRENCY, rateUnit, type ShippingRateListItem } from "@/types/shipping-rate";
 
 /* ═══════════════════════════════════════════════════════════════════
    TYPES & CONSTANTS
@@ -48,6 +52,8 @@ interface ShippingRateTableProps {
   editable?: boolean;
   /** Delete buttons (accounts only); defaults to `editable`. */
   canDelete?: boolean;
+  /** Live exchange rates; null hides conversion and shows each rate in its own currency. */
+  fx: ExchangeRates | null;
 }
 
 const MODE_ICON: Record<string, LucideIcon> = {
@@ -58,18 +64,32 @@ const MODE_ICON: Record<string, LucideIcon> = {
 
 function formatRatePrice(price: number | string, currency?: string | null): string {
   const formatted = formatAmount(price);
-  return currency === "QAR" ? `QAR ${formatted}` : `$${formatted}`;
+  return !currency || currency === "USD" ? `$${formatted}` : `${currency} ${formatted}`;
 }
+
+const formatFx = (n: number) => new Intl.NumberFormat("en", { maximumSignificantDigits: 4 }).format(n);
 
 /* ═══════════════════════════════════════════════════════════════════
    MAIN COMPONENT
    ═══════════════════════════════════════════════════════════════════ */
 
-export function ShippingRateTable({ initialRates, editable = false, canDelete = editable }: ShippingRateTableProps) {
+export function ShippingRateTable({ initialRates, editable = false, canDelete = editable, fx }: ShippingRateTableProps) {
   const router = useRouter();
   const [rates, setRates] = useState<ShippingRateListItem[]>(initialRates);
 
   useEffect(() => { setRates(initialRates); }, [initialRates]);
+
+  // ─── Display currency (prices converted with live rates) ───
+  const [displayCurrency, setDisplayCurrency] = useState<string>(DEFAULT_CURRENCY);
+  /** Price in the display currency, or in its own currency when no live rate is available. */
+  function priceOf(r: ShippingRateListItem) {
+    const cur = r.currency ?? "USD";
+    const v = convert(r.price, cur, displayCurrency, fx);
+    return v === null ? { value: r.price, currency: cur } : { value: v, currency: displayCurrency };
+  }
+  const showPrice = (r: ShippingRateListItem) => { const p = priceOf(r); return formatRatePrice(p.value, p.currency); };
+  // Currencies the rates are entered in, for the exchange-rate strip.
+  const rateCurrencies = useMemo(() => [...new Set(rates.map((r) => r.currency ?? "USD"))].filter((c) => c !== displayCurrency && fx?.rates[c]), [rates, displayCurrency, fx]);
 
   // ─── Rate Finder State ───
   const [finderFrom, setFinderFrom] = useState("");
@@ -167,16 +187,18 @@ export function ShippingRateTable({ initialRates, editable = false, canDelete = 
     });
   }, [rates, searchQuery, modeFilter, containerFilter, carrierFilter, currencyFilter]);
 
-  // Render rows incrementally — the full list stays in memory for filtering and best-price detection.
-  const PAGE = 50;
-  const [visibleCount, setVisibleCount] = useState(PAGE);
+  // One page at a time — the full list stays in memory for filtering and best-price detection.
+  const PAGE = 25;
+  const [page, setPage] = useState(1);
   const [filterKey, setFilterKey] = useState("");
   const currentFilterKey = [searchQuery, modeFilter, containerFilter, carrierFilter, currencyFilter].join("|");
   if (currentFilterKey !== filterKey) {
     setFilterKey(currentFilterKey);
-    setVisibleCount(PAGE);
+    setPage(1);
   }
-  const visibleRates = filteredRates.slice(0, visibleCount);
+  const lastPage = Math.max(1, Math.ceil(filteredRates.length / PAGE));
+  const currentPage = Math.min(page, lastPage);
+  const visibleRates = filteredRates.slice((currentPage - 1) * PAGE, currentPage * PAGE);
 
   const hasActiveFilters = searchQuery !== "" || modeFilter !== "all" || containerFilter !== "all" || carrierFilter !== "all" || currencyFilter !== "all";
 
@@ -188,13 +210,15 @@ export function ShippingRateTable({ initialRates, editable = false, canDelete = 
   const bestPriceId = useMemo(() => {
     if (filteredRates.length < 2) return null;
     let best: ShippingRateListItem | null = null;
+    // Compare in QAR so rates in different currencies rank fairly.
+    const qar = (r: ShippingRateListItem) => convert(r.price, r.currency ?? "USD", "QAR", fx) ?? r.price;
     for (const r of filteredRates) {
-      if (!best || r.price < best.price) {
+      if (!best || qar(r) < qar(best)) {
         best = r;
       }
     }
     return best ? best.id : null;
-  }, [filteredRates]);
+  }, [filteredRates, fx]);
 
   // ─── Delete Handler ───
   async function handleDelete(id: number) {
@@ -215,12 +239,12 @@ export function ShippingRateTable({ initialRates, editable = false, canDelete = 
   }
 
   // ─── Market Range ───
-  const marketRange = useMemo(() => {
+  const MatchedModeIcon = (matchedRate && MODE_ICON[matchedRate.mode]) || Ship;
+  const marketRange = (() => {
     if (!matchedRate) return null;
-    const min = Math.round(matchedRate.price * 0.924);
-    const max = Math.round(matchedRate.price * 1.076);
-    return { min: formatRatePrice(min, matchedRate.currency), max: formatRatePrice(max, matchedRate.currency) };
-  }, [matchedRate]);
+    const p = priceOf(matchedRate);
+    return { min: formatRatePrice(Math.round(p.value * 0.924), p.currency), max: formatRatePrice(Math.round(p.value * 1.076), p.currency) };
+  })();
 
   /* ═══════════════════════════════════════════════════════════════════
      RENDER
@@ -345,13 +369,10 @@ export function ShippingRateTable({ initialRates, editable = false, canDelete = 
           {/* Container + Mode selectors */}
           <div className="mt-4 pt-3 flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-6" style={{ borderTop: "1px solid var(--ds-border-subtle)" }}>
             {/* Container */}
-            <div className="flex items-center gap-2">
-              <span className="ss-type-overline shrink-0">Container</span>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="ss-type-overline shrink-0">{finderMode === "air" ? "Weight" : "Container"}</span>
               <div className="inline-flex rounded-md p-0.5" style={{ background: "var(--ds-surface-sunken)", border: "1px solid var(--ds-border-default)" }}>
-                {[
-                  { id: "20gp", label: "20FT" },
-                  { id: "40hc", label: "40FT" },
-                ].map((c) => (
+                {containerTypesByMode[finderMode].map((id) => ({ id, label: containerLabel(id) })).map((c) => (
                   <button
                     key={c.id}
                     type="button"
@@ -385,7 +406,11 @@ export function ShippingRateTable({ initialRates, editable = false, canDelete = 
                     <button
                       key={m.id}
                       type="button"
-                      onClick={() => { setFinderMode(m.id); if (hasSearched) setTimeout(handleFindRate, 50); }}
+                      onClick={() => {
+                        setFinderMode(m.id);
+                        if (!containerTypesByMode[m.id].includes(finderContainer)) setFinderContainer(containerTypesByMode[m.id][0]);
+                        if (hasSearched) setTimeout(handleFindRate, 50);
+                      }}
                       className={cn(
                         "inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md text-xs font-semibold transition cursor-pointer",
                       )}
@@ -442,7 +467,7 @@ export function ShippingRateTable({ initialRates, editable = false, canDelete = 
                           <ArrowRight size={14} />
                         </div>
                         <div className="flex items-center gap-1.5 min-w-0">
-                          <Anchor size={16} style={{ color: "var(--ss-blue-600)" }} className="shrink-0" />
+                          <MatchedModeIcon size={16} style={{ color: "var(--ss-blue-600)" }} className="shrink-0" aria-hidden />
                           <span className="text-sm sm:text-base font-semibold truncate" style={{ color: "var(--ds-text-primary)" }}>
                             {matchedRate.port}
                           </span>
@@ -452,7 +477,7 @@ export function ShippingRateTable({ initialRates, editable = false, canDelete = 
                       {/* Metadata */}
                       <div className="flex flex-wrap items-center gap-3 ss-type-caption">
                         <span className="ss-badge ss-badge-neutral text-[11px]">
-                          {matchedRate.container === "20gp" ? "20FT" : "40FT HC"}
+                          {containerLabel(matchedRate.container)}
                         </span>
                         <span className="flex items-center gap-1">
                           <Clock size={11} style={{ color: "var(--ds-text-muted)" }} />
@@ -467,9 +492,9 @@ export function ShippingRateTable({ initialRates, editable = false, canDelete = 
                         <span className="ss-type-overline block">Contract Rate</span>
                         <div className="flex items-baseline gap-2 mt-1">
                           <span className="ss-type-price-hero text-[28px] sm:text-[36px]">
-                            {formatRatePrice(matchedRate.price, matchedRate.currency)}
+                            {showPrice(matchedRate)}
                           </span>
-                          <span className="ss-type-caption">/ container</span>
+                          <span className="ss-type-caption">{rateUnit(matchedRate.container)}</span>
                         </div>
                       </div>
 
@@ -513,7 +538,7 @@ export function ShippingRateTable({ initialRates, editable = false, canDelete = 
                   <div>
                     <h4 className="text-[13px] font-semibold" style={{ color: "var(--ds-text-primary)" }}>No rate found</h4>
                     <p className="text-xs mt-0.5" style={{ color: "var(--ds-text-secondary)" }}>
-                      No active rate for <b>{finderFrom}</b> → <b>{finderTo}</b> ({finderContainer === "20gp" ? "20FT" : "40FT"})
+                      No active rate for <b>{finderFrom}</b> → <b>{finderTo}</b> ({containerLabel(finderContainer)})
                     </p>
                   </div>
                   {editable && (
@@ -553,6 +578,37 @@ export function ShippingRateTable({ initialRates, editable = false, canDelete = 
           SECTION 2: RATE DIRECTORY
           ══════════════════════════════════════════════════ */}
       <section className="space-y-3">
+        {/* Display currency + live exchange rates */}
+        <div className="ss-card flex flex-col gap-2 p-3 sm:flex-row sm:items-center sm:gap-4 sm:p-4">
+          <div className="flex items-center gap-2">
+            <Coins size={15} className="shrink-0 text-muted-foreground" aria-hidden />
+            <label htmlFor="rate-display-currency" className="ss-type-overline shrink-0">Show prices in</label>
+            <Select
+              id="rate-display-currency"
+              value={displayCurrency}
+              onChange={(e) => setDisplayCurrency(e.target.value)}
+              disabled={!fx}
+              className="h-8 w-24 text-[13px] font-semibold"
+            >
+              {currencyTypes.filter((c) => !fx || fx.rates[c]).map((c) => <option key={c} value={c}>{c}</option>)}
+            </Select>
+          </div>
+          <p className="min-w-0 text-xs text-muted-foreground ss-tabular" aria-live="polite">
+            {!fx ? (
+              "Live exchange rates are unavailable, so each rate shows in the currency it was entered in."
+            ) : (
+              <>
+                {rateCurrencies.map((c) => (
+                  <span key={c} className="mr-3 inline-block">
+                    1 {c} = <span className="font-semibold text-foreground">{formatFx(convert(1, c, displayCurrency, fx)!)}</span> {displayCurrency}
+                  </span>
+                ))}
+                <span className="inline-block">Live rates · updated {formatDate(fx.updatedAt)}</span>
+              </>
+            )}
+          </p>
+        </div>
+
         {/* Search + Filters */}
         <div className="ss-card overflow-hidden">
           {/* Search */}
@@ -614,7 +670,7 @@ export function ShippingRateTable({ initialRates, editable = false, canDelete = 
                 <span className="ss-type-overline">Size</span>
                 <select value={containerFilter} onChange={(e) => setContainerFilter(e.target.value)} className="ss-filter-select">
                   <option value="all">All</option>
-                  {containerTypes.map((c) => <option key={c} value={c}>{c === "20gp" ? "20FT" : "40FT"}</option>)}
+                  {containerTypes.map((c) => <option key={c} value={c}>{containerLabel(c)}</option>)}
                 </select>
               </div>
 
@@ -632,8 +688,7 @@ export function ShippingRateTable({ initialRates, editable = false, canDelete = 
                 <span className="ss-type-overline">Currency</span>
                 <select value={currencyFilter} onChange={(e) => setCurrencyFilter(e.target.value)} className="ss-filter-select">
                   <option value="all">All</option>
-                  <option value="USD">USD</option>
-                  <option value="QAR">QAR</option>
+                  {currencyTypes.map((c) => <option key={c} value={c}>{c}</option>)}
                 </select>
               </div>
 
@@ -667,8 +722,8 @@ export function ShippingRateTable({ initialRates, editable = false, canDelete = 
                     key={rate.id}
                     carrier={rate.carrier}
                     container={rate.container}
-                    price={formatRatePrice(rate.price, rate.currency)}
-                    currency={rate.currency ?? "USD"}
+                    price={showPrice(rate)}
+                    unit={rateUnit(rate.container)}
                     mode={rate.mode}
                     origin={rate.location}
                     destination={rate.port}
@@ -686,6 +741,7 @@ export function ShippingRateTable({ initialRates, editable = false, canDelete = 
 
             {/* ── DESKTOP: ShipShape Rate Table ── */}
             <div className="hidden md:block ss-table-surface">
+              <div className="overflow-x-auto">
               <table className="ss-rate-table">
                 <thead>
                   <tr>
@@ -716,7 +772,7 @@ export function ShippingRateTable({ initialRates, editable = false, canDelete = 
                         {/* Destination */}
                         <td>
                           <span className="flex items-center gap-1.5">
-                            <Anchor size={13} style={{ color: "var(--ss-blue-600)" }} className="shrink-0" />
+                            <ModeIcon size={13} style={{ color: "var(--ss-blue-600)" }} className="shrink-0" aria-hidden />
                             <span className="font-medium">{rate.port}</span>
                           </span>
                         </td>
@@ -741,20 +797,16 @@ export function ShippingRateTable({ initialRates, editable = false, canDelete = 
 
                         {/* Container */}
                         <td>
-                          <Badge label={rate.container === "20gp" ? "20FT" : "40FT"} variant="neutral" />
+                          <Badge label={containerLabel(rate.container)} variant="neutral" />
                         </td>
 
                         {/* Price */}
                         <td>
-                          <span className={cn("ss-type-price-md ss-tabular", isBest && "ss-price-best")}>
-                            {formatRatePrice(rate.price, rate.currency)}
+                          <span className="flex items-center gap-2">
+                            <span className={cn("ss-type-price-md ss-tabular", isBest && "ss-price-best")}>{showPrice(rate)}</span>
+                            {isBest && <Badge label="Best" variant="positive" icon={Trophy} />}
                           </span>
-                          <span className="ss-type-caption ml-1.5">{rate.currency === "QAR" ? "QAR" : "USD"}</span>
-                          {isBest && (
-                            <span className="ml-2">
-                              <Badge label="Best" variant="positive" icon={Trophy} />
-                            </span>
-                          )}
+                          <span className="block ss-type-caption">{rateUnit(rate.container)}</span>
                         </td>
 
                         {/* Updated */}
@@ -804,22 +856,9 @@ export function ShippingRateTable({ initialRates, editable = false, canDelete = 
                   })}
                 </tbody>
               </table>
-            </div>
-            {filteredRates.length > visibleCount && (
-              <div className="flex items-center justify-center gap-3 pt-3 text-xs" style={{ color: "var(--ds-text-muted)" }}>
-                <span>
-                  Showing {visibleCount} of {filteredRates.length} rates
-                </span>
-                <button
-                  type="button"
-                  onClick={() => setVisibleCount((n) => n + PAGE)}
-                  className="rounded-lg border px-3 py-1.5 font-semibold transition cursor-pointer hover:opacity-80"
-                  style={{ borderColor: "var(--ds-border-default)", color: "var(--ds-text-primary)" }}
-                >
-                  Show {Math.min(PAGE, filteredRates.length - visibleCount)} more
-                </button>
               </div>
-            )}
+            </div>
+            <Pagination page={currentPage} pageSize={PAGE} total={filteredRates.length} noun="rates" onPage={setPage} />
           </>
         ) : (
           /* Empty state */
@@ -858,6 +897,7 @@ export function ShippingRateTable({ initialRates, editable = false, canDelete = 
       {editable && (
         <ShippingRateModal
           rate={editingRate}
+          fx={fx}
           open={modalOpen}
           onClose={() => setModalOpen(false)}
           onSaved={(saved) => {

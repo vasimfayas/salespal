@@ -19,8 +19,8 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
   if (!scoped) return NextResponse.json({ error: "Order not found" }, { status: 404 });
 
   try {
-    await applyOrderAction(scoped.id, body.action, body, { id: getTokenUserId(token), role_id: Number(token.role_id) });
-    return NextResponse.json({ ok: true });
+    const status = await applyOrderAction(scoped.id, body.action, body, { id: getTokenUserId(token), role_id: Number(token.role_id) });
+    return NextResponse.json({ ok: true, status });
   } catch (error) {
     if (error instanceof FlowError) return NextResponse.json({ error: error.message }, { status: error.status });
     throw error;

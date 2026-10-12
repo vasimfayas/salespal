@@ -12,6 +12,7 @@ import { enquiryStatuses, isLostReason, lostReasonLabels, type EnquiryStatus } f
  *   lost              – the salesman's enquiries marked lost during the month, with the reason given
  *   orders            – orders the salesman's enquiries produced this month; value excludes cancelled / revision requested
  *   collected         – payments recorded this month against the salesman's orders
+ *   actual profit     – actual profit accounts entered on the salesman's orders INVOICED this month (by invoice date), excl. void orders
  */
 
 export type MonthKey = `${number}-${string}`;
@@ -56,6 +57,7 @@ export async function getSalesmanMonthlyReport(salesmanId: number, monthKey: str
     onboardedPrev,
     newClients,
     orderRows,
+    actualRows,
     collected,
     target,
     taskRows,
@@ -155,6 +157,14 @@ export async function getSalesmanMonthlyReport(salesmanId: number, monthKey: str
       WHERE o.created_by_id = ${salesmanId} AND o.created_at >= ${P} AND o.created_at < ${E}
       GROUP BY 1, 2`),
 
+    prisma.$queryRaw<{ current: boolean; count: Num; cost: Num; profit: Num }[]>(Prisma.sql`
+      SELECT o.invoice_date >= ${S} AS current, COUNT(*)::int AS count,
+             COALESCE(SUM(e.actual_cost), 0)::float8 AS cost, COALESCE(SUM(e.actual_profit), 0)::float8 AS profit
+      FROM orders o JOIN enquiries e ON e.id = o.enquiry_id
+      WHERE o.created_by_id = ${salesmanId} AND o.status NOT IN ('cancelled', 'revision_requested') AND e.actual_profit IS NOT NULL
+        AND o.invoice_date >= ${P} AND o.invoice_date < ${E}
+      GROUP BY 1`),
+
     prisma.$queryRaw<{ amount: Num; count: Num }[]>(Prisma.sql`
       SELECT COALESCE(SUM(p.amount), 0)::float8 AS amount, COUNT(*)::int AS count
       FROM order_payments p JOIN orders o ON o.id = p.order_id
@@ -226,6 +236,11 @@ export async function getSalesmanMonthlyReport(salesmanId: number, monthKey: str
       voided: statusCount("cancelled") + statusCount("revision_requested"),
     };
   };
+  const actual = (current: boolean) => {
+    const r = actualRows.find((x) => x.current === current);
+    const cost = n(r?.cost ?? 0), profit = n(r?.profit ?? 0);
+    return { invoiced: n(r?.count ?? 0), cost, profit, margin: cost + profit > 0 ? (profit / (cost + profit)) * 100 : null };
+  };
   const orders = orderSummary(true);
   const ordersPrev = orderSummary(false);
 
@@ -265,6 +280,8 @@ export async function getSalesmanMonthlyReport(salesmanId: number, monthKey: str
     },
     orders,
     ordersPrev,
+    actualProfit: actual(true),
+    actualProfitPrev: actual(false),
     collected: { amount: n(collected[0]?.amount ?? 0), count: n(collected[0]?.count ?? 0) },
     target: t ? { amount: n(t.amount), achieved: n(t.achieved), periodStart: t.period_start, periodEnd: t.period_end } : null,
     activity: {

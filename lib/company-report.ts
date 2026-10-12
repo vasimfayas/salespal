@@ -9,6 +9,7 @@ import { VOID_ORDER_STATUSES } from "@/types/order";
  * Company report for a date range (read-only; feeds the PDF). All dates are inclusive calendar days (UTC).
  *   orders              orders under the company created in the range; value / profit exclude cancelled and sent-back orders
  *   provisional profit  the provisional profit of the enquiry each counted order came from (orders without an enquiry add 0)
+ *   actual profit       actual profit accounts entered on the company's orders INVOICED in the range (by invoice date), excl. void orders
  *   enquiries           enquiries under the company dated in the range, at their current stage
  *   lost                enquiries under the company marked lost in the range, incl. lost orders (a cancelled order loses its enquiry)
  *   staff               owner: everyone selling for the company; manager: their own team for it
@@ -36,7 +37,7 @@ export async function getCompanyReport(orgId: number, range: NonNullable<ReturnT
   const [S, E] = [day(from), day(end)];
   const voided = Prisma.join([...VOID_ORDER_STATUSES]);
 
-  const [org, orderAgg, enquiryAgg, lostAgg, orders, enquiries, lostItems, sellers] = await Promise.all([
+  const [org, orderAgg, actualAgg, enquiryAgg, lostAgg, orders, enquiries, lostItems, sellers] = await Promise.all([
     prisma.organization.findUnique({ where: { id: orgId }, select: { name: true, prefix: true, logo_path: true, address: true, phone: true, email: true } }),
 
     prisma.$queryRaw<{ by: number; count: Num; value: Num; profit: Num; voided: Num }[]>(Prisma.sql`
@@ -47,6 +48,14 @@ export async function getCompanyReport(orgId: number, range: NonNullable<ReturnT
              COUNT(*) FILTER (WHERE o.status IN (${voided}))::int AS voided
       FROM orders o LEFT JOIN enquiries e ON e.id = o.enquiry_id
       WHERE o.org_id = ${orgId} AND o.created_at >= ${S} AND o.created_at < ${E}
+      GROUP BY 1`),
+
+    prisma.$queryRaw<{ by: number; count: Num; cost: Num; profit: Num }[]>(Prisma.sql`
+      SELECT o.created_by_id AS by, COUNT(*)::int AS count,
+             COALESCE(SUM(e.actual_cost), 0)::float8 AS cost, COALESCE(SUM(e.actual_profit), 0)::float8 AS profit
+      FROM orders o JOIN enquiries e ON e.id = o.enquiry_id
+      WHERE o.org_id = ${orgId} AND o.status NOT IN (${voided}) AND e.actual_profit IS NOT NULL
+        AND o.invoice_date >= ${S} AND o.invoice_date < ${E}
       GROUP BY 1`),
 
     prisma.$queryRaw<{ by: number; total: Num; confirmed: Num; lost: Num; quoted: Num }[]>(Prisma.sql`
@@ -67,9 +76,10 @@ export async function getCompanyReport(orgId: number, range: NonNullable<ReturnT
       WHERE e.org_id = ${orgId} AND e.status = 'lost' AND e.cancelled_at >= ${S} AND e.cancelled_at < ${E}
       GROUP BY 1, 2, 3`),
 
-    prisma.$queryRaw<{ id: number; job_no: string | null; enquiry_id: number | null; created_at: Date; client: string; by: string; mode: string; from: string; to: string; status: string; amount: Num; profit: Num }[]>(Prisma.sql`
+    prisma.$queryRaw<{ id: number; job_no: string | null; enquiry_id: number | null; created_at: Date; client: string; by: string; mode: string; from: string; to: string; status: string; amount: Num; profit: Num; actual_profit: Num }[]>(Prisma.sql`
       SELECT o.id, o.job_no, COALESCE(o.enquiry_id, o.origin_enquiry_id) AS enquiry_id, o.created_at, c.name AS client, u.name AS by,
-             o.mode, o."from", o."to", o.status, o.amount::float8 AS amount, e.provisional_profit::float8 AS profit
+             o.mode, o."from", o."to", o.status, o.amount::float8 AS amount, e.provisional_profit::float8 AS profit,
+             e.actual_profit::float8 AS actual_profit
       FROM orders o
       JOIN clients c ON c.id = o.client_id
       JOIN users u ON u.id = o.created_by_id
@@ -101,7 +111,7 @@ export async function getCompanyReport(orgId: number, range: NonNullable<ReturnT
   if (!org) return null;
 
   /* Staff: the company's salesmen plus anyone who sold for it in the range; a manager sees only their team. */
-  let staffIds = [...new Set([...sellers.map((x) => x.salesman_id), ...orderAgg.map((r) => r.by), ...enquiryAgg.map((r) => r.by), ...lostAgg.map((r) => r.by)])];
+  let staffIds = [...new Set([...sellers.map((x) => x.salesman_id), ...orderAgg.map((r) => r.by), ...actualAgg.map((r) => r.by), ...enquiryAgg.map((r) => r.by), ...lostAgg.map((r) => r.by)])];
   if (viewer.role_id === 2) {
     const team = new Set([...(await getManagerSalesmanIdsForOrg(viewer.id, orgId)), ...(await getManagerSalesmanIds(viewer.id))]);
     staffIds = staffIds.filter((id) => team.has(id));
@@ -121,6 +131,7 @@ export async function getCompanyReport(orgId: number, range: NonNullable<ReturnT
   const staff = users
     .map((u) => {
       const o = orderAgg.find((r) => r.by === u.id);
+      const a = actualAgg.find((r) => r.by === u.id);
       const e = enquiryAgg.find((r) => r.by === u.id);
       const t = targets.find((x) => x.salesman_id === u.id);
       const target = t
@@ -137,6 +148,7 @@ export async function getCompanyReport(orgId: number, range: NonNullable<ReturnT
         orders: n(o?.count ?? 0),
         value: n(o?.value ?? 0),
         profit: n(o?.profit ?? 0),
+        actualProfit: n(a?.profit ?? 0),
         enquiries: n(e?.total ?? 0),
         confirmed: n(e?.confirmed ?? 0),
         lost: lostAgg.filter((r) => r.by === u.id).reduce((a, r) => a + n(r.count), 0),
@@ -176,6 +188,9 @@ export async function getCompanyReport(orgId: number, range: NonNullable<ReturnT
       orders: sum(orderAgg, (r) => r.count),
       orderValue: sum(orderAgg, (r) => r.value),
       profit: sum(orderAgg, (r) => r.profit),
+      actualProfit: sum(actualAgg, (r) => r.profit),
+      actualCost: sum(actualAgg, (r) => r.cost),
+      invoiced: sum(actualAgg, (r) => r.count),
       voidedOrders: sum(orderAgg, (r) => r.voided),
       enquiries: enquiryTotal,
       confirmed,
@@ -189,7 +204,9 @@ export async function getCompanyReport(orgId: number, range: NonNullable<ReturnT
     },
     staff,
     details: {
-      orders: cut(orders.map((r) => ({ ...r, amount: n(r.amount), profit: r.profit === null ? null : n(r.profit) }))),
+      orders: cut(
+        orders.map((r) => ({ ...r, amount: n(r.amount), profit: r.profit === null ? null : n(r.profit), actual_profit: r.actual_profit === null ? null : n(r.actual_profit) })),
+      ),
       enquiries: cut(enquiries.map((r) => ({ ...r, quoted: r.quoted === null ? null : n(r.quoted), profit: r.profit === null ? null : n(r.profit) }))),
       lost: cut(lostItems.map((r) => ({ ...r, value: r.value === null ? null : n(r.value) }))),
     },

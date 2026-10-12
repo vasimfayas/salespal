@@ -10,7 +10,8 @@ import { LostReasonDialog } from "@/components/shared/LostReasonDialog";
 import { formatAmount, formatDate } from "@/lib/utils";
 import type { OrderListItem } from "@/types/order";
 
-export type OrderRole = "salesman" | "manager" | "accountant";
+/** "admin" = super admin: every accounts and manager action. */
+export type OrderRole = "salesman" | "manager" | "accountant" | "admin";
 
 const OPEN = ["transit", "delivered"];
 
@@ -34,15 +35,15 @@ export function OrderActions({ order, role, onDone, size = "sm" }: { order: Orde
   const isOpen = OPEN.includes(order.status);
   if (!isOpen) return null;
 
-  const accounts = role === "accountant";
+  const accounts = role === "accountant" || role === "admin";
   const hasDetails = !!order.job_no && !!order.invoice_date;
   const fullyPaid = order.balance <= 0.005;
 
   async function act(action: string, body: Record<string, unknown> = {}, message: string) {
     setBusy(action);
     try {
-      await postJson(`/api/orders/${order.id}/status`, { action, ...body });
-      onDone(message);
+      const data = await postJson(`/api/orders/${order.id}/status`, { action, ...body });
+      onDone(action === "deliver" && data.status === "completed" ? "Order delivered and paid in full — marked completed" : message);
       router.refresh();
     } catch (err) {
       onDone(err instanceof Error ? err.message : "Failed to update order");
@@ -55,7 +56,7 @@ export function OrderActions({ order, role, onDone, size = "sm" }: { order: Orde
     <div className="flex flex-wrap justify-end gap-1.5">
       {accounts && (
         <Button size={size} variant={hasDetails ? "secondary" : "primary"} onClick={() => setDialog("details")}>
-          <ClipboardEdit /> {hasDetails ? "Edit details" : "Add details"}
+          <ClipboardEdit /> Add details
         </Button>
       )}
       {accounts && order.status === "transit" && (
@@ -81,7 +82,7 @@ export function OrderActions({ order, role, onDone, size = "sm" }: { order: Orde
           <CheckCircle2 /> Mark completed
         </Button>
       )}
-      {(role === "salesman" || role === "manager") && (
+      {(role === "salesman" || role === "manager" || role === "admin") && (
         <Button size={size} variant="secondary" onClick={() => setDialog("revision")}>
           <RotateCcw /> Request revision
         </Button>

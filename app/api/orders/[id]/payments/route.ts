@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { revalidatePath, revalidateTag } from "next/cache";
 import { getToken } from "next-auth/jwt";
 import { prisma } from "@/lib/prisma";
-import { getTokenUserId, isRole, orderScopeWhere } from "@/lib/scoping";
+import { getTokenUserId, isRole, orderScopeWhere, hasRole } from "@/lib/scoping";
 import { parseDateOnly } from "@/lib/salesman-targets";
 import { revalidateEnquiryPages } from "@/lib/enquiries";
 import { orderPaymentMethods } from "@/types/order";
@@ -16,7 +16,7 @@ import { num } from "@/lib/decimal";
 export async function POST(request: NextRequest, context: { params: Promise<{ id: string }> }) {
   const token = await getToken({ req: request, secret: process.env.NEXTAUTH_SECRET });
   if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  if (!isRole(token, [3, 4])) {
+  if (!hasRole(token, [3, 4])) {
     return NextResponse.json({ error: "Only accountants or the enquiry's salesman can record payments" }, { status: 403 });
   }
 
@@ -59,8 +59,8 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
         recorded_by_id: getTokenUserId(token),
       },
     });
-    await syncOrderPayments(tx, order.id);
-    return created;
+    const status = await syncOrderPayments(tx, order.id);
+    return { ...created, completed: status === "completed" && order.status !== "completed" };
   });
 
   revalidateTag("salesman-orders", { expire: 0 });
@@ -71,5 +71,5 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
   revalidatePath("/dashboard/manager/orders");
   revalidatePath("/dashboard/accountant/orders");
   revalidateEnquiryPages();
-  return NextResponse.json({ payment: { id: payment.id } }, { status: 201 });
+  return NextResponse.json({ payment: { id: payment.id }, completed: payment.completed }, { status: 201 });
 }

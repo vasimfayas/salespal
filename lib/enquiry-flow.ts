@@ -11,6 +11,7 @@ import { REVISION_TASK_CATEGORY } from "@/types/task";
 import type { OrderStatus } from "@/types/order";
 
 import { num } from "@/lib/decimal";
+import { SUPER_ADMIN_ROLE } from "@/lib/roles";
 /**
  * Enquiry → order workflow.
  *
@@ -36,7 +37,10 @@ export class FlowError extends Error {
 type Tx = Prisma.TransactionClient;
 type Actor = { id: number; role_id: number };
 
-const ROLE = { admin: 1, manager: 2, salesman: 3, accountant: 4 } as const;
+const ROLE = { admin: 1, manager: 2, salesman: 3, accountant: 4, operations: 5, superAdmin: SUPER_ADMIN_ROLE } as const;
+
+/** Operations only price enquiries; every other stage move stays with sales. */
+const OPERATIONS_ACTIONS: readonly EnquiryAction[] = ["quote", "requote"];
 
 function money(value: unknown, label: string, { allowNegative = false } = {}) {
   const n = Number(value);
@@ -103,8 +107,12 @@ export async function applyEnquiryAction(
   body: { cost?: unknown; profit?: unknown; reason?: unknown; remark?: unknown },
   actor: Actor,
 ) {
-  if (actor.role_id !== ROLE.salesman && actor.role_id !== ROLE.manager) {
-    throw new FlowError("Only salesmen and managers can move an enquiry through its stages", 403);
+  const sales = actor.role_id === ROLE.salesman || actor.role_id === ROLE.manager || actor.role_id === ROLE.superAdmin;
+  if (!sales && !(actor.role_id === ROLE.operations && OPERATIONS_ACTIONS.includes(action))) {
+    throw new FlowError(
+      actor.role_id === ROLE.operations ? "Operations can only quote enquiries" : "Only salesmen and managers can move an enquiry through its stages",
+      403,
+    );
   }
 
   const result = await prisma.$transaction(async (tx) => {
@@ -241,15 +249,16 @@ const ORDER_RULES: Record<OrderAction, { from: readonly OrderStatus[]; to: Order
 
 export function allowedOrderActions(status: string, roleId: number): OrderAction[] {
   return (Object.keys(ORDER_RULES) as OrderAction[]).filter(
-    (a) => ORDER_RULES[a].from.includes(status as OrderStatus) && ORDER_RULES[a].roles.includes(roleId),
+    (a) => ORDER_RULES[a].from.includes(status as OrderStatus) && (roleId === ROLE.superAdmin || ORDER_RULES[a].roles.includes(roleId)),
   );
 }
 
+/** Returns the order's new status: "deliver" on an order already paid in full goes straight to "completed". */
 export async function applyOrderAction(orderId: number, action: OrderAction, body: { reason?: unknown; remark?: unknown }, actor: Actor) {
   const rule = ORDER_RULES[action];
-  if (!rule.roles.includes(actor.role_id)) throw new FlowError("You don't have permission for this action", 403);
+  if (actor.role_id !== ROLE.superAdmin && !rule.roles.includes(actor.role_id)) throw new FlowError("You don't have permission for this action", 403);
 
-  await prisma.$transaction(async (tx) => {
+  const newStatus = await prisma.$transaction(async (tx) => {
     const order = await tx.order.findUniqueOrThrow({ where: { id: orderId } });
     if (!rule.from.includes(order.status as OrderStatus)) {
       throw new FlowError(`An order in ${order.status.replace(/_/g, " ")} can't be moved to ${rule.to.replace(/_/g, " ")}`);
@@ -265,10 +274,11 @@ export async function applyOrderAction(orderId: number, action: OrderAction, bod
     // Cancelling loses the enquiry: a reason from the list (+ remark). A revision request explains itself in free text.
     const lost = action === "cancel" ? requireLostReason(body) : null;
     const reason = action === "request_revision" ? requireReason(body.reason) : lost?.text ?? null;
+    const to = action === "deliver" && isFullyPaid(num(order.paid_total), num(order.amount)) ? "completed" : rule.to;
     await tx.order.update({
       where: { id: order.id },
       data: {
-        status: rule.to,
+        status: to,
         closed_reason: reason ?? undefined,
         // Release the link while the enquiry is renegotiated; re-confirming reopens this order via origin_enquiry_id.
         enquiry_id: action === "request_revision" ? null : undefined,
@@ -276,7 +286,7 @@ export async function applyOrderAction(orderId: number, action: OrderAction, bod
     });
 
     const enquiryId = order.enquiry_id;
-    if (!enquiryId) return;
+    if (!enquiryId) return to;
     if (action === "request_revision") {
       const enquiry = await tx.enquiry.update({
         where: { id: enquiryId },
@@ -310,11 +320,13 @@ export async function applyOrderAction(orderId: number, action: OrderAction, bod
         note: reason, order_id: order.id, created_by_id: actor.id,
       });
     }
+    return to;
   });
 
   revalidateOrderViews();
   if (action === "request_revision" || action === "cancel") revalidateEnquiryPages();
   if (action === "request_revision") revalidateTaskViews();
+  return newStatus;
 }
 
 /** Accounts fill in the operational details: job no, actual cost / profit, invoice and due dates. */
@@ -324,7 +336,7 @@ export async function updateOrderDetails(
   actor: Actor,
   parseDate: (v: unknown) => Date | null,
 ) {
-  if (actor.role_id !== ROLE.accountant && actor.role_id !== ROLE.admin) {
+  if (actor.role_id !== ROLE.accountant && actor.role_id !== ROLE.admin && actor.role_id !== ROLE.superAdmin) {
     throw new FlowError("Only accounts can update order details", 403);
   }
 

@@ -52,10 +52,10 @@ export async function getAccountantCompanies(accountantId: number) {
  * Due date: the one set at conversion when present, otherwise order date + credit days
  * (the enquiry's, or DEFAULT_CREDIT_DAYS for credit orders); cash/card are due on the order date.
  */
-function receivablesCte(orgIds: number[]) {
+export function receivablesCte(orgIds: number[]) {
   return Prisma.sql`
     WITH r AS (
-      SELECT o.id, c.name AS client_name, c.mail_id AS client_email, c.contact_no AS client_phone, u.name AS salesman,
+      SELECT o.id, o.org_id, c.name AS client_name, c.mail_id AS client_email, c.contact_no AS client_phone, u.name AS salesman,
              o.job_no, o.payment_mode, o.amount::float8 AS amount, o.paid_total::float8 AS paid_amount,
              (o.amount - o.paid_total)::float8 AS balance,
              COALESCE(o.due_date, o.created_at::date + CASE WHEN o.payment_mode = 'credit' THEN COALESCE(e.credit_days, ${DEFAULT_CREDIT_DAYS}::int) ELSE 0 END) AS due

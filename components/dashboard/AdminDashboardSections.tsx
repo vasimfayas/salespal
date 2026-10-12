@@ -214,15 +214,13 @@ export async function CompanyHeroSection({
   orgId?: number;
 }) {
   const scorecards = await getAdminCompanyScorecards();
-  if (scorecards.length < 2) return null;
+  if (scorecards.length === 0) return null;
 
-  const orgData = scorecards
-    .slice(0, 2)
-    .sort((a, b) => a.orgName.localeCompare(b.orgName));
+  const orgData = [...scorecards].sort((a, b) => a.orgName.localeCompare(b.orgName));
 
-  // "Top performer" = the company whose team brought in more order value this month.
-  const betterIdx = orgData[0].teamValue >= orgData[1].teamValue ? 0 : 1;
-  const maxTeamValue = Math.max(orgData[0].teamValue, orgData[1].teamValue, 1);
+  // "Top performer" = the company whose team brought in the most order value this month (none while all are at 0).
+  const maxTeamValue = Math.max(...orgData.map((d) => d.teamValue), 1);
+  const best = orgData.find((d) => d.teamValue > 0 && d.teamValue === maxTeamValue);
 
   // If filtering by a single org, only show that one
   const displayData = orgId ? orgData.filter((d) => d.oid === orgId) : orgData;
@@ -232,16 +230,14 @@ export async function CompanyHeroSection({
       <div
         className={cn(
           "grid gap-4 items-stretch",
-          displayData.length === 2 ? "lg:grid-cols-2" : "lg:grid-cols-1",
+          displayData.length > 1 && "md:grid-cols-2",
+          displayData.length > 2 && "xl:grid-cols-3",
         )}
       >
         {displayData.map((d) => {
-          const isComparing = !orgId;
-          const status: ComparisonStatus = !isComparing
-            ? "neutral"
-            : orgData.indexOf(d) === betterIdx
-              ? "success"
-              : "warning";
+          // Comparing two: leader green, other amber. Comparing more: only the leader is highlighted.
+          const status: ComparisonStatus =
+            orgId || !best || orgData.length < 2 ? "neutral" : d === best ? "success" : orgData.length === 2 ? "warning" : "neutral";
 
           const pipelineBreakdown = Object.entries(d.counts)
             .filter(([, count]) => count > 0)
@@ -625,24 +621,20 @@ export async function MonthlyTrendSection({
     getCachedAdminOrgs(),
   ]);
 
-  const orgA = orgs[0];
-  const orgB = orgs[1];
-  const monthBuckets = new Map<
-    string,
-    { companyA: number; companyB: number }
-  >();
+  // One line per company (just the filtered one when a company is picked).
+  const shown = orgId ? orgs.filter((o) => o.id === orgId) : orgs;
+  const series = shown.map((o) => ({ key: `org${o.id}`, label: o.name }));
+  const monthBuckets = new Map<string, Record<string, number>>();
   for (let i = 5; i >= 0; i--) {
     const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
     const key = d.toLocaleDateString("en", { month: "short", year: "2-digit" });
-    monthBuckets.set(key, { companyA: 0, companyB: 0 });
+    monthBuckets.set(key, Object.fromEntries(series.map((s) => [s.key, 0])));
   }
   for (const row of trendRaw) {
     const d = new Date(row.year, row.month - 1, 1);
     const key = d.toLocaleDateString("en", { month: "short", year: "2-digit" });
     const bucket = monthBuckets.get(key);
-    if (!bucket) continue;
-    if (orgA && row.orgId === orgA.id) bucket.companyA += row.count;
-    else if (orgB && row.orgId === orgB.id) bucket.companyB += row.count;
+    if (bucket && `org${row.orgId}` in bucket) bucket[`org${row.orgId}`] += row.count;
   }
   const trendData = Array.from(monthBuckets.entries()).map(([month, data]) => ({
     month,
@@ -657,11 +649,7 @@ export async function MonthlyTrendSection({
       className={cn("h-[400px] flex flex-col", className)}
       bodyClassName="flex-1 min-h-0"
     >
-      <MonthlyTrendChartWrapper
-        data={trendData}
-        companyAName={orgA?.name ?? "Company A"}
-        companyBName={orgB?.name ?? "Company B"}
-      />
+      <MonthlyTrendChartWrapper data={trendData} series={series} />
     </SectionCard>
   );
 }

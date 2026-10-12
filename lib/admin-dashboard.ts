@@ -59,7 +59,7 @@ export const getAdminCompanyScorecards = unstable_cache(
   async () => {
     const [byOrg, orgs, managers] = await Promise.all([
       prisma.client.groupBy({ by: ["org_id", "status"], _count: { _all: true } }),
-      prisma.organization.findMany({ select: { id: true, name: true } }),
+      prisma.organization.findMany({ select: { id: true, name: true }, orderBy: { id: "asc" } }),
       prisma.user.findMany({
         where: { role_id: 2 },
         select: { name: true, managerOrgs: { select: { org_id: true } }, managerSalesmen: { select: { salesman_id: true, org_id: true } } },
@@ -74,8 +74,8 @@ export const getAdminCompanyScorecards = unstable_cache(
       orgCounts.set(r.org_id, c);
     }
 
-    // Companies that have clients, lowest id first (as before).
-    const orgIds = [...orgCounts.keys()].sort((x, y) => x - y);
+    // Every company, lowest id first — including ones with no clients yet.
+    const orgIds = orgs.map((o) => o.id);
     // Order value this month per company: every non-void order under that company, whoever raised it.
     const { from, to } = monthPeriod(0);
     const valueRows = await prisma.order.groupBy({
@@ -86,7 +86,7 @@ export const getAdminCompanyScorecards = unstable_cache(
     const valueByOrg = new Map(valueRows.map((r) => [r.org_id, r._sum.amount?.toNumber() ?? 0]));
     const teamValues = orgIds.map((oid) => valueByOrg.get(oid) ?? 0);
     return orgIds.map((oid, i) => {
-      const counts = orgCounts.get(oid)!;
+      const counts = orgCounts.get(oid) ?? {};
       const mgr = managers.find((m) => m.managerOrgs.some((mo) => mo.org_id === oid));
       return {
         oid,

@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { revalidateTag } from "next/cache";
 import { getToken } from "next-auth/jwt";
 import { prisma } from "@/lib/prisma";
-import { isRole, taskScopeWhere } from "@/lib/scoping";
+import { taskScopeWhere, hasRole } from "@/lib/scoping";
 import { LEAD_TASK_CATEGORY, REVISION_TASK_CATEGORY, isOpenTask, taskStatuses } from "@/types/task";
 
 export async function PATCH(request: NextRequest, context: { params: Promise<{ id: string }> }) {
@@ -59,7 +59,7 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
 export async function DELETE(request: NextRequest, context: { params: Promise<{ id: string }> }) {
   const token = await getToken({ req: request, secret: process.env.NEXTAUTH_SECRET });
   if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  if (!isRole(token, [1, 2])) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (!hasRole(token, [1, 2])) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   const { id } = await context.params;
   const scoped = await prisma.task.findFirst({ where: { AND: [{ id: Number(id) }, await taskScopeWhere(token)] } });

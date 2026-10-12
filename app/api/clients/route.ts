@@ -4,7 +4,7 @@ import { getToken } from "next-auth/jwt";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { literal } from "@/lib/list-params";
-import { clientScopeWhere, getManagerOrgIds, getManagerSalesmanIds, getManagerSalesmanIdsForOrg, getSalesmanOrgIds, getTokenUserId, isRole } from "@/lib/scoping";
+import { clientScopeWhere, getManagerOrgIds, getManagerSalesmanIds, getManagerSalesmanIdsForOrg, getSalesmanOrgIds, getTokenUserId, isRole, hasRole } from "@/lib/scoping";
 import { normalizeCrNo, parseCrExpiryDate } from "@/lib/client-fields";
 import { canSetStatus, isClientStatus } from "@/lib/client-status-flow";
 import { cleanText, contactRequiredMessage, missingContactFields, statusRequiresContact } from "@/lib/client-contact";
@@ -23,7 +23,7 @@ export async function GET(request: NextRequest) {
   // ?cr= (add-client form): is this company already on file, and who handles it? Names only — no contacts or deals —
   // so a salesman can see a company is taken and add their own department instead of a duplicate.
   if (url.searchParams.has("cr")) {
-    if (!isRole(token, [1, 2, 3])) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    if (!hasRole(token, [1, 2, 3])) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     const crNo = normalizeCrNo(url.searchParams.get("cr"));
     if (!crNo) return NextResponse.json({ company: null });
     const main = await prisma.client.findUnique({
@@ -67,9 +67,11 @@ export async function GET(request: NextRequest) {
         ],
       }
     : {};
-  // ?team=1 (managers): only their salesmen's clients — the same rule as the manager client page.
+  // ?team=1 (managers): their own and their salesmen's clients — the same rule as the manager client page.
   const team: Prisma.ClientWhereInput =
-    url.searchParams.get("team") && isRole(token, 2) ? { assigned_salesman_id: { in: await getManagerSalesmanIds(getTokenUserId(token)) } } : {};
+    url.searchParams.get("team") && isRole(token, 2)
+      ? { assigned_salesman_id: { in: [getTokenUserId(token), ...(await getManagerSalesmanIds(getTokenUserId(token)))] } }
+      : {};
   // ?details=1 adds status and salesman for richer result rows (client switcher).
   const details = !!url.searchParams.get("details");
   const clients = await prisma.client.findMany({
@@ -85,7 +87,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   const token = await getToken({ req: request, secret: process.env.NEXTAUTH_SECRET });
   if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  if (!isRole(token, [1, 2, 3])) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (!hasRole(token, [1, 2, 3])) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   const body = await request.json();
   const crNo = normalizeCrNo(body.cr_no);

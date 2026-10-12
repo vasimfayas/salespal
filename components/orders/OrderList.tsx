@@ -9,7 +9,7 @@ import { useDebouncedParam, useUrlFilters } from "@/hooks/useUrlFilters";
 import type { OrdersPage } from "@/lib/orders-list";
 import { OrderStatusBadge } from "@/components/orders/OrderStatusBadge";
 import { Avatar } from "@/components/ui/avatar";
-import { OrderActions } from "@/components/orders/OrderActions";
+import { OrderActions, type OrderRole } from "@/components/orders/OrderActions";
 import { Modal } from "@/components/ui/Modal";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { Input } from "@/components/ui/Input";
@@ -23,7 +23,7 @@ import { buttonVariants } from "@/components/ui/Button";
 interface OrderListProps {
   /** One server-filtered page of orders plus totals over all matches. */
   data: OrdersPage;
-  role: "salesman" | "manager" | "accountant";
+  role: OrderRole;
   detailBasePath?: string;
 }
 
@@ -79,7 +79,7 @@ export function OrderList({ data, role, detailBasePath }: OrderListProps) {
   const [sheetId, setSheetId] = useState<number | null>(null);
 
   // Accountants, and salesmen on orders converted from their own enquiries (the server re-checks ownership).
-  const canRecordPayment = (order: OrderListItem) => role === "accountant" || (role === "salesman" && !!order.enquiry_id);
+  const canRecordPayment = (order: OrderListItem) => role === "accountant" || role === "admin" || (role === "salesman" && !!order.enquiry_id);
   const filteredOrders = data.rows as OrderListItem[];
   const sheetOrder = filteredOrders.find((o) => o.id === sheetId) ?? null;
   const totals = data.totals;
@@ -115,7 +115,7 @@ export function OrderList({ data, role, detailBasePath }: OrderListProps) {
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || "Failed to record payment");
       setPaymentFor(null);
-      flash(`Payment of ${formatAmount(Number(payment.amount))} recorded`);
+      flash(`Payment of ${formatAmount(Number(payment.amount))} recorded${data.completed ? " — paid in full, order completed" : ""}`);
       router.refresh();
     } catch (err) {
       setPaymentError(err instanceof Error ? err.message : "An error occurred");

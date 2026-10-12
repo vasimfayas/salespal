@@ -5,6 +5,7 @@ import type { SalesmanTargetRow, SalesmanTargetView, TargetState } from "@/types
 
 
 import { num } from "@/lib/decimal";
+import { isOwnerRole } from "@/lib/roles";
 export function todayUtc() {
   const now = new Date();
   return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
@@ -32,7 +33,7 @@ export function targetState(
 /** Salesmen visible to the role (owner: all, manager: own team) with their current target and full target history. */
 export async function getSalesmenWithTargets(user: { id: number; role_id: number }): Promise<SalesmanTargetRow[]> {
   const where =
-    user.role_id === 1
+    isOwnerRole(user.role_id)
       ? { role_id: 3 }
       : { role_id: 3, id: { in: await getManagerSalesmanIds(user.id) } };
 

@@ -2,8 +2,9 @@ import { randomUUID } from "node:crypto";
 import { mkdir, readFile, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { prisma } from "@/lib/prisma";
-import { getAccountantOrgIds, getManagerOrgIds, getSalesmanOrgIds } from "@/lib/scoping";
+import { getAccountantOrgIds, getOperationsOrgIds, getManagerOrgIds, getSalesmanOrgIds } from "@/lib/scoping";
 import { COMPANY_DOCUMENT_MAX_BYTES, companyDocumentMimeTypes, companyLogoUrl, type CompanyDocumentItem } from "@/types/company";
+import { isOwnerRole } from "@/lib/roles";
 
 /** Uploaded files live outside public/ and are only served through the authenticated documents API. */
 const UPLOAD_ROOT = path.join(process.cwd(), "uploads");
@@ -57,10 +58,11 @@ export async function removeDocumentFile(relativePath: string) {
 
 /** Companies whose details and documents the user can see. `null` = every company (owner). */
 export async function getVisibleCompanyIds(user: { id: number; role_id: number }): Promise<number[] | null> {
-  if (user.role_id === 1) return null;
+  if (isOwnerRole(user.role_id)) return null;
   if (user.role_id === 2) return getManagerOrgIds(user.id);
   if (user.role_id === 3) return getSalesmanOrgIds(user.id);
   if (user.role_id === 4) return getAccountantOrgIds(user.id);
+  if (user.role_id === 5) return getOperationsOrgIds(user.id);
   return [];
 }
 

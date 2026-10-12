@@ -1,38 +1,18 @@
 import { prisma } from "@/lib/prisma";
+import { getSalesPalSession } from "@/lib/auth";
+import { SUPER_ADMIN_ROLE } from "@/lib/roles";
 import { PageHeader } from "@/components/layout/PageHeader";
-import { AddAccountantModal } from "./AddAccountantModal";
+import { UsersClient } from "./UsersClient";
 
 export default async function UsersPage() {
-  const users = await prisma.user.findMany({ include: { role: true }, orderBy: [{ role_id: "asc" }, { name: "asc" }] });
+  const [session, users] = await Promise.all([
+    getSalesPalSession(),
+    prisma.user.findMany({ select: { id: true, name: true, email: true, phone: true, role_id: true }, orderBy: [{ role_id: "asc" }, { name: "asc" }] }),
+  ]);
   return (
     <>
-      <PageHeader
-        title="Users"
-        subtitle="All owner, manager, salesman, and accountant accounts."
-        action={<AddAccountantModal />}
-      />
-      <div className="overflow-x-auto rounded-card border border-border bg-card">
-        <table className="w-full text-left text-sm">
-          <thead className="border-border border-b text-muted-foreground text-[13px]">
-            <tr>
-              <th className="px-4 py-3">Name</th>
-              <th className="px-4 py-3">Role</th>
-              <th className="px-4 py-3">Email</th>
-              <th className="px-4 py-3">Phone</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-border">
-            {users.map((user) => (
-              <tr key={user.id}>
-                <td className="px-4 py-3 font-medium">{user.name}</td>
-                <td className="px-4 py-3">{user.role.name}</td>
-                <td className="px-4 py-3">{user.email}</td>
-                <td className="px-4 py-3">{user.phone ?? "-"}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      <PageHeader title="Users" subtitle="Add, edit and remove logins for every role." />
+      <UsersClient users={users} currentUserId={Number(session!.user.id)} isSuper={session!.user.role_id === SUPER_ADMIN_ROLE} />
     </>
   );
 }

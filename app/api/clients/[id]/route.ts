@@ -3,7 +3,7 @@ import { revalidateTag } from "next/cache";
 import { getToken } from "next-auth/jwt";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { clientScopeWhere, isRole } from "@/lib/scoping";
+import { clientScopeWhere, hasRole } from "@/lib/scoping";
 import { clientCategoryLabels, isClientCategory, type ClientCategory } from "@/types/client";
 import { departmentTaken, normalizeCrNo, parseCrExpiryDate } from "@/lib/client-fields";
 import { applyClientStatus, canSetStatus, isClientStatus } from "@/lib/client-status-flow";
@@ -64,7 +64,7 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
   // Category (Standard / Premium): owners and managers only.
   if (body.category !== undefined) {
     if (!isClientCategory(body.category)) return NextResponse.json({ error: "Invalid client category" }, { status: 400 });
-    if (!isRole(token, [1, 2])) return NextResponse.json({ error: "Only managers can change a client's category" }, { status: 403 });
+    if (!hasRole(token, [1, 2])) return NextResponse.json({ error: "Only managers can change a client's category" }, { status: 403 });
   }
 
   if (body.status !== undefined) {

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { CopyLinkButton } from "@/components/enquiries/SendToClientDialog";
 import { ArrowRight, ExternalLink, MessageSquareText, Pencil } from "lucide-react";
-import { EnquiryStageActions } from "@/components/enquiries/EnquiryStageActions";
+import { EnquiryStageActions, type Action } from "@/components/enquiries/EnquiryStageActions";
 import { EnquiryPdfButton } from "@/components/enquiries/EnquiryPdfButton";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { Button } from "@/components/ui/Button";
@@ -39,6 +39,7 @@ export function EnquiryDetailSheet({
   enquiry,
   daysOpen,
   canFollowUp,
+  stageOnly,
   onClose,
   onFollowUp,
   onEdit,
@@ -49,6 +50,8 @@ export function EnquiryDetailSheet({
   daysOpen: (enquiryDate: string) => number;
   /** Salesmen / managers: stage moves, follow-ups, mark lost. */
   canFollowUp: boolean;
+  /** Without canFollowUp: the only stage moves offered (operations: quote / requote). */
+  stageOnly?: Action[];
   onClose: () => void;
   onFollowUp: (e: EnquiryListItem) => void;
   /** Shown for anything short of Confirmed when given. */
@@ -293,7 +296,7 @@ export function EnquiryDetailSheet({
 
             {/* Actions */}
             <div className="flex flex-wrap items-center gap-2 border-t border-border bg-subtle px-6 py-4">
-                {canFollowUp && <EnquiryStageActions enquiry={e} onDone={onDone} />}
+                {(canFollowUp || stageOnly) && <EnquiryStageActions enquiry={e} only={canFollowUp ? undefined : stageOnly} onDone={onDone} />}
                 {canEdit && (
                   <Button size="sm" variant="secondary" onClick={() => onEdit!(e)}>
                     <Pencil /> Edit

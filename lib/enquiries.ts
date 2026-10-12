@@ -5,18 +5,20 @@ import { clientFormPath } from "@/lib/enquiry-client-form";
 import { agentQuotePath } from "@/lib/enquiry-agent";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { clientScopeWhere, getAccountantOrgIds, getManagerOrgIds, getManagerSalesmanIds, getSalesmanOrgIds, getTokenUserId, type ScopedToken } from "@/lib/scoping";
+import { clientScopeWhere, getAccountantOrgIds, getOperationsOrgIds, getManagerOrgIds, getManagerSalesmanIds, getSalesmanOrgIds, getTokenUserId, type ScopedToken } from "@/lib/scoping";
 import { BLACKLISTED_ERROR, statusAfterEnquiry } from "@/lib/client-status-flow";
 import { CONTACT_FIELD_LABELS, missingContactFields } from "@/lib/client-contact";
 import { enquiryRef, enquiryStatuses, parseEnquiryRef, type EnquiryListItem, type EnquiryStatus } from "@/types/enquiry";
 import { DEFAULT_DIMENSION_UNIT, readPackages } from "@/lib/freight";
 import { intParam, literal, pageParam, paging, param, PAGE_SIZE, type Paged, type SearchParams } from "@/lib/list-params";
+import { isOwnerRole } from "@/lib/roles";
 
-/** Salesmen: own. Managers: own + their salesmen's. Accountants: their assigned companies' clients. Owner: all. */
+/** Salesmen: own. Managers: own + their salesmen's. Accountants / operations: their assigned companies'. Owner: all. */
 export async function enquiryScopeWhere(token: ScopedToken): Promise<Prisma.EnquiryWhereInput> {
   const userId = getTokenUserId(token);
-  if (token.role_id === 1) return {};
+  if (isOwnerRole(token.role_id)) return {};
   if (token.role_id === 4) return { org_id: { in: await getAccountantOrgIds(userId) } };
+  if (token.role_id === 5) return { org_id: { in: await getOperationsOrgIds(userId) } };
   if (token.role_id === 2) {
     const salesmanIds = await getManagerSalesmanIds(userId);
     return { created_by_id: { in: [userId, ...salesmanIds] } };

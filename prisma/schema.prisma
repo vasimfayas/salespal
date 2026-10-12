@@ -30,6 +30,7 @@ model Organization {
   created_at       DateTime          @default(now())
   managers         ManagerOrg[]
   accountants      AccountantOrg[]
+  operations       OperationsOrg[]
   documents        CompanyDocument[]
   clients          Client[]
   enquiries        Enquiry[]
@@ -48,6 +49,7 @@ model User {
   role                     Role                  @relation(fields: [role_id], references: [id])
   managerOrgs              ManagerOrg[]          @relation("ManagerOrganizations")
   accountantOrgs           AccountantOrg[]       @relation("AccountantOrganizations")
+  operationsOrgs           OperationsOrg[]       @relation("OperationsOrganizations")
   uploadedCompanyDocuments CompanyDocument[]     @relation("CompanyDocumentUploadedBy")
   managerSalesmen          ManagerSalesman[]     @relation("ManagerSalesmen")
   salesmanManager          ManagerSalesman[]     @relation("SalesmanManagers")
@@ -97,6 +99,18 @@ model AccountantOrg {
   @@id([accountant_id, org_id])
   @@index([org_id])
   @@map("accountant_org")
+}
+
+/// Operations staff (role 5) see and quote the enquiries of the companies they are assigned to.
+model OperationsOrg {
+  user_id Int
+  org_id  Int
+  user    User         @relation("OperationsOrganizations", fields: [user_id], references: [id], onDelete: Cascade)
+  org     Organization @relation(fields: [org_id], references: [id], onDelete: Cascade)
+
+  @@id([user_id, org_id])
+  @@index([org_id])
+  @@map("operations_org")
 }
 
 /// Company paperwork (CR copy, export license, ...). Files live on local disk under uploads/; `file_path` is relative to it.
@@ -363,7 +377,7 @@ model ShippingRate {
   mode          String
   container     String
   price         Decimal  @default(0) @db.Decimal(12, 2)
-  currency      String?  @default("USD")
+  currency      String?  @default("QAR")
   updated_by_id Int
   created_at    DateTime @default(now())
   updated_at    DateTime @updatedAt
@@ -549,6 +563,11 @@ model Agent {
   contact_person String?
   email          String
   phone          String?
+  country        String?
+  /// Transport modes the agent handles: air | sea | land.
+  modes          String[]              @default([])
+  /// Locked agents can't be sent enquiries (owner, managers and accounts toggle it).
+  locked         Boolean               @default(false)
   created_at     DateTime              @default(now())
   requests       EnquiryAgentRequest[]
 

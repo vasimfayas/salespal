@@ -5,6 +5,7 @@ import {
   Building2,
   ClipboardList,
   Globe,
+  Landmark,
   LayoutDashboard,
   LayoutGrid,
   ListTodo,
@@ -35,6 +36,7 @@ const ICONS: Record<string, LucideIcon> = {
   Orders: Package,
   "Shipping Rates": Ship,
   Agents: Globe,
+  Accounts: Landmark,
 };
 
 const GROUPS: Record<string, string> = {
@@ -53,6 +55,7 @@ const GROUPS: Record<string, string> = {
   Companies: "Administration",
   Users: "Administration",
   Reports: "Reports",
+  Accounts: "Reports",
 };
 
 export type NavItem = { label: string; href: string; icon: LucideIcon };
@@ -63,6 +66,8 @@ export const ROLE_LABELS: Record<number, string> = {
   2: "Manager",
   3: "Sales Representative",
   4: "Accountant",
+  5: "Operations",
+  6: "Super Admin",
 };
 
 export function getNavItems(roleId: number): NavItem[] {

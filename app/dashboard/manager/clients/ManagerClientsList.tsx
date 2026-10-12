@@ -369,7 +369,7 @@ export function ManagerClientsList({
               className="text-xs font-semibold text-muted-foreground"
               htmlFor="salesman-filter"
             >
-              Salesman
+              Assigned to
             </label>
             <select
               id="salesman-filter"
@@ -377,7 +377,7 @@ export function ManagerClientsList({
               onChange={(e) => set({ salesman: e.target.value })}
               className="w-full rounded-control border border-input bg-card px-3 text-sm text-foreground shadow-xs outline-none transition-[border-color,box-shadow] duration-150 placeholder:text-muted-foreground/70 hover:border-border-strong focus:border-ring focus:ring-3 focus:ring-ring/15 disabled:cursor-not-allowed disabled:bg-muted disabled:opacity-70 h-10 cursor-pointer"
             >
-              <option value="all">All Salesmen</option>
+              <option value="all">Everyone</option>
               {salesmen.map((s) => (
                 <option key={s.id} value={s.id.toString()}>
                   {s.name}
@@ -491,7 +491,7 @@ export function ManagerClientsList({
             onChange={(e) => setBulkSalesmanId(e.target.value)}
             className="w-full rounded-control border border-input bg-card px-3 text-sm text-foreground shadow-xs outline-none transition-[border-color,box-shadow] duration-150 placeholder:text-muted-foreground/70 hover:border-border-strong focus:border-ring focus:ring-3 focus:ring-ring/15 disabled:cursor-not-allowed disabled:bg-muted disabled:opacity-70 h-9 min-w-[180px] cursor-pointer"
           >
-            <option value="">Assign to salesman...</option>
+            <option value="">Assign to...</option>
             {salesmen
               .filter((s) => !bulkOrgId || s.org_ids.includes(Number(bulkOrgId)))
               .map((s) => (
@@ -953,7 +953,7 @@ export function ManagerClientsList({
                 className="text-xs font-semibold text-foreground/85"
                 htmlFor="add-salesman"
               >
-                Assign Salesman
+                Assign to
               </label>
               <select
                 id="add-salesman"
@@ -964,7 +964,7 @@ export function ManagerClientsList({
                 }
                 className="w-full rounded-control border border-input bg-card px-3 text-sm text-foreground shadow-xs outline-none transition-[border-color,box-shadow] duration-150 placeholder:text-muted-foreground/70 hover:border-border-strong focus:border-ring focus:ring-3 focus:ring-ring/15 disabled:cursor-not-allowed disabled:bg-muted disabled:opacity-70 h-10 cursor-pointer"
               >
-                <option value="">{companies.length > 1 && !addForm.org_id ? "Select a company first..." : "Select a salesman..."}</option>
+                <option value="">{companies.length > 1 && !addForm.org_id ? "Select a company first..." : "Select who follows up..."}</option>
                 {salesmen
                   .filter((s) => !addForm.org_id || s.org_ids.includes(Number(addForm.org_id)))
                   .map((s) => (

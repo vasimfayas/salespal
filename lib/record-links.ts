@@ -4,9 +4,9 @@
  *   order   → salesman: the order page; manager / accounts: their orders list filtered to the order and expanded
  *             (the owner has no orders screen, so no link)
  */
-export type AppRole = "admin" | "manager" | "salesman" | "accountant";
+export type AppRole = "admin" | "manager" | "salesman" | "accountant" | "operations";
 
-export const ROLE_BY_ID: Record<number, AppRole> = { 1: "admin", 2: "manager", 3: "salesman", 4: "accountant" };
+export const ROLE_BY_ID: Record<number, AppRole> = { 1: "admin", 2: "manager", 3: "salesman", 4: "accountant", 5: "operations", 6: "admin" };
 
 export const orderNo = (id: number) => `#${String(id).padStart(5, "0")}`;
 

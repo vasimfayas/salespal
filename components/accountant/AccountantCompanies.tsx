@@ -19,12 +19,12 @@ export function AccountantCompanyChips({ companies }: { companies: { id: number;
   );
 }
 
-export function NoAssignedCompanies() {
+export function NoAssignedCompanies({ message = "Enquiries, orders and payments appear here once you are assigned." }: { message?: string }) {
   return (
     <EmptyState
       icon={Building}
       title="No companies assigned yet"
-      message="Ask the owner to assign you to a company. Enquiries, orders and payments appear here once you are assigned."
+      message={`Ask the owner to assign you to a company. ${message}`}
     />
   );
 }

@@ -3,9 +3,13 @@ export const roleHome: Record<number, string> = {
   2: "/dashboard/manager",
   3: "/dashboard/salesman/dashboard-org",
   4: "/dashboard/accountant",
+  5: "/dashboard/operations/enquiries",
+  6: "/dashboard/admin",
 };
 
-export const navConfig: Record<number, { label: string; href: string }[]> = {
+type NavLink = { label: string; href: string };
+
+export const navConfig: Record<number, NavLink[]> = {
   1: [
     { label: "Overview", href: "/dashboard/admin" },
     { label: "Companies", href: "/dashboard/admin/companies" },
@@ -16,6 +20,7 @@ export const navConfig: Record<number, { label: string; href: string }[]> = {
     { label: "Blacklist", href: "/dashboard/admin/clients?status=blacklisted" },
     { label: "Enquiries", href: "/dashboard/admin/enquiries" },
     { label: "Agents", href: "/dashboard/admin/agents" },
+    { label: "Accounts", href: "/dashboard/admin/accounts" },
     { label: "Reports", href: "/dashboard/admin/reports" },
   ],
   2: [
@@ -46,5 +51,19 @@ export const navConfig: Record<number, { label: string; href: string }[]> = {
     { label: "Enquiries", href: "/dashboard/accountant/enquiries" },
     { label: "Orders", href: "/dashboard/accountant/orders" },
     { label: "Shipping Rates", href: "/dashboard/accountant/shipping-rates" },
+    { label: "Agents", href: "/dashboard/accountant/agents" },
+  ],
+  5: [
+    { label: "Enquiries", href: "/dashboard/operations/enquiries" },
+    { label: "Shipping Rates", href: "/dashboard/operations/shipping-rates" },
   ],
 };
+
+/** Super admin: the owner's menu plus the operational screens only it has (orders, rates, tasks). */
+navConfig[6] = [
+  ...navConfig[1].slice(0, 8),
+  { label: "Orders", href: "/dashboard/admin/orders" },
+  { label: "Tasks", href: "/dashboard/admin/tasks" },
+  { label: "Shipping Rates", href: "/dashboard/admin/shipping-rates" },
+  ...navConfig[1].slice(8),
+];

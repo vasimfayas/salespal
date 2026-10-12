@@ -27,6 +27,7 @@ export function LocationPicker({
   mode,
   required,
   placeholder,
+  strict,
 }: {
   id?: string;
   label: string;
@@ -36,6 +37,8 @@ export function LocationPicker({
   mode: string;
   required?: boolean;
   placeholder?: string;
+  /** Only suggest the mode's kind of place (airports for air, ports for sea, road points for land). */
+  strict?: boolean;
 }) {
   const autoId = useId();
   const inputId = id ?? autoId;
@@ -51,7 +54,7 @@ export function LocationPicker({
   const groups = useMemo(() => {
     const tokens = query.trim().toLowerCase().split(/[\s,]+/).filter(Boolean);
     const matches = FREIGHT_LOCATIONS.filter((l) =>
-      tokens.length ? tokens.every((t) => l.search.includes(t)) : l.kind === preferred,
+      tokens.length ? (!strict || l.kind === preferred) && tokens.every((t) => l.search.includes(t)) : l.kind === preferred,
     )
       // Preferred kind first, then the list's own order (Gulf first).
       .map((l, i) => ({ l, rank: (l.kind === preferred ? 0 : 1) * 10000 + i }))
@@ -61,7 +64,7 @@ export function LocationPicker({
     const byCountry = new Map<string, typeof matches>();
     for (const m of matches) byCountry.set(m.country, [...(byCountry.get(m.country) ?? []), m]);
     return [...byCountry.entries()].map(([country, items]) => ({ country, code: items[0].countryCode, items }));
-  }, [query, preferred]);
+  }, [query, preferred, strict]);
   const flat = useMemo(() => groups.flatMap((g) => g.items), [groups]);
   const typed = query.trim();
   const exact = flat.some((l) => locationLabel(l).toLowerCase() === typed.toLowerCase());
@@ -166,7 +169,7 @@ export function LocationPicker({
         >
           {!typed && (
             <p className="px-3 pb-1 pt-1.5 text-xs text-muted-foreground">
-              {KIND[preferred].label}s for this mode. Type to search everything.
+              {KIND[preferred].label}s for this mode. {strict ? "Type to search." : "Type to search everything."}
             </p>
           )}
           {groups.map((g) => (

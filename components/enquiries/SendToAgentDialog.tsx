@@ -8,7 +8,7 @@ import { Select } from "@/components/ui/Select";
 import { CopyLinkButton } from "@/components/enquiries/SendToClientDialog";
 import type { EnquiryListItem } from "@/types/enquiry";
 
-type Agent = { id: number; name: string; contact_person: string | null; email: string };
+type Agent = { id: number; name: string; contact_person: string | null; email: string; country: string | null; modes: string[] };
 type Result = { agent: string; email: string; url: string; emailed: boolean; emailError: string | null };
 
 /**
@@ -106,7 +106,7 @@ export function SendToAgentDialog({ enquiry, open, onClose, onSent }: { enquiry:
                 )}
                 {agents && agents.length === 0 ? (
                   <p className="rounded-control border border-dashed border-border p-4 text-center text-sm text-muted-foreground">
-                    No agents yet. A manager can add them on the Agents page.
+                    No unlocked agents. A manager can add or unlock them on the Agents page.
                   </p>
                 ) : (
                   <Select id="send-agent" label="Agent" required disabled={!agents} value={agentId} onChange={(e) => setAgentId(e.target.value)}>
@@ -114,6 +114,8 @@ export function SendToAgentDialog({ enquiry, open, onClose, onSent }: { enquiry:
                     {agents?.map((a) => (
                       <option key={a.id} value={a.id}>
                         {a.name}
+                        {a.country ? ` · ${a.country}` : ""}
+                        {a.modes.length ? ` · ${a.modes.join(", ")}` : ""}
                         {alreadyAsked.has(a.name) ? " (already asked)" : ""}
                       </option>
                     ))}

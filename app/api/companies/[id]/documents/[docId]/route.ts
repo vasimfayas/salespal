@@ -11,6 +11,7 @@ import {
   storeDocumentFile,
   validateDocumentFile,
 } from "@/lib/company-documents";
+import { isOwnerRole } from "@/lib/roles";
 
 type Params = { params: Promise<{ id: string; docId: string }> };
 
@@ -59,7 +60,7 @@ export async function GET(req: Request, context: Params) {
  */
 export async function PATCH(req: Request, context: Params) {
   const session = await getSalesPalSession();
-  if (!session || session.user.role_id !== 1) {
+  if (!session || !isOwnerRole(session.user.role_id)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -107,7 +108,7 @@ export async function PATCH(req: Request, context: Params) {
 
 export async function DELETE(_req: Request, context: Params) {
   const session = await getSalesPalSession();
-  if (!session || session.user.role_id !== 1) {
+  if (!session || !isOwnerRole(session.user.role_id)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

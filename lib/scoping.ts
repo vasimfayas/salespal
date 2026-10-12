@@ -1,5 +1,6 @@
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { isOwnerRole, SUPER_ADMIN_ROLE } from "@/lib/roles";
 
 export type ScopedToken = {
   id?: number;
@@ -20,6 +21,11 @@ export async function getManagerOrgIds(managerId: number) {
 /** Read fresh on every request (not from the JWT) so owner re-assignments apply without a re-login. */
 export async function getAccountantOrgIds(accountantId: number) {
   const orgs = await prisma.accountantOrg.findMany({ where: { accountant_id: accountantId }, select: { org_id: true } });
+  return orgs.map((item) => item.org_id);
+}
+
+export async function getOperationsOrgIds(userId: number) {
+  const orgs = await prisma.operationsOrg.findMany({ where: { user_id: userId }, select: { org_id: true } });
   return orgs.map((item) => item.org_id);
 }
 
@@ -46,7 +52,7 @@ export async function getManagerSalesmanIdsForOrg(managerId: number, orgId: numb
 
 export async function clientScopeWhere(token: ScopedToken): Promise<Prisma.ClientWhereInput> {
   const userId = getTokenUserId(token);
-  if (token.role_id === 1) return {};
+  if (isOwnerRole(token.role_id)) return {};
   if (token.role_id === 2) {
     const orgIds = token.org_ids?.length ? token.org_ids : await getManagerOrgIds(userId);
     return { org_id: { in: orgIds } };
@@ -57,7 +63,7 @@ export async function clientScopeWhere(token: ScopedToken): Promise<Prisma.Clien
 
 export async function orderScopeWhere(token: ScopedToken): Promise<Prisma.OrderWhereInput> {
   const userId = getTokenUserId(token);
-  if (token.role_id === 1) return {};
+  if (isOwnerRole(token.role_id)) return {};
   // Accountants and managers see the orders of their companies (an order's company is its enquiry's).
   if (token.role_id === 4) return { org_id: { in: await getAccountantOrgIds(userId) } };
   if (token.role_id === 2) {
@@ -82,7 +88,7 @@ export async function orderStatsScope(token: ScopedToken): Promise<OrderStatsSco
 
 export async function taskScopeWhere(token: ScopedToken): Promise<Prisma.TaskWhereInput> {
   const userId = getTokenUserId(token);
-  if (token.role_id === 1) return {};
+  if (isOwnerRole(token.role_id)) return {};
   if (token.role_id === 2) {
     const salesmanIds = await getManagerSalesmanIds(userId);
     return { OR: [{ created_by_id: userId }, { assigned_to_id: { in: salesmanIds } }] };
@@ -93,7 +99,7 @@ export async function taskScopeWhere(token: ScopedToken): Promise<Prisma.TaskWhe
 
 export async function userScopeWhere(token: ScopedToken): Promise<Prisma.UserWhereInput> {
   const userId = getTokenUserId(token);
-  if (token.role_id === 1) return {};
+  if (isOwnerRole(token.role_id)) return {};
   if (token.role_id === 2) {
     const salesmanIds = await getManagerSalesmanIds(userId);
     return { id: { in: [userId, ...salesmanIds] } };
@@ -104,13 +110,18 @@ export async function userScopeWhere(token: ScopedToken): Promise<Prisma.UserWhe
 
 export async function canAccessSalesman(token: ScopedToken, salesmanId: number) {
   const userId = getTokenUserId(token);
-  if (token.role_id === 1) return true;
+  if (isOwnerRole(token.role_id)) return true;
   if (token.role_id === 3) return userId === salesmanId;
   if (token.role_id === 2) {
     const salesmanIds = await getManagerSalesmanIds(userId);
     return salesmanIds.includes(salesmanId);
   }
   return false;
+}
+
+/** Permission gate: one of `roles`, or the super admin (who may do everything). Use isRole for role-specific restrictions. */
+export function hasRole(token: ScopedToken, roles: number | number[]) {
+  return Number(token.role_id) === SUPER_ADMIN_ROLE || isRole(token, roles);
 }
 
 export function isRole(token: ScopedToken, roles: number | number[]) {

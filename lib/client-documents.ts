@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { clientScopeWhere, type ScopedToken } from "@/lib/scoping";
 import type { ClientDocumentItem } from "@/types/client";
+import { isOwnerRole } from "@/lib/roles";
 
 /**
  * Client attachments. Anyone who can see the client can view its documents;
@@ -28,7 +29,7 @@ export async function findScopedClient(token: ScopedToken, clientId: number) {
 }
 
 export function canDeleteClientDocument(user: { id: number; role_id: number }, doc: { uploaded_by_id: number }) {
-  return user.role_id === 1 || user.role_id === 2 || doc.uploaded_by_id === user.id;
+  return isOwnerRole(user.role_id) || user.role_id === 2 || doc.uploaded_by_id === user.id;
 }
 
 export function serializeClientDocument(doc: {

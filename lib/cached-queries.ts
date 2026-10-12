@@ -7,6 +7,7 @@ import type { OrderStatsScope } from "@/lib/scoping";
 import { serializeCompanyDocument } from "@/lib/company-documents";
 
 import { num } from "@/lib/decimal";
+import { isOwnerRole } from "@/lib/roles";
 /* ═══════════════════════════════════════════════════════
    Salesman Dashboard — split into independent cached queries
    so each <Suspense> boundary can stream independently.
@@ -148,6 +149,11 @@ export const getCachedAdminCompaniesPageOrgs = unstable_cache(
             accountant: { select: { id: true, name: true, email: true, phone: true } },
           },
         },
+        operations: {
+          include: {
+            user: { select: { id: true, name: true, email: true, phone: true } },
+          },
+        },
         documents: {
           include: { uploadedBy: { select: { name: true } } },
           orderBy: [{ label: "asc" }, { id: "asc" }],
@@ -197,11 +203,11 @@ export const getCachedAdminCompaniesPageManagers = unstable_cache(
   { revalidate: 300, tags: ["admin-companies"] }
 );
 
-// A11b. Accountants list for companies page
+// A11b. Accountants (and operations) list for companies page
 export const getCachedAdminCompaniesPageAccountants = unstable_cache(
   async () => {
     return prisma.user.findMany({
-      where: { role_id: 4 },
+      where: { role_id: { in: [4, 5] } },
       select: { id: true, name: true, email: true, phone: true, role_id: true },
       orderBy: { name: "asc" },
     });
@@ -347,7 +353,7 @@ export const getOrderById = unstable_cache(
 export const getMonthlyOrderStats = unstable_cache(
   async (scope: OrderStatsScope) => {
     let whereClause: Prisma.Sql;
-    if (scope.role_id === 1) {
+    if (isOwnerRole(scope.role_id)) {
       whereClause = Prisma.sql`TRUE`;
     } else if (scope.role_id === 2) {
       whereClause = scope.orgIds.length ? Prisma.sql`o.org_id IN (${Prisma.join(scope.orgIds)})` : Prisma.sql`FALSE`;

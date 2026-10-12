@@ -14,6 +14,7 @@ import { CompaniesClient } from "./CompaniesClient";
 import { Skeleton } from "@/components/ui/Skeleton";
 
 import { getPerformance, monthPeriod, type Performance } from "@/lib/performance";
+import { isOwnerRole } from "@/lib/roles";
 async function CompaniesDashboardWrapper() {
   const [
     companies,
@@ -95,7 +96,7 @@ export default async function CompaniesPage() {
     redirect("/login");
   }
 
-  if (session.user.role_id !== 1) {
+  if (!isOwnerRole(session.user.role_id)) {
     return (
       <div className="p-6 text-center text-danger-foreground font-semibold bg-danger-soft rounded-xl border border-danger/30">
         Unauthorized access

@@ -1,5 +1,6 @@
 import { Suspense } from "react";
 import { getShippingRates } from "@/lib/cached-queries";
+import { getExchangeRates } from "@/lib/exchange-rates";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { ShippingRateTable } from "@/components/shipping-rates/ShippingRateTable";
 import { Skeleton } from "@/components/ui/Skeleton";
@@ -17,8 +18,8 @@ export default function ManagerShippingRatesPage() {
 }
 
 async function ShippingRatesSection() {
-  const rates = await getShippingRates();
-  return <ShippingRateTable initialRates={rates} editable canDelete={false} />;
+  const [rates, fx] = await Promise.all([getShippingRates(), getExchangeRates()]);
+  return <ShippingRateTable initialRates={rates} fx={fx} editable canDelete={false} />;
 }
 
 function ShippingRatesSkeleton() {

@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { Prisma } from "@prisma/client";
 import { getToken } from "next-auth/jwt";
 import { prisma } from "@/lib/prisma";
-import { getTokenUserId, isRole } from "@/lib/scoping";
+import { getTokenUserId, hasRole } from "@/lib/scoping";
 import { enquiryScopeWhere, revalidateEnquiryPages } from "@/lib/enquiries";
 import { ENQUIRY_FIELD_LABELS, enquiryDetailsData, parseEnquiryDetails, type EnquiryDetails } from "@/lib/enquiry-fields";
 import { packagesKey, readPackages } from "@/lib/freight";
@@ -15,7 +15,7 @@ import { packagesKey, readPackages } from "@/lib/freight";
 export async function PATCH(request: NextRequest, context: { params: Promise<{ id: string }> }) {
   const token = await getToken({ req: request, secret: process.env.NEXTAUTH_SECRET });
   if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  if (!isRole(token, [2, 3])) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (!hasRole(token, [2, 3])) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   const { id } = await context.params;
   const enquiry = await prisma.enquiry.findFirst({ where: { AND: [{ id: Number(id) }, await enquiryScopeWhere(token)] } });

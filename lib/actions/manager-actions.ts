@@ -6,10 +6,11 @@ import bcrypt from "bcryptjs";
 import { getSalesPalSession } from "@/lib/auth";
 import { getManagerOrgIds } from "@/lib/scoping";
 import { revalidateTeamViews, setSalesmanCompanies, TeamAssignmentError } from "@/lib/team-assignments";
+import { isOwnerRole } from "@/lib/roles";
 
 async function verifyManager() {
   const session = await getSalesPalSession();
-  if (!session || (session.user.role_id !== 2 && session.user.role_id !== 1)) {
+  if (!session || (session.user.role_id !== 2 && !isOwnerRole(session.user.role_id))) {
     throw new Error("Unauthorized");
   }
   return Number(session.user.id);

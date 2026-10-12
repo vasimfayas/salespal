@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { getToken } from "next-auth/jwt";
 import { prisma } from "@/lib/prisma";
-import { getTokenUserId, isRole } from "@/lib/scoping";
+import { getTokenUserId, hasRole } from "@/lib/scoping";
 import { enquiryScopeWhere, revalidateEnquiryPages } from "@/lib/enquiries";
 import { agentEnquirySelect, agentQuotePath, agentQuoteUrl, newAgentToken, sendAgentRequestEmail } from "@/lib/enquiry-agent";
 import { enquiryRef } from "@/types/enquiry";
@@ -16,7 +16,7 @@ const SENDABLE = ["inquiry_received", "with_agent"];
 export async function POST(request: NextRequest, context: { params: Promise<{ id: string }> }) {
   const token = await getToken({ req: request, secret: process.env.NEXTAUTH_SECRET });
   if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  if (!isRole(token, [2, 3])) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (!hasRole(token, [2, 3])) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   const body = await request.json().catch(() => ({}));
   const enquiry = await prisma.enquiry.findFirst({
@@ -27,6 +27,7 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
   if (!SENDABLE.includes(enquiry.status)) return NextResponse.json({ error: "Only an enquiry that isn't quoted yet can be sent to an agent" }, { status: 409 });
   const agent = await prisma.agent.findUnique({ where: { id: Number(body.agent_id) } });
   if (!agent) return NextResponse.json({ error: "Select an agent" }, { status: 400 });
+  if (agent.locked) return NextResponse.json({ error: `${agent.name} is locked. Ask a manager or accounts to unlock them.` }, { status: 409 });
 
   const userId = getTokenUserId(token);
   const agentToken = newAgentToken();

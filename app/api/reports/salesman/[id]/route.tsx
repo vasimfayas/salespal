@@ -5,6 +5,7 @@ import { canAccessSalesman } from "@/lib/scoping";
 import { prisma } from "@/lib/prisma";
 import { currentMonthKey, getSalesmanMonthlyReport, parseMonth } from "@/lib/salesman-report";
 import { SalesmanReportPdf } from "@/components/reports/SalesmanReportPdf";
+import { isOwnerRole } from "@/lib/roles";
 
 export const runtime = "nodejs";
 
@@ -12,7 +13,7 @@ export const runtime = "nodejs";
 export async function GET(request: Request, context: { params: Promise<{ id: string }> }) {
   const session = await getSalesPalSession();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  if (session.user.role_id !== 1 && session.user.role_id !== 2) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (!isOwnerRole(session.user.role_id) && session.user.role_id !== 2) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   const salesmanId = Number((await context.params).id);
   const month = new URL(request.url).searchParams.get("month") ?? currentMonthKey();
