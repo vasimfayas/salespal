@@ -8,8 +8,10 @@ import { Pagination } from "@/components/ui/Pagination";
 import { useDebouncedParam, useUrlFilters } from "@/hooks/useUrlFilters";
 import type { OrdersPage } from "@/lib/orders-list";
 import { OrderStatusBadge } from "@/components/orders/OrderStatusBadge";
+import { Avatar } from "@/components/ui/avatar";
 import { OrderActions } from "@/components/orders/OrderActions";
 import { Modal } from "@/components/ui/Modal";
+import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { Input } from "@/components/ui/Input";
 import { Toast } from "@/components/ui/Toast";
 import { cn, formatAmount, formatDate, titleCase } from "@/lib/utils";
@@ -37,6 +39,32 @@ function PaidBar({ order }: { order: OrderListItem }) {
   );
 }
 
+/** Advance + payments recorded on an order, and the balance still due. */
+function OrderPayments({ order }: { order: OrderListItem }) {
+  return (
+    <ul className="divide-y divide-border rounded-card border border-border bg-card text-xs">
+      <li className="flex items-center justify-between px-3 py-2">
+        <span className="text-foreground/70">Advance (at order)</span>
+        <span className="font-semibold tabular-nums text-foreground">{formatAmount(order.advance_amount)}</span>
+      </li>
+      {order.payments.map((p) => (
+        <li key={p.id} className="flex items-center justify-between gap-3 px-3 py-2">
+          <span className="text-foreground/70">
+            {formatDate(p.paid_on)} · {titleCase(p.method)}
+            {p.reference ? ` · ${p.reference}` : ""}
+            <span className="block text-[10px] text-muted-foreground/80">recorded by {p.recorded_by}</span>
+          </span>
+          <span className="font-semibold tabular-nums text-success-foreground">{formatAmount(p.amount)}</span>
+        </li>
+      ))}
+      <li className="flex items-center justify-between bg-subtle px-3 py-2 font-semibold">
+        <span className="text-foreground/85">Balance due</span>
+        <span className={cn("tabular-nums", order.balance > 0 ? "text-warning-foreground" : "text-success-foreground")}>{formatAmount(order.balance)}</span>
+      </li>
+    </ul>
+  );
+}
+
 /** Server-paginated orders table. Status / payment tabs, search and page are URL params. */
 export function OrderList({ data, role, detailBasePath }: OrderListProps) {
   const router = useRouter();
@@ -47,10 +75,13 @@ export function OrderList({ data, role, detailBasePath }: OrderListProps) {
   // ?open=<id> (link from an enquiry or client page) starts with that order expanded.
   const [expandedId, setExpandedId] = useState<number | null>(() => Number(get("open")) || null);
   const [toast, setToast] = useState<string | undefined>();
+  // Phones / tablets: a card per order; tapping one opens its details and actions in a slide-over.
+  const [sheetId, setSheetId] = useState<number | null>(null);
 
   // Accountants, and salesmen on orders converted from their own enquiries (the server re-checks ownership).
   const canRecordPayment = (order: OrderListItem) => role === "accountant" || (role === "salesman" && !!order.enquiry_id);
   const filteredOrders = data.rows as OrderListItem[];
+  const sheetOrder = filteredOrders.find((o) => o.id === sheetId) ?? null;
   const totals = data.totals;
 
   function flash(message: string) {
@@ -111,7 +142,9 @@ export function OrderList({ data, role, detailBasePath }: OrderListProps) {
           />
         </div>
         <div className="flex flex-wrap items-center gap-3">
-          <div className="flex flex-wrap gap-1 rounded-xl bg-muted p-1" role="tablist" aria-label="Order status">
+          {/* Phones: one row that scrolls sideways instead of wrapping */}
+          <div className="-mx-4 w-[calc(100%+2rem)] overflow-x-auto px-4 sm:mx-0 sm:w-auto sm:px-0">
+          <div className="flex w-max gap-1 rounded-xl bg-muted p-1" role="tablist" aria-label="Order status">
             {(["all", ...orderStatuses] as const).map((status) => (
               <button
                 key={status}
@@ -120,7 +153,7 @@ export function OrderList({ data, role, detailBasePath }: OrderListProps) {
                 aria-selected={statusFilter === status}
                 onClick={() => set({ status })}
                 className={cn(
-                  "cursor-pointer rounded-lg px-3 py-1.5 text-xs font-semibold transition",
+                  "cursor-pointer whitespace-nowrap rounded-lg px-3 py-1.5 text-xs font-semibold transition",
                   statusFilter === status ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground/85"
                 )}
               >
@@ -128,7 +161,8 @@ export function OrderList({ data, role, detailBasePath }: OrderListProps) {
               </button>
             ))}
           </div>
-          <div className="flex flex-wrap gap-1 rounded-xl bg-muted p-1" role="tablist" aria-label="Payment">
+          </div>
+          <div className="grid w-full grid-cols-3 gap-1 rounded-xl bg-muted p-1 sm:flex sm:w-auto" role="tablist" aria-label="Payment">
             {([
               ["all", "Any payment"],
               ["due", "Balance due"],
@@ -141,7 +175,7 @@ export function OrderList({ data, role, detailBasePath }: OrderListProps) {
                 aria-selected={paymentFilter === value}
                 onClick={() => set({ pay: value })}
                 className={cn(
-                  "cursor-pointer rounded-lg px-3 py-1.5 text-xs font-semibold transition",
+                  "cursor-pointer whitespace-nowrap rounded-lg px-3 py-1.5 text-xs font-semibold transition",
                   paymentFilter === value ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground/85"
                 )}
               >
@@ -153,24 +187,25 @@ export function OrderList({ data, role, detailBasePath }: OrderListProps) {
       </div>
 
       {/* Totals */}
-      <div className="grid grid-cols-3 gap-3">
+      {/* Phones: one card, a row per figure (long amounts never clip); sm+: three tiles */}
+      <div className="divide-y divide-border rounded-card border border-border bg-card shadow-card sm:grid sm:grid-cols-3 sm:gap-3 sm:divide-y-0 sm:border-0 sm:bg-transparent sm:shadow-none">
         {[
           { label: "Order value", value: totals.amount, tone: "text-foreground" },
           { label: "Collected", value: totals.paid, tone: "text-success-foreground" },
           { label: "Outstanding", value: totals.balance, tone: "text-warning-foreground" },
         ].map((t) => (
-          <div key={t.label} className="rounded-card border border-border bg-card px-4 py-3 shadow-card">
+          <div key={t.label} className="flex items-baseline justify-between gap-3 px-4 py-3 sm:block sm:rounded-card sm:border sm:border-border sm:bg-card sm:shadow-card">
             <p className="text-xs font-semibold text-muted-foreground">{t.label}</p>
-            <p className={cn("mt-1 text-lg font-semibold tabular-nums", t.tone)}>{formatAmount(t.value)}</p>
+            <p className={cn("text-base font-semibold tabular-nums sm:mt-1 sm:text-lg", t.tone)}>{formatAmount(t.value)}</p>
           </div>
         ))}
       </div>
 
       {/* Table */}
       <div className={cn("space-y-1 transition-opacity", isNavigating && "opacity-60")} aria-busy={isNavigating}>
-      <div className="overflow-x-auto rounded-card border border-border bg-card shadow-card">
+      <div className="hidden overflow-x-auto rounded-card border border-border bg-card shadow-card lg:block">
         <table className="w-full min-w-[1150px] text-left text-sm">
-          <thead className="bg-subtle border-b border-border text-xs text-muted-foreground font-medium">
+          <thead className="border-b border-border text-muted-foreground text-[13px]">
             <tr>
               <th className="w-8 px-3 py-3" />
               <th className="px-3 py-3">Order</th>
@@ -237,7 +272,12 @@ export function OrderList({ data, role, detailBasePath }: OrderListProps) {
                         )}
                       </div>
                     </td>
-                    <td className="px-3 py-3 font-semibold text-foreground">{order.client?.name ?? "—"}</td>
+                    <td className="px-3 py-3">
+                      <span className="flex items-center gap-2.5">
+                        <Avatar name={order.client?.name} size="sm" className="bg-muted text-foreground/80 ring-0" />
+                        <span className="font-semibold text-foreground">{order.client?.name ?? "—"}</span>
+                      </span>
+                    </td>
                     <td className="px-3 py-3 font-medium text-foreground/85">{order.createdBy?.name ?? "—"}</td>
                     <td className="px-3 py-3">
                       <span className="block text-xs font-semibold text-primary">
@@ -303,26 +343,7 @@ export function OrderList({ data, role, detailBasePath }: OrderListProps) {
                             <p className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold text-muted-foreground/80">
                               <Wallet size={12} /> Payment collection
                             </p>
-                            <ul className="divide-y divide-border rounded-card border border-border bg-card text-xs">
-                              <li className="flex items-center justify-between px-3 py-2">
-                                <span className="text-foreground/70">Advance (at order)</span>
-                                <span className="font-semibold tabular-nums text-foreground">{formatAmount(order.advance_amount)}</span>
-                              </li>
-                              {order.payments.map((p) => (
-                                <li key={p.id} className="flex items-center justify-between gap-3 px-3 py-2">
-                                  <span className="text-foreground/70">
-                                    {formatDate(p.paid_on)} · {titleCase(p.method)}
-                                    {p.reference ? ` · ${p.reference}` : ""}
-                                    <span className="block text-[10px] text-muted-foreground/80">recorded by {p.recorded_by}</span>
-                                  </span>
-                                  <span className="font-semibold tabular-nums text-success-foreground">{formatAmount(p.amount)}</span>
-                                </li>
-                              ))}
-                              <li className="flex items-center justify-between bg-subtle px-3 py-2 font-semibold">
-                                <span className="text-foreground/85">Balance due</span>
-                                <span className={cn("tabular-nums", order.balance > 0 ? "text-warning-foreground" : "text-success-foreground")}>{formatAmount(order.balance)}</span>
-                              </li>
-                            </ul>
+                            <OrderPayments order={order} />
                           </div>
                         </div>
                       </td>
@@ -334,6 +355,45 @@ export function OrderList({ data, role, detailBasePath }: OrderListProps) {
           </tbody>
         </table>
       </div>
+
+      {/* Cards below lg: the essentials; everything else is in the slide-over */}
+      {filteredOrders.length === 0 ? (
+        <p className="rounded-card border border-dashed border-border bg-card px-4 py-12 text-center text-sm text-muted-foreground lg:hidden">No orders found.</p>
+      ) : (
+        <ul className="grid gap-2.5 sm:grid-cols-2 lg:hidden">
+          {filteredOrders.map((order) => (
+            <li key={order.id}>
+              <button
+                type="button"
+                onClick={() => setSheetId(order.id)}
+                className="w-full cursor-pointer rounded-card border border-border bg-card p-4 text-left shadow-card transition-colors active:bg-subtle"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-[13px] font-semibold tabular-nums text-foreground">{orderNo(order.id)}</p>
+                    <p className="truncate text-sm font-medium text-foreground">{order.client?.name ?? "—"}</p>
+                  </div>
+                  <OrderStatusBadge status={order.status} />
+                </div>
+                <p className="mt-2 flex min-w-0 items-center gap-1 text-sm text-muted-foreground">
+                  <span className="text-[11px] font-semibold uppercase">{order.mode}</span>
+                  <span aria-hidden>·</span>
+                  <span className="truncate">{order.from}</span>
+                  <ArrowRight size={12} className="shrink-0" aria-label="to" />
+                  <span className="truncate">{order.to}</span>
+                </p>
+                <div className="mt-2 flex items-center justify-between gap-3 text-xs">
+                  <span className="text-sm font-semibold tabular-nums text-foreground">{formatAmount(order.amount)}</span>
+                  <span className={cn("font-medium", order.balance > 0 ? "text-warning-foreground" : "text-success-foreground")}>
+                    {order.balance > 0 ? `${formatAmount(order.balance)} due` : "Paid"}
+                  </span>
+                </div>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+
       <Pagination page={data.page} pageSize={data.pageSize} total={data.total} pending={isNavigating} noun="orders" onPage={(p) => set({ page: p })} />
       </div>
 
@@ -382,6 +442,98 @@ export function OrderList({ data, role, detailBasePath }: OrderListProps) {
           </div>
         </form>
       </Modal>
+
+      <Sheet open={!!sheetOrder} onOpenChange={(open) => !open && setSheetId(null)}>
+        <SheetContent side="right" title={sheetOrder ? `Order ${orderNo(sheetOrder.id)}` : "Order"} hideTitle className="w-[440px]">
+          {sheetOrder && (
+            <>
+              <div className="space-y-3 border-b border-border px-6 pb-5 pt-6 pr-14">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="font-mono text-sm font-semibold text-foreground">{orderNo(sheetOrder.id)}</span>
+                  <OrderStatusBadge status={sheetOrder.status} />
+                </div>
+                <div>
+                  <p className="text-lg font-semibold leading-snug text-foreground">{sheetOrder.client?.name ?? "—"}</p>
+                  <p className="mt-1 flex flex-wrap items-center gap-1.5 text-sm text-muted-foreground">
+                    <span className="font-medium uppercase">{sheetOrder.mode}</span>
+                    <span aria-hidden>·</span>
+                    {sheetOrder.from} <ArrowRight size={13} aria-label="to" /> {sheetOrder.to}
+                  </p>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <OrderActions order={sheetOrder} role={role} onDone={flash} />
+                  {canRecordPayment(sheetOrder) && (sheetOrder.status === "transit" || sheetOrder.status === "delivered") && sheetOrder.balance > 0 && (
+                    <button
+                      type="button"
+                      // The payment form is a modal outside the slide-over, so close the slide-over first.
+                      onClick={() => {
+                        setSheetId(null);
+                        openPayment(sheetOrder);
+                      }}
+                      className={buttonVariants({ size: "sm" })}
+                    >
+                      <Plus size={11} /> Add payment
+                    </button>
+                  )}
+                  {detailBasePath && (
+                    <Link href={`${detailBasePath}/${sheetOrder.id}`} className={buttonVariants({ size: "sm", variant: "ghost" })}>
+                      Open <ExternalLink size={11} />
+                    </Link>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex-1 space-y-6 overflow-y-auto px-6 py-5 text-sm">
+                <section className="space-y-2">
+                  <h3 className="text-xs font-semibold text-muted-foreground">Payment</h3>
+                  <div className="flex items-baseline justify-between">
+                    <span className="text-xl font-semibold tabular-nums text-foreground">{formatAmount(sheetOrder.amount)}</span>
+                    <span className="text-xs text-muted-foreground">{titleCase(sheetOrder.payment_mode)}</span>
+                  </div>
+                  <PaidBar order={sheetOrder} />
+                  <OrderPayments order={sheetOrder} />
+                </section>
+
+                <section className="space-y-2">
+                  <h3 className="text-xs font-semibold text-muted-foreground">Details</h3>
+                  <dl className="grid grid-cols-[8rem_minmax(0,1fr)] gap-x-3 gap-y-2">
+                    <dt className="text-muted-foreground">Salesman</dt>
+                    <dd className="text-foreground">{sheetOrder.createdBy?.name ?? "—"}</dd>
+                    <dt className="text-muted-foreground">Job no</dt>
+                    <dd className="font-mono text-foreground">{sheetOrder.job_no ?? "—"}</dd>
+                    {(sheetOrder.enquiry_id ?? sheetOrder.origin_enquiry_id) && (
+                      <>
+                        <dt className="text-muted-foreground">Enquiry</dt>
+                        <dd>
+                          <Link href={enquiryHref(role, (sheetOrder.enquiry_id ?? sheetOrder.origin_enquiry_id)!)} className="font-mono font-semibold hover:underline">
+                            {enquiryRef((sheetOrder.enquiry_id ?? sheetOrder.origin_enquiry_id)!, sheetOrder.organization?.prefix)}
+                          </Link>
+                        </dd>
+                      </>
+                    )}
+                    <dt className="text-muted-foreground">Ordered</dt>
+                    <dd className="text-foreground">{formatDate(sheetOrder.created_at)}</dd>
+                    <dt className="text-muted-foreground">Invoice date</dt>
+                    <dd className="text-foreground">{sheetOrder.invoice_date ? formatDate(sheetOrder.invoice_date) : "—"}</dd>
+                    <dt className="text-muted-foreground">Payment due</dt>
+                    <dd className="text-foreground">{sheetOrder.due_date ? formatDate(sheetOrder.due_date) : "—"}</dd>
+                  </dl>
+                </section>
+
+                {(sheetOrder.description || sheetOrder.closed_reason) && (
+                  <section className="space-y-2">
+                    <h3 className="text-xs font-semibold text-muted-foreground">Notes</h3>
+                    {sheetOrder.closed_reason && (
+                      <p className="rounded-control bg-warning-soft px-3 py-2 text-warning-foreground">{sheetOrder.closed_reason}</p>
+                    )}
+                    {sheetOrder.description && <p className="whitespace-pre-line text-foreground/85">{sheetOrder.description}</p>}
+                  </section>
+                )}
+              </div>
+            </>
+          )}
+        </SheetContent>
+      </Sheet>
 
       <Toast message={toast} />
     </div>

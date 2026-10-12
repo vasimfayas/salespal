@@ -53,7 +53,7 @@ export default function Loading() {
       </div>
 
       {/* Two-column: Chart + Pipeline */}
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <div className="rounded-card border border-border bg-card p-6 shadow-card">
           <Skeleton className="h-4 w-40 mb-4" />
           <Skeleton className="h-[240px] w-full rounded-xl" />

@@ -1,6 +1,6 @@
 import { unstable_cache } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { literal } from "@/lib/list-params";
+import { likeForLike, recentEntries, statusEntries } from "@/lib/pipeline-metrics";
 import { byPerformance, getPerformance, monthPeriod, type Performance } from "@/lib/performance";
 
 /**
@@ -58,10 +58,7 @@ export const getManagerTeam = unstable_cache(
   CACHE
 );
 
-const between = (sinceIso: string, untilIso: string | null) =>
-  untilIso ? { gte: new Date(sinceIso), lte: new Date(untilIso) } : { gte: new Date(sinceIso) };
-
-/** KPI cards: log-based counts for the period (+ previous), pipeline and overdue tasks, each with a capped detail list. */
+/** KPI cards: onboarded in the period (vs the same days of the previous one), pipeline and overdue tasks, each with a capped detail list. */
 export const getManagerKpiCards = unstable_cache(
   async (
     salesmanIds: number[],
@@ -71,28 +68,21 @@ export const getManagerKpiCards = unstable_cache(
     prevEnd: string | null,
     weekStart: string
   ) => {
-    const byTeam = { done_by: { in: salesmanIds } };
-    const period = between(periodStart, periodEnd);
-    // Same matching as before: action contains the keyword, case-insensitive.
-    const logCount = (keyword: string, created_at: { gte: Date; lte?: Date }) =>
-      prisma.clientLog.count({ where: { ...byTeam, created_at, action: { contains: literal(keyword), mode: "insensitive" } } });
-    const weekFrom = new Date(Math.max(new Date(weekStart).getTime(), new Date(periodStart).getTime()));
-    const weekRange = periodEnd ? { gte: weekFrom, lte: new Date(periodEnd) } : { gte: weekFrom };
+    // Status events credited to the team's salesmen (lib/pipeline-metrics.ts).
+    const scope = { ownerIds: salesmanIds };
+    const now = new Date();
+    const current = { from: new Date(periodStart), to: periodEnd ? new Date(new Date(periodEnd).getTime() + 1) : now };
+    const previous = prevStart && prevEnd ? likeForLike(current, new Date(prevStart), new Date(new Date(prevEnd).getTime() + 1)) : null;
+    const week = { from: new Date(Math.max(new Date(weekStart).getTime(), current.from.getTime())), to: current.to };
     const pipelineWhere = { assigned_salesman_id: { in: salesmanIds }, status: { in: ["lead", "follow_up"] } };
     const overdueWhere = { assigned_to_id: { in: salesmanIds }, due_date: { lt: new Date() }, status: { in: ["pending", "in_process"] } };
 
-    const [onboardedThis, onboardedPrev, weekLeads, weekFollowUps, onboardedLogs, pipelineTotal, pipeline, overdueTotal, overdue] =
+    const [entered, enteredBefore, weekEntered, onboardedLogs, pipelineTotal, pipeline, overdueTotal, overdue] =
       await Promise.all([
-        logCount("onboarded", period),
-        prevStart ? logCount("onboarded", between(prevStart, prevEnd)) : Promise.resolve(0),
-        logCount("lead", weekRange),
-        logCount("follow_up", weekRange),
-        prisma.clientLog.findMany({
-          where: { ...byTeam, created_at: period, action: { contains: literal("onboarded"), mode: "insensitive" } },
-          orderBy: { created_at: "desc" },
-          take: DETAIL_LIMIT,
-          select: { id: true, created_at: true, client: { select: { name: true } }, author: { select: { name: true } } },
-        }),
+        statusEntries(scope, current),
+        previous ? statusEntries(scope, previous) : Promise.resolve({} as Record<string, number>),
+        statusEntries(scope, week),
+        recentEntries(scope, "onboarded", current, DETAIL_LIMIT),
         prisma.client.count({ where: pipelineWhere }),
         prisma.client.findMany({
           where: pipelineWhere,
@@ -109,7 +99,17 @@ export const getManagerKpiCards = unstable_cache(
         }),
       ]);
 
-    return { onboardedThis, onboardedPrev, weekNew: weekLeads + weekFollowUps, onboardedLogs, pipelineTotal, pipeline, overdueTotal, overdue };
+    return {
+      onboardedThis: entered.onboarded ?? 0,
+      onboardedPrev: enteredBefore.onboarded ?? 0,
+      hasPrevious: !!previous,
+      weekNew: (weekEntered.lead ?? 0) + (weekEntered.follow_up ?? 0),
+      onboardedLogs,
+      pipelineTotal,
+      pipeline,
+      overdueTotal,
+      overdue,
+    };
   },
   ["manager-kpi-cards"],
   CACHE

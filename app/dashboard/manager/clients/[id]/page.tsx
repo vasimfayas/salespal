@@ -10,6 +10,8 @@ import { getClientHistory } from "@/lib/client-history";
 import { ClientHistory } from "@/components/clients/ClientHistory";
 import { ClientHistorySkeleton } from "@/components/clients/ClientHistorySkeleton";
 import { ClientDocumentsCard } from "@/components/clients/ClientDocumentsCard";
+import { ClientContactsCard } from "@/components/clients/ClientContactsCard";
+import { getClientContacts } from "@/lib/client-contacts";
 import { documentClientIds, getClientDocuments } from "@/lib/client-documents";
 
 type SearchParams = Promise<{ o_page?: string; e_page?: string }>;
@@ -98,6 +100,13 @@ async function ClientDetailContent({
       initialTasks={tasks}
       backLink="/dashboard/manager/clients"
       teamOnly
+      contacts={
+        <ClientContactsCard
+          clientId={clientId}
+          main={{ name: client.contact_person_name, designation: client.contact_person_designation, phone: client.contact_no, email: client.mail_id }}
+          contacts={await getClientContacts(clientId)}
+        />
+      }
       documents={
         <ClientDocumentsCard
           clientId={clientId}

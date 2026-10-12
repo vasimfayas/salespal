@@ -28,6 +28,7 @@ import { clientCategories, clientCategoryLabels } from "@/types/client";
 import { PremiumBadge } from "@/components/clients/ClientCategory";
 import { DepartmentTag } from "@/components/clients/DepartmentTag";
 import { CrNumberField, type CrMatch } from "@/components/clients/CrNumberField";
+import { ExtraContactsFields, filledContacts, type ExtraContactInput } from "@/components/clients/ExtraContactsFields";
 type Client = {
   id: number;
   name: string;
@@ -93,6 +94,8 @@ export function SalesmanClientsList({ initialClients, total, page, pageSize, com
 
   // Modals state
   const [isAddOpen, setIsAddOpen] = useState(false);
+  // Extra contact people entered with the client.
+  const [extraContacts, setExtraContacts] = useState<ExtraContactInput[]>([]);
   // Set when the CR No matched an existing company and the user chose to add a department of it.
   const [departmentOf, setDepartmentOf] = useState<CrMatch | null>(null);
   // Status change past Lead on a client with no contact details asks for them first
@@ -161,6 +164,7 @@ export function SalesmanClientsList({ initialClients, total, page, pageSize, com
           cr_no: addForm.cr_no || null,
           cr_expiry_date: addForm.cr_expiry_date || null,
           department: addForm.department || null,
+          contacts: filledContacts(extraContacts),
           status: addForm.status,
           notes: addForm.notes || null,
           location_coordinates: addForm.location_coordinates || null,
@@ -189,6 +193,7 @@ export function SalesmanClientsList({ initialClients, total, page, pageSize, com
         org_id: defaultCompanyId(companies),
       });
       setDepartmentOf(null);
+      setExtraContacts([]);
       setIsAddOpen(false);
       router.refresh();
     } catch (err: any) {
@@ -380,7 +385,7 @@ export function SalesmanClientsList({ initialClients, total, page, pageSize, com
         <div className={cn("space-y-1 transition-opacity", isNavigating && "opacity-60")} aria-busy={isNavigating}>
         <div className="overflow-x-auto rounded-card border border-border bg-card shadow-card">
           <table className="w-full text-left text-sm">
-            <thead className="bg-subtle text-xs text-muted-foreground font-medium">
+            <thead className="border-border border-b text-muted-foreground text-[13px]">
               <tr>
                 <th className="w-10 px-2 py-3 sm:hidden"></th>
                 <th className="px-4 py-3">Client</th>
@@ -713,6 +718,8 @@ export function SalesmanClientsList({ initialClients, total, page, pageSize, com
               placeholder="e.g. +97455556666"
               className="text-xs"
             />
+
+            <ExtraContactsFields value={extraContacts} onChange={setExtraContacts} />
 
             <Input
               label="Location Coordinates"

@@ -1,5 +1,6 @@
 import { randomBytes } from "node:crypto";
 import { escapeHtml, sendMail } from "@/lib/mailer";
+import { publicBaseUrl } from "@/lib/public-url";
 
 /**
  * "Send to client": a fillable enquiry form the client opens from an emailed link (/enquiry-form/<token>),
@@ -12,9 +13,8 @@ export const newClientFormToken = () => randomBytes(24).toString("base64url");
 
 export const clientFormPath = (token: string) => `/enquiry-form/${token}`;
 
-/** Absolute link for emails: APP_URL when set (the address clients can reach), else the request's own origin. */
-export const clientFormUrl = (token: string, requestUrl: string) =>
-  new URL(clientFormPath(token), process.env.APP_URL || new URL(requestUrl).origin).toString();
+/** Absolute link for emails, on the public address (see publicBaseUrl). */
+export const clientFormUrl = (token: string, request: Request) => new URL(clientFormPath(token), publicBaseUrl(request)).toString();
 
 export const clientFormExpired = (sentAt: Date | null) => !sentAt || Date.now() - sentAt.getTime() > CLIENT_FORM_VALID_DAYS * 86_400_000;
 

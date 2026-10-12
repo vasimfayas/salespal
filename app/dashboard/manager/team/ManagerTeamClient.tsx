@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Modal } from "@/components/ui/Modal";
 import { Input } from "@/components/ui/Input";
 import { Toast } from "@/components/ui/Toast";
-import { Building2, Plus, Trash2, X, Loader2, UserPlus, Users } from "lucide-react";
+import { ArrowRightLeft, Building2, Plus, Trash2, X, Loader2, UserPlus, Users } from "lucide-react";
 import { createSalesmanAction, removeSalesmanAction, setSalesmanCompaniesAction } from "@/lib/actions/manager-actions";
 import { CompanyCheckboxes } from "@/components/salesmen/CompanyCheckboxes";
 import { SalesmenTargetsClient } from "@/components/salesmen/SalesmenTargetsClient";
@@ -39,6 +39,11 @@ export function ManagerTeamClient({ performance, teamSize, targets, companies, s
 
   // Modals state
   const [isAddOpen, setIsAddOpen] = useState(false);
+  // Moving all of one salesman's clients to another
+  const [transferFrom, setTransferFrom] = useState<{ id: number; name: string } | null>(null);
+  const [transferTo, setTransferTo] = useState("");
+  const [transferError, setTransferError] = useState<string | null>(null);
+  const [isTransferring, setIsTransferring] = useState(false);
 
   // Form states
   const [name, setName] = useState("");
@@ -102,6 +107,30 @@ export function ManagerTeamClient({ performance, teamSize, targets, companies, s
         alert(err.message || "An error occurred");
       }
     });
+  }
+
+  async function submitTransfer(e: React.FormEvent) {
+    e.preventDefault();
+    if (!transferFrom || !transferTo) return;
+    setIsTransferring(true);
+    setTransferError(null);
+    try {
+      const res = await fetch("/api/clients/bulk-assign", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ from_salesman_id: transferFrom.id, salesman_id: Number(transferTo) }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "Failed to transfer clients");
+      const toName = targets.find((t) => t.id === Number(transferTo))?.name ?? "the salesman";
+      triggerToast(`${data.updated} client${data.updated === 1 ? "" : "s"} moved from ${transferFrom.name} to ${toName}`);
+      setTransferFrom(null);
+      router.refresh();
+    } catch (err) {
+      setTransferError(err instanceof Error ? err.message : "Failed to transfer clients");
+    } finally {
+      setIsTransferring(false);
+    }
   }
 
   function saveCompanies() {
@@ -174,6 +203,19 @@ export function ManagerTeamClient({ performance, teamSize, targets, companies, s
               </button>
             )}
             <button
+              onClick={() => {
+                setTransferError(null);
+                setTransferTo("");
+                setTransferFrom({ id: row.id, name: row.name });
+              }}
+              disabled={isPending || targets.length < 2}
+              className="p-1.5 text-muted-foreground/80 hover:text-foreground hover:bg-muted rounded-lg transition duration-150 cursor-pointer active:scale-95 inline-flex disabled:opacity-50"
+              title="Transfer clients to another salesman"
+              aria-label={`Transfer ${row.name}'s clients to another salesman`}
+            >
+              <ArrowRightLeft size={15} />
+            </button>
+            <button
               onClick={() => handleRemove(row.id, row.name)}
               disabled={isPending}
               className="p-1.5 text-muted-foreground/80 hover:text-danger-foreground hover:bg-danger-soft rounded-lg transition duration-150 cursor-pointer active:scale-95 inline-flex disabled:opacity-50"
@@ -185,6 +227,54 @@ export function ManagerTeamClient({ performance, teamSize, targets, companies, s
           </>
         )}
       />
+
+      {/* Transfer clients */}
+      <Modal onClose={() => setTransferFrom(null)} open={!!transferFrom}>
+        {transferFrom && (
+          <form onSubmit={submitTransfer} className="space-y-4">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h3 className="text-base font-semibold text-foreground">Transfer {transferFrom.name}&apos;s clients</h3>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  All of their clients move to the salesman you pick. Leads get a follow-up task for them. Enquiries and orders already raised stay with {transferFrom.name}.
+                </p>
+              </div>
+              <button type="button" aria-label="Close" onClick={() => setTransferFrom(null)} className={buttonVariants({ variant: "ghost", size: "icon-sm" })}>
+                <X size={16} />
+              </button>
+            </div>
+            {transferError && <p role="alert" className="rounded-control bg-danger-soft px-3 py-2 text-xs font-medium text-danger-foreground">{transferError}</p>}
+            <label htmlFor="transfer-to" className="block text-sm font-medium text-foreground">
+              <span className="mb-1.5 block">Transfer to</span>
+              <select
+                id="transfer-to"
+                required
+                value={transferTo}
+                onChange={(e) => setTransferTo(e.target.value)}
+                className="h-10 w-full cursor-pointer rounded-control border border-input bg-card px-3 text-sm text-foreground outline-none focus:border-ring focus:ring-3 focus:ring-ring/15"
+              >
+                <option value="">Select a salesman…</option>
+                {targets
+                  .filter((t) => t.id !== transferFrom.id)
+                  .map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.name}
+                    </option>
+                  ))}
+              </select>
+            </label>
+            <div className="flex justify-end gap-2 border-t border-border pt-3">
+              <button type="button" onClick={() => setTransferFrom(null)} className={buttonVariants({ variant: "secondary", size: "sm" })}>
+                Cancel
+              </button>
+              <button type="submit" disabled={!transferTo || isTransferring} className={buttonVariants({ size: "sm" })}>
+                {isTransferring && <Loader2 size={12} className="animate-spin" />}
+                Transfer clients
+              </button>
+            </div>
+          </form>
+        )}
+      </Modal>
 
       {/* Add Salesman Modal */}
       <Modal onClose={() => setIsAddOpen(false)} open={isAddOpen}>

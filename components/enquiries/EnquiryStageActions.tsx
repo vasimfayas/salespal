@@ -2,15 +2,15 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { CheckCircle2, Handshake, PencilLine, Send, Tag, XCircle } from "lucide-react";
+import { CheckCircle2, RefreshCw, Send, Tag, XCircle } from "lucide-react";
 import { SendToAgentDialog } from "@/components/enquiries/SendToAgentDialog";
 import { Button } from "@/components/ui/Button";
 import { Dialog, DialogBody, DialogContent, DialogFooter } from "@/components/ui/dialog";
-import { ReasonDialog } from "@/components/shared/ReasonDialog";
+import { LostReasonDialog } from "@/components/shared/LostReasonDialog";
 import { formatAmount } from "@/lib/utils";
 import type { EnquiryListItem } from "@/types/enquiry";
 
-type Action = "send_agent" | "quote" | "negotiate" | "revise" | "confirm" | "lose";
+type Action = "send_agent" | "quote" | "requote" | "confirm" | "lose";
 
 async function stage(id: number, body: Record<string, unknown>) {
   const res = await fetch(`/api/enquiries/${id}/stage`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
@@ -36,11 +36,10 @@ export function availableActions(status: string): Action[] {
     case "with_agent":
       return ["send_agent", "quote", "lose"];
     case "quoted":
-      return ["negotiate", "confirm", "lose"];
-    case "negotiation":
-      return ["revise", "confirm", "lose"];
-    case "offer_revised":
-      return ["negotiate", "revise", "confirm", "lose"];
+      return ["requote", "confirm", "lose"];
+    // The order was sent back: requote, or confirm again to reopen it as it was.
+    case "revision_requested":
+      return ["requote", "confirm", "lose"];
     default:
       return [];
   }
@@ -55,14 +54,13 @@ export function rowActions(status: string): Action[] {
 
 /** The single most likely next step. */
 export function primaryAction(status: string): Action | null {
-  return ({ inquiry_received: "quote", with_agent: "quote", quoted: "negotiate", negotiation: "revise", offer_revised: "confirm" } as Record<string, Action>)[status] ?? null;
+  return ({ inquiry_received: "quote", with_agent: "quote", quoted: "confirm", revision_requested: "requote" } as Record<string, Action>)[status] ?? null;
 }
 
 const META: Record<Action, { label: string; icon: typeof Tag }> = {
   send_agent: { label: "Send to agent", icon: Send },
   quote: { label: "Quote", icon: Tag },
-  negotiate: { label: "On negotiations", icon: Handshake },
-  revise: { label: "Offer revised", icon: PencilLine },
+  requote: { label: "Requote", icon: RefreshCw },
   confirm: { label: "Confirm & create order", icon: CheckCircle2 },
   lose: { label: "Mark lost", icon: XCircle },
 };
@@ -87,23 +85,11 @@ export function EnquiryStageActions({
 }) {
   const router = useRouter();
   const [open, setOpen] = useState<Action | null>(null);
-  const [busy, setBusy] = useState(false);
   const actions = availableActions(enquiry.status).filter((a) => !only || only.includes(a));
   if (actions.length === 0) return null;
 
   function start(action: Action) {
     onBeforeOpen?.();
-    if (action === "negotiate") {
-      setBusy(true);
-      stage(enquiry.id, { action })
-        .then(() => {
-          onDone(`${enquiry.ref} moved to On negotiations`);
-          router.refresh();
-        })
-        .catch((err) => onDone(err.message))
-        .finally(() => setBusy(false));
-      return;
-    }
     setOpen(action);
   }
 
@@ -118,7 +104,6 @@ export function EnquiryStageActions({
             size={size}
             variant={lose ? "ghost" : action === "confirm" || (only && action !== "send_agent") ? "primary" : "secondary"}
             className={lose ? "text-danger-foreground hover:bg-danger-soft hover:text-danger-foreground" : undefined}
-            loading={busy && action === "negotiate"}
             onClick={(e) => {
               e.stopPropagation();
               start(action);
@@ -131,7 +116,7 @@ export function EnquiryStageActions({
 
       <FiguresDialog
         enquiry={enquiry}
-        mode={open === "quote" || open === "revise" ? open : null}
+        mode={open === "quote" || open === "requote" ? open : null}
         onClose={() => setOpen(null)}
         onSaved={(msg) => {
           setOpen(null);
@@ -155,15 +140,14 @@ export function EnquiryStageActions({
           router.refresh();
         }}
       />
-      <ReasonDialog
+      <LostReasonDialog
         open={open === "lose"}
         title={`Mark ${enquiry.ref} as lost`}
         description={`${enquiry.client_name} · ${enquiry.from} → ${enquiry.to}`}
         confirmLabel="Mark lost"
-        danger
         onClose={() => setOpen(null)}
-        onConfirm={async (reason) => {
-          await stage(enquiry.id, { action: "lose", reason });
+        onConfirm={async (reason, remark) => {
+          await stage(enquiry.id, { action: "lose", reason, remark });
           setOpen(null);
           onDone(`${enquiry.ref} marked lost`);
           router.refresh();
@@ -176,12 +160,12 @@ export function EnquiryStageActions({
 const fieldClass =
   "h-10 w-full rounded-control border border-input bg-card px-3 text-sm text-foreground outline-none transition focus:border-primary focus:ring-3 focus:ring-primary/15";
 
-function FiguresDialog({ enquiry, mode, onClose, onSaved }: { enquiry: EnquiryListItem; mode: "quote" | "revise" | null; onClose: () => void; onSaved: (msg: string) => void }) {
+function FiguresDialog({ enquiry, mode, onClose, onSaved }: { enquiry: EnquiryListItem; mode: "quote" | "requote" | null; onClose: () => void; onSaved: (msg: string) => void }) {
   return (
     <Dialog open={!!mode} onOpenChange={(o) => !o && onClose()}>
       {mode && (
         <DialogContent
-          title={mode === "quote" ? `Quote ${enquiry.ref}` : `Revise offer · ${enquiry.ref}`}
+          title={mode === "quote" ? `Quote ${enquiry.ref}` : `Requote ${enquiry.ref}`}
           description={
             mode === "quote"
               ? `${enquiry.client_name} · ${enquiry.from} → ${enquiry.to}`
@@ -195,11 +179,11 @@ function FiguresDialog({ enquiry, mode, onClose, onSaved }: { enquiry: EnquiryLi
   );
 }
 
-function FiguresForm({ enquiry, mode, onClose, onSaved }: { enquiry: EnquiryListItem; mode: "quote" | "revise"; onClose: () => void; onSaved: (msg: string) => void }) {
+function FiguresForm({ enquiry, mode, onClose, onSaved }: { enquiry: EnquiryListItem; mode: "quote" | "requote"; onClose: () => void; onSaved: (msg: string) => void }) {
   // Agents' replies (cheapest first); a new quote starts from the cheapest.
   const replies = enquiry.agent_requests.filter((r) => r.cost !== null).sort((a, b) => a.cost! - b.cost!);
-  const [cost, setCost] = useState(mode === "revise" ? String(enquiry.provisional_cost ?? "") : replies[0] ? String(replies[0].cost) : "");
-  const [profit, setProfit] = useState(mode === "revise" ? String(enquiry.provisional_profit ?? "") : "");
+  const [cost, setCost] = useState(mode === "requote" ? String(enquiry.provisional_cost ?? "") : replies[0] ? String(replies[0].cost) : "");
+  const [profit, setProfit] = useState(mode === "requote" ? String(enquiry.provisional_profit ?? "") : "");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -211,7 +195,7 @@ function FiguresForm({ enquiry, mode, onClose, onSaved }: { enquiry: EnquiryList
         setError(null);
         try {
           await stage(enquiry.id, { action: mode, cost: Number(cost), profit: Number(profit) });
-          onSaved(mode === "quote" ? `${enquiry.ref} quoted` : `${enquiry.ref} offer revised`);
+          onSaved(mode === "quote" ? `${enquiry.ref} quoted` : `${enquiry.ref} requoted`);
         } catch (err) {
           setError(err instanceof Error ? err.message : "Failed to save");
         } finally {
@@ -261,7 +245,7 @@ function FiguresForm({ enquiry, mode, onClose, onSaved }: { enquiry: EnquiryList
       </DialogBody>
       <DialogFooter>
         <Button type="button" variant="secondary" onClick={onClose} disabled={saving}>Cancel</Button>
-        <Button type="submit" loading={saving}>{mode === "quote" ? "Save quote" : "Save revised offer"}</Button>
+        <Button type="submit" loading={saving}>{mode === "quote" ? "Save quote" : "Save requote"}</Button>
       </DialogFooter>
     </form>
   );

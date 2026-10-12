@@ -14,9 +14,9 @@ const chip: Record<string, string> = {
   "bg-danger": "bg-danger-soft text-danger-foreground",
 };
 
-const trend = {
-  up: "bg-success-soft text-success-foreground",
-  down: "bg-danger-soft text-danger-foreground",
+const tone = {
+  good: "bg-success-soft text-success-foreground",
+  bad: "bg-danger-soft text-danger-foreground",
   flat: "bg-muted text-muted-foreground",
 } as const;
 
@@ -29,6 +29,7 @@ export function StatCard({
   badgeDirection,
   caption,
   theme,
+  goodWhen = "up",
 }: {
   icon: LucideIcon;
   label: string;
@@ -39,24 +40,31 @@ export function StatCard({
   /** Free-form line under the number, e.g. "Vs last month: 340". Omit to hide. */
   caption?: React.ReactNode;
   theme: StatCardTheme;
+  /** Which way is good news: "down" for lost clients, overdue tasks… (colours the pill). */
+  goodWhen?: "up" | "down";
 }) {
   const TrendIcon = badgeDirection === "up" ? TrendingUp : badgeDirection === "down" ? TrendingDown : Minus;
 
   return (
-    <div className="@container flex h-full flex-col rounded-card border border-border bg-card p-5 text-left shadow-card">
-      <div className="flex items-center gap-2.5">
+    <div className="@container flex h-full min-w-0 flex-col rounded-card border border-border bg-card p-4 text-left shadow-card sm:p-5">
+      <div className="flex items-start gap-2.5">
         <span className={cn("flex size-8 shrink-0 items-center justify-center rounded-[10px]", chip[theme.bg] ?? chip["bg-primary"])}>
           <Icon size={16} strokeWidth={2.25} aria-hidden />
         </span>
-        <span className="truncate text-sm font-medium text-muted-foreground">{label}</span>
+        <span className="line-clamp-2 pt-1.5 text-sm font-medium leading-snug text-muted-foreground">{label}</span>
       </div>
 
       <div className="mt-4 flex flex-wrap items-end justify-between gap-2">
-        <p className="text-2xl font-semibold leading-none tracking-tight text-foreground tabular-nums @[15rem]:text-[28px]">
+        <p className="min-w-0 break-words text-xl font-semibold leading-none tracking-tight text-foreground tabular-nums @[11rem]:text-2xl @[15rem]:text-[28px]">
           {typeof value === "number" ? value.toLocaleString() : value}
         </p>
         {badgeLabel && (
-          <span className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium tabular-nums", trend[badgeDirection ?? "flat"])}>
+          <span
+            className={cn(
+              "inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-medium tabular-nums",
+              tone[!badgeDirection || badgeDirection === "flat" ? "flat" : badgeDirection === goodWhen ? "good" : "bad"],
+            )}
+          >
             <TrendIcon size={11} strokeWidth={2.5} aria-hidden />
             {badgeLabel}
           </span>

@@ -144,7 +144,7 @@ export function SalesmenTargetsClient({
     <>
       <div className="overflow-x-auto rounded-card border border-border bg-card shadow-card">
         <table className="w-full min-w-[980px] text-left text-sm">
-          <thead className="bg-subtle border-b border-border text-xs text-muted-foreground font-medium">
+          <thead className="border-b border-border text-muted-foreground text-[13px]">
             <tr>
               <th className="px-5 py-3.5">Salesman</th>
               <th className="px-5 py-3.5">Clients</th>

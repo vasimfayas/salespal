@@ -3,7 +3,7 @@ import { revalidateTag } from "next/cache";
 import { getToken } from "next-auth/jwt";
 import { prisma } from "@/lib/prisma";
 import { clientScopeWhere } from "@/lib/scoping";
-import { canSetStatus, isClientStatus } from "@/lib/client-status-flow";
+import { applyClientStatus, canSetStatus, isClientStatus } from "@/lib/client-status-flow";
 import { cleanText, contactRequiredMessage, missingContactFields, statusRequiresContact } from "@/lib/client-contact";
 
 export async function PATCH(request: NextRequest, context: { params: Promise<{ id: string }> }) {
@@ -43,40 +43,21 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
 
   try {
     const client = await prisma.$transaction(async (tx) => {
-      const updatedClient = await tx.client.update({
-        where: { id: Number(id) },
-        data: {
-          status: body.status,
-          ...(sentContact && {
+      if (sentContact) {
+        await tx.client.update({
+          where: { id: scoped.id },
+          data: {
             contact_person_name: contact.contact_person_name ?? undefined,
             contact_no: contact.contact_no ?? undefined,
             contact_person_designation: contact.contact_person_designation || undefined,
-          }),
-        },
-      });
-
-      if (sentContact) {
+          },
+        });
         await tx.clientLog.create({
-          data: { client_id: updatedClient.id, action: "Contact details added", done_by: Number(token.id) },
+          data: { client_id: scoped.id, action: "Contact details added", done_by: Number(token.id) },
         });
       }
-
-      await tx.clientLog.create({
-        data: {
-          client_id: updatedClient.id,
-          action: `Status changed to ${body.status}`,
-          done_by: Number(token.id),
-        },
-      });
-
-      await tx.salesmanKpiLog.create({
-        data: {
-          salesman_id: updatedClient.assigned_salesman_id,
-          action: body.status,
-        },
-      });
-
-      return updatedClient;
+      await applyClientStatus(tx, scoped, body.status, Number(token.id), { source: "manual" });
+      return tx.client.findUniqueOrThrow({ where: { id: scoped.id } });
     });
 
     revalidateTag("salesman-dashboard", { expire: 0 });

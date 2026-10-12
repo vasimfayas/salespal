@@ -5,6 +5,8 @@ import { getClientHistory } from "@/lib/client-history";
 import { ClientHistory } from "@/components/clients/ClientHistory";
 import { ClientHistorySkeleton } from "@/components/clients/ClientHistorySkeleton";
 import { ClientDocumentsCard } from "@/components/clients/ClientDocumentsCard";
+import { ClientContactsCard } from "@/components/clients/ClientContactsCard";
+import { getClientContacts } from "@/lib/client-contacts";
 import { documentClientIds, getClientDocuments } from "@/lib/client-documents";
 import { ClientOverview } from "./ClientOverview";
 import ClientOverviewLoading from "./loading";
@@ -70,6 +72,13 @@ async function ClientDetailContent({
     <ClientOverview
       client={client}
       initialTasks={tasks}
+      contacts={
+        <ClientContactsCard
+          clientId={clientId}
+          main={{ name: client.contact_person_name, designation: client.contact_person_designation, phone: client.contact_no, email: client.mail_id }}
+          contacts={await getClientContacts(clientId)}
+        />
+      }
       documents={
         <ClientDocumentsCard
           clientId={clientId}

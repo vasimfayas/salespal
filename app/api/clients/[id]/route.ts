@@ -6,7 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { clientScopeWhere, isRole } from "@/lib/scoping";
 import { clientCategoryLabels, isClientCategory, type ClientCategory } from "@/types/client";
 import { departmentTaken, normalizeCrNo, parseCrExpiryDate } from "@/lib/client-fields";
-import { canSetStatus, isClientStatus } from "@/lib/client-status-flow";
+import { applyClientStatus, canSetStatus, isClientStatus } from "@/lib/client-status-flow";
 import { cleanText, contactRequiredMessage, missingContactFields, statusRequiresContact } from "@/lib/client-contact";
 
 export async function GET(request: NextRequest, context: { params: Promise<{ id: string }> }) {
@@ -122,7 +122,6 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
           cr_no: body.cr_no !== undefined && !isDepartment ? crNo ?? null : undefined,
           cr_expiry_date: isDepartment ? undefined : crExpiry.value,
           contact_no: body.contact_no !== undefined ? cleanText(body.contact_no) : undefined,
-          status: body.status ?? undefined,
           category: body.category ?? undefined,
           department,
           notes: body.notes !== undefined ? body.notes : undefined,
@@ -148,19 +147,8 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
       }
 
       if (body.status && body.status !== scoped.status) {
-        await tx.clientLog.create({
-          data: {
-            client_id: updatedClient.id,
-            action: `Status changed to ${body.status}`,
-            done_by: Number(token.id),
-          },
-        });
-        await tx.salesmanKpiLog.create({
-          data: {
-            salesman_id: updatedClient.assigned_salesman_id,
-            action: body.status,
-          },
-        });
+        await applyClientStatus(tx, scoped, body.status, Number(token.id), { source: "manual" });
+        return { ...updatedClient, status: body.status as string };
       }
 
       return updatedClient;

@@ -53,14 +53,14 @@ export async function POST(request: NextRequest) {
     await tx.enquiryEvent.create({
       data: { enquiry_id: created.id, action: "sent_to_client", to_status: "sent_to_client", note: `Form sent to ${email}`, created_by_id: userId },
     });
-    if (nextStatus) await applyClientStatus(tx, client, nextStatus, userId, { kpi: nextStatus === "enquiry", reason: "enquiry raised" });
+    if (nextStatus) await applyClientStatus(tx, client, nextStatus, userId, { reason: "enquiry raised", source: "enquiry" });
     return created;
   });
 
   revalidateEnquiryPages();
   if (nextStatus) revalidateClientViews();
 
-  const url = clientFormUrl(formToken, request.url);
+  const url = clientFormUrl(formToken, request);
   let emailed = false;
   let emailError: string | null = null;
   try {

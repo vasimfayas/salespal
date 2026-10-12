@@ -1,12 +1,13 @@
 import { Prisma } from "@prisma/client";
 import { revalidatePath, revalidateTag } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { closeFollowUpTasks, nextFollowUpDate, revalidateTaskViews } from "@/lib/enquiry-follow-ups";
+import { closeFollowUpTasks, noteFollowUpTasks, nextFollowUpDate, revalidateTaskViews } from "@/lib/enquiry-follow-ups";
 import { syncOrderPayments, isFullyPaid } from "@/lib/order-payments";
 import { missingContactFields, contactRequiredMessage } from "@/lib/client-contact";
 import { BLACKLISTED_ERROR, applyClientStatus, revalidateClientViews, statusAfterOrder } from "@/lib/client-status-flow";
 import { revalidateEnquiryPages } from "@/lib/enquiries";
-import type { EnquiryStatus } from "@/types/enquiry";
+import { enquiryRef, isLostReason, lostReasonText, type EnquiryStatus } from "@/types/enquiry";
+import { REVISION_TASK_CATEGORY } from "@/types/task";
 import type { OrderStatus } from "@/types/order";
 
 import { num } from "@/lib/decimal";
@@ -14,14 +15,15 @@ import { num } from "@/lib/decimal";
  * Enquiry → order workflow.
  *
  * Enquiry (salesman / manager):
- *   inquiry_received ─quote→ quoted ─negotiate→ negotiation ─revise→ offer_revised ─revise→ …
- *   quoted | negotiation | offer_revised ─confirm→ confirmed  (creates the order in "transit")
+ *   inquiry_received | with_agent ─quote→ quoted ─requote→ quoted (new figures; history keeps the old)
+ *   quoted | revision_requested ─confirm→ confirmed  (creates the order in "transit", or reopens a sent-back one)
+ *   revision_requested ─requote→ quoted
  *   any active stage ─lose (reason)→ lost
  *
  * Order:
  *   transit ─deliver (accounts)→ delivered ─complete (accounts, paid in full)→ completed
  *   transit | delivered ─request revision (salesman / manager, reason)→ revision_requested
- *       (the enquiry goes back to "negotiation"; re-confirming reopens the same order in "transit")
+ *       (the enquiry becomes "revision_requested"; re-confirming reopens the same order in "transit")
  *   transit | delivered ─cancel (manager / accounts, reason)→ cancelled  (the enquiry becomes lost)
  */
 
@@ -42,6 +44,13 @@ function money(value: unknown, label: string, { allowNegative = false } = {}) {
     throw new FlowError(`Enter a valid ${label}`, 400);
   }
   return Math.round(n * 100) / 100;
+}
+
+/** A lost reason picked from the list plus an optional remark → what's stored on the enquiry / order. */
+function requireLostReason(body: { reason?: unknown; remark?: unknown }) {
+  if (!isLostReason(body.reason)) throw new FlowError("Pick why it was lost", 400);
+  const remark = typeof body.remark === "string" ? body.remark.trim().slice(0, 500) : "";
+  return { lost_reason: body.reason, text: lostReasonText(body.reason, remark || null) };
 }
 
 function requireReason(reason: unknown) {
@@ -71,20 +80,18 @@ async function logEvent(
 
 /* ───────────────────────────── Enquiry stages ───────────────────────────── */
 
-export type EnquiryAction = "quote" | "negotiate" | "revise" | "confirm" | "lose";
+export type EnquiryAction = "quote" | "requote" | "confirm" | "lose";
 
 const FROM: Record<EnquiryAction, readonly EnquiryStatus[]> = {
   quote: ["inquiry_received", "with_agent"],
-  negotiate: ["quoted", "offer_revised"],
-  revise: ["negotiation", "offer_revised"],
-  confirm: ["quoted", "negotiation", "offer_revised"],
-  lose: ["sent_to_client", "inquiry_received", "with_agent", "quoted", "negotiation", "offer_revised"],
+  requote: ["quoted", "revision_requested"],
+  confirm: ["quoted", "revision_requested"],
+  lose: ["sent_to_client", "inquiry_received", "with_agent", "quoted", "revision_requested"],
 };
 
 const ACTION_VERB: Record<EnquiryAction, string> = {
   quote: "quoted",
-  negotiate: "moved to negotiations",
-  revise: "revised",
+  requote: "requoted",
   confirm: "confirmed",
   lose: "marked lost",
 };
@@ -93,7 +100,7 @@ const ACTION_VERB: Record<EnquiryAction, string> = {
 export async function applyEnquiryAction(
   enquiryId: number,
   action: EnquiryAction,
-  body: { cost?: unknown; profit?: unknown; reason?: unknown },
+  body: { cost?: unknown; profit?: unknown; reason?: unknown; remark?: unknown },
   actor: Actor,
 ) {
   if (actor.role_id !== ROLE.salesman && actor.role_id !== ROLE.manager) {
@@ -118,32 +125,28 @@ export async function applyEnquiryAction(
     const prevProfit = enquiry.provisional_profit?.toNumber() ?? null;
     const base = { enquiry_id: enquiry.id, from_status: from, created_by_id: actor.id };
 
-    if (action === "quote" || action === "revise") {
+    if (action === "quote" || action === "requote") {
       const cost = money(body.cost, "cost");
       const profit = money(body.profit, "profit", { allowNegative: true });
-      const to: EnquiryStatus = action === "quote" ? "quoted" : "offer_revised";
-      // Moving the enquiry on counts as following it up: close its follow-up task and restart the 30-day clock.
+      const to: EnquiryStatus = "quoted";
+      // Moving the enquiry on restarts the 30-day clock; its follow-up task stays open until the order is created.
       await tx.enquiry.update({
         where: { id: enquiry.id },
         data: { status: to, provisional_cost: cost, provisional_profit: profit, next_follow_up_at: nextFollowUpDate() },
       });
-      await logEvent(tx, { ...base, action: to, to_status: to, prev_cost: prevCost, prev_profit: prevProfit, cost, profit });
-      await closeFollowUpTasks(tx, enquiry.id, "achieved", { action: "enquiry_stage", note: `Moved to ${to === "quoted" ? "Quoted" : "Offer revised"}`, by: actor.id });
+      // A requote keeps the previous figures in the history (prev_cost / prev_profit).
+      await logEvent(tx, { ...base, action: action === "quote" ? "quoted" : "requoted", to_status: to, prev_cost: prevCost, prev_profit: prevProfit, cost, profit });
+      await noteFollowUpTasks(tx, enquiry.id, { action: "enquiry_stage", note: action === "quote" ? "Quoted" : "Requoted", by: actor.id });
+      // An order sent back for revision is done once the enquiry is requoted.
+      if (action === "requote") await closeFollowUpTasks(tx, enquiry.id, "achieved", { action: "enquiry_stage", note: "Requoted", by: actor.id }, "revision");
       return { status: to, orderId: null };
     }
 
-    if (action === "negotiate") {
-      await tx.enquiry.update({ where: { id: enquiry.id }, data: { status: "negotiation", next_follow_up_at: nextFollowUpDate() } });
-      await logEvent(tx, { ...base, action: "negotiation", to_status: "negotiation" });
-      await closeFollowUpTasks(tx, enquiry.id, "achieved", { action: "enquiry_stage", note: "Moved to On negotiations", by: actor.id });
-      return { status: "negotiation" as const, orderId: null };
-    }
-
     if (action === "lose") {
-      const reason = requireReason(body.reason);
+      const { lost_reason, text: reason } = requireLostReason(body);
       await tx.enquiry.update({
         where: { id: enquiry.id },
-        data: { status: "lost", cancel_reason: reason, cancelled_at: new Date(), cancelled_by_id: actor.id },
+        data: { status: "lost", lost_reason, cancel_reason: reason, cancelled_at: new Date(), cancelled_by_id: actor.id },
       });
       await closeFollowUpTasks(tx, enquiry.id, "unsuccessful", { action: "enquiry_closed", note: `Enquiry marked lost: ${reason}`, by: actor.id });
       await logEvent(tx, { ...base, action: "lost", to_status: "lost", note: reason });
@@ -180,7 +183,7 @@ export async function applyEnquiryAction(
         prev_cost: null, prev_profit: null, note: `Order amount ${revised.amount.toFixed(2)} → ${amount.toFixed(2)}`,
       });
       const next = statusAfterOrder(enquiry.client.status);
-      if (next) await applyClientStatus(tx, enquiry.client, next, actor.id, { reason: "order reopened" });
+      if (next) await applyClientStatus(tx, enquiry.client, next, actor.id, { reason: "order reopened", source: "order" });
       return { status: "confirmed" as const, orderId: revised.id, reopened: true, clientChanged: !!next };
     }
 
@@ -208,12 +211,12 @@ export async function applyEnquiryAction(
     await logEvent(tx, { ...base, action: "confirmed", to_status: "confirmed", cost: prevCost, profit: prevProfit, order_id: order.id });
 
     const clientNext = statusAfterOrder(enquiry.client.status);
-    if (clientNext) await applyClientStatus(tx, enquiry.client, clientNext, actor.id, { reason: "order created" });
+    if (clientNext) await applyClientStatus(tx, enquiry.client, clientNext, actor.id, { reason: "order created", source: "order" });
     return { status: "confirmed" as const, orderId: order.id, reopened: false, clientChanged: !!clientNext };
   });
 
   revalidateEnquiryPages();
-  revalidateTaskViews(); // every stage move can close a follow-up task
+  revalidateTaskViews(); // every stage move updates or closes the enquiry's tasks
   if (result.orderId) revalidateOrderViews();
   if ("clientChanged" in result && result.clientChanged) revalidateClientViews();
   return result;
@@ -242,7 +245,7 @@ export function allowedOrderActions(status: string, roleId: number): OrderAction
   );
 }
 
-export async function applyOrderAction(orderId: number, action: OrderAction, body: { reason?: unknown }, actor: Actor) {
+export async function applyOrderAction(orderId: number, action: OrderAction, body: { reason?: unknown; remark?: unknown }, actor: Actor) {
   const rule = ORDER_RULES[action];
   if (!rule.roles.includes(actor.role_id)) throw new FlowError("You don't have permission for this action", 403);
 
@@ -259,7 +262,9 @@ export async function applyOrderAction(orderId: number, action: OrderAction, bod
       throw new FlowError("Record the full payment before completing the order");
     }
 
-    const reason = action === "request_revision" || action === "cancel" ? requireReason(body.reason) : null;
+    // Cancelling loses the enquiry: a reason from the list (+ remark). A revision request explains itself in free text.
+    const lost = action === "cancel" ? requireLostReason(body) : null;
+    const reason = action === "request_revision" ? requireReason(body.reason) : lost?.text ?? null;
     await tx.order.update({
       where: { id: order.id },
       data: {
@@ -273,15 +278,32 @@ export async function applyOrderAction(orderId: number, action: OrderAction, bod
     const enquiryId = order.enquiry_id;
     if (!enquiryId) return;
     if (action === "request_revision") {
-      await tx.enquiry.update({ where: { id: enquiryId }, data: { status: "negotiation" } });
+      const enquiry = await tx.enquiry.update({
+        where: { id: enquiryId },
+        data: { status: "revision_requested" },
+        select: { created_by_id: true, organization: { select: { prefix: true } } },
+      });
+      // The enquiry's salesman revises the offer; the task completes when they do (or re-confirm, or it's lost).
+      await tx.task.create({
+        data: {
+          enquiry_id: enquiryId,
+          category: REVISION_TASK_CATEGORY,
+          assigned_to_id: enquiry.created_by_id,
+          created_by_id: actor.id,
+          description: `Revise the offer for enquiry ${enquiryRef(enquiryId, enquiry.organization.prefix)} — order #${String(order.id).padStart(5, "0")} was sent back for revision: ${reason}`,
+          due_date: new Date(new Date().toISOString().slice(0, 10)),
+          status: "pending",
+          notification: true,
+        },
+      });
       await logEvent(tx, {
-        enquiry_id: enquiryId, action: "revision_requested", from_status: "confirmed", to_status: "negotiation",
+        enquiry_id: enquiryId, action: "revision_requested", from_status: "confirmed", to_status: "revision_requested",
         note: reason, order_id: order.id, created_by_id: actor.id,
       });
     } else if (action === "cancel") {
       await tx.enquiry.update({
         where: { id: enquiryId },
-        data: { status: "lost", cancel_reason: reason, cancelled_at: new Date(), cancelled_by_id: actor.id },
+        data: { status: "lost", lost_reason: lost!.lost_reason, cancel_reason: reason, cancelled_at: new Date(), cancelled_by_id: actor.id },
       });
       await logEvent(tx, {
         enquiry_id: enquiryId, action: "order_cancelled", from_status: "confirmed", to_status: "lost",
@@ -292,6 +314,7 @@ export async function applyOrderAction(orderId: number, action: OrderAction, bod
 
   revalidateOrderViews();
   if (action === "request_revision" || action === "cancel") revalidateEnquiryPages();
+  if (action === "request_revision") revalidateTaskViews();
 }
 
 /** Accounts fill in the operational details: job no, actual cost / profit, invoice and due dates. */

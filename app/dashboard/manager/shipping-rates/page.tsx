@@ -4,11 +4,11 @@ import { PageHeader } from "@/components/layout/PageHeader";
 import { ShippingRateTable } from "@/components/shipping-rates/ShippingRateTable";
 import { Skeleton } from "@/components/ui/Skeleton";
 
-/** Read-only rate finder + directory for managers (accounts maintain the rates). */
+/** Rate finder + directory for managers, who can add and update rates (deleting stays with accounts). */
 export default function ManagerShippingRatesPage() {
   return (
     <>
-      <PageHeader title="Shipping Rates" subtitle="Find contract rates by lane, carrier and container to quote clients." />
+      <PageHeader title="Shipping Rates" subtitle="Find, add and update contract rates by lane, carrier and container to quote clients." />
       <Suspense fallback={<ShippingRatesSkeleton />}>
         <ShippingRatesSection />
       </Suspense>
@@ -18,7 +18,7 @@ export default function ManagerShippingRatesPage() {
 
 async function ShippingRatesSection() {
   const rates = await getShippingRates();
-  return <ShippingRateTable initialRates={rates} />;
+  return <ShippingRateTable initialRates={rates} editable canDelete={false} />;
 }
 
 function ShippingRatesSkeleton() {

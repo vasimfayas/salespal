@@ -184,6 +184,6 @@
   --ds-space-3xl: 3rem;
 
   /* ─── Typography ─── */
-  --ds-font-sans: var(--font-inter), system-ui, -apple-system, sans-serif;
+  --ds-font-sans: var(--font-app), system-ui, -apple-system, sans-serif;
   --ds-font-tabular: 'tnum' 1;
 }

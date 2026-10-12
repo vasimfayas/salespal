@@ -30,35 +30,6 @@ export const getCachedSalesmanInfo = unstable_cache(
   { revalidate: 60, tags: ["salesman-dashboard"] }
 );
 
-// 1b. { status: count } of the salesman's clients (KPI cards + KPI score), counted in SQL
-export const getCachedClientStatusCounts = unstable_cache(
-  async (userId: number): Promise<Record<string, number>> => {
-    const rows = await prisma.client.groupBy({ by: ["status"], where: { assigned_salesman_id: userId }, _count: { _all: true } });
-    return Object.fromEntries(rows.map((r) => [r.status, r._count._all]));
-  },
-  ["salesman-client-status-counts"],
-  { revalidate: 30, tags: ["salesman-dashboard", "salesman-clients"] }
-);
-
-// 1c. Client logs for a given date range (this month / last month)
-export const getCachedMonthLogs = unstable_cache(
-  async (userId: number, gteIso: string, lteIso?: string) => {
-    const where: any = {
-      done_by: userId,
-      created_at: { gte: new Date(gteIso) },
-    };
-    if (lteIso) {
-      where.created_at.lte = new Date(lteIso);
-    }
-    return prisma.clientLog.findMany({
-      where,
-      select: { action: true },
-    });
-  },
-  ["salesman-month-logs"],
-  { revalidate: 30, tags: ["salesman-dashboard"] }
-);
-
 // 1d. Tasks assigned to this salesman
 export const getCachedSalesmanTasks = unstable_cache(
   async (userId: number) => {
@@ -71,23 +42,6 @@ export const getCachedSalesmanTasks = unstable_cache(
   },
   ["salesman-tasks-dash"],
   { revalidate: 30, tags: ["salesman-dashboard"] }
-);
-
-// 1e. Onboarded by month (last 6 months) for chart
-export const getCachedOnboardedByMonth = unstable_cache(
-  async (userId: number, sinceIso: string) => {
-    return prisma.clientLog.groupBy({
-      by: ["created_at"],
-      where: {
-        done_by: userId,
-        action: { contains: "onboarded" },
-        created_at: { gte: new Date(sinceIso) },
-      },
-      _count: { id: true },
-    });
-  },
-  ["salesman-onboarded-chart"],
-  { revalidate: 60, tags: ["salesman-dashboard"] }
 );
 
 /* ═══════════════════════════════════════════════════════

@@ -323,6 +323,7 @@ const EVENT_TEXT: Record<string, string> = {
   quoted: "Quoted",
   negotiation: "Moved to on negotiations",
   offer_revised: "Offer revised",
+  requoted: "Requoted",
   confirmed: "Confirmed · order created",
   lost: "Marked lost",
   revision_requested: "Order sent back for revision",
@@ -367,7 +368,7 @@ function History({ events, orderLink }: { events: EnquiryEventItem[]; orderLink?
             {now && (
               <p className="text-xs tabular-nums text-muted-foreground">
                 Cost / profit {now}
-                {before && ev.action === "offer_revised" ? <span className="line-through decoration-muted-foreground/60"> {before}</span> : null}
+                {before && (ev.action === "requoted" || ev.action === "offer_revised") ? <span className="line-through decoration-muted-foreground/60"> {before}</span> : null}
               </p>
             )}
             {ev.note && <p className="text-xs text-foreground">{QUOTED_NOTES.has(ev.action) ? `“${ev.note}”` : ev.note}</p>}
@@ -398,7 +399,7 @@ function CargoSection({ enquiry: e }: { enquiry: EnquiryListItem }) {
       {e.packages.length > 0 && (
         <div className="overflow-hidden rounded-control border border-border">
           <table className="w-full text-sm">
-            <thead className="bg-subtle text-xs text-muted-foreground">
+            <thead className="border-border border-b text-muted-foreground text-[13px]">
               <tr>
                 <th scope="col" className="px-3 py-2 text-left font-medium">L × W × H ({dimensionUnitLabels[unit]})</th>
                 <th scope="col" className="px-3 py-2 text-right font-medium">Nos</th>

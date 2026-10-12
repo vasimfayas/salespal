@@ -30,6 +30,7 @@ import {
   jobRefs,
   seaContainerTypes,
   seaOtherServiceTypes,
+  lostReasonText,
   type JobRef,
 } from "../types/enquiry";
 import { orderPaymentMethods } from "../types/order";
@@ -43,7 +44,6 @@ const SMALL = process.env.SEED_SIZE === "small";
 const N = {
   clients: SMALL ? 1500 : 30000,
   clientLogs: SMALL ? 15000 : 320000,
-  kpiLogs: SMALL ? 1000 : 20000,
   tasks: SMALL ? 2000 : 40000,
   clientTasks: SMALL ? 500 : 10000,
   leadTasks: SMALL ? 200 : 4000,
@@ -100,6 +100,11 @@ const OUTBOUND = { sea: ["Jebel Ali", "Dammam", "Mundra", "Shanghai", "Rotterdam
 
 const UN_NUMBERS = ["UN1203", "UN1950", "UN1993", "UN3082", "UN1263", "UN2794", "UN3480", "UN1170"];
 const LOST_REASONS = ["Price too high compared to competitor", "Client postponed the shipment", "Transit time too long", "Client chose another forwarder", "Cargo not ready", "Budget cut on client side"];
+/** A lost reason from the list, with a remark most of the time (what the Lost dialog stores). */
+function lostReasonFields(remark?: string) {
+  const reason = weighted([["high_rate", 5], ["late_quote", 2], ["dispute", 1], ["credit_terms", 2], ["other", 2]] as const);
+  return { lost_reason: reason, cancel_reason: lostReasonText(reason, remark ?? (chance(0.7) ? pick(LOST_REASONS) : null)) };
+}
 const CANCEL_REASONS = ["Client cancelled the shipment", "Cargo damaged before pickup", "Duplicate booking", "Payment terms not agreed"];
 const REVISION_REASONS = ["Client asked to change the delivery address", "Volume increased, needs a new quote", "Carrier rate changed"];
 const FOLLOW_UP_COMMENTS = ["Called the client, waiting for their budget approval.", "Sent revised rates by email.", "Client asked for a better transit time.", "Meeting scheduled for next week.", "Client comparing with two other forwarders.", "No answer, will try again tomorrow."];
@@ -299,7 +304,7 @@ async function main() {
   const enquiryPool = clients.map((c, i) => ({ c, i })).filter(({ i }) => i % 5 < 2);
   type Plan = {
     clientIdx: number;
-    status: "inquiry_received" | "quoted" | "negotiation" | "offer_revised" | "confirmed" | "lost";
+    status: "inquiry_received" | "quoted" | "revision_requested" | "confirmed" | "lost";
     order: null | "transit" | "delivered" | "completed" | "cancelled" | "revision_requested";
     revised: boolean;
   };
@@ -322,10 +327,11 @@ async function main() {
     if (chance(decided)) {
       if (chance(0.82)) {
         order = weighted([["completed", age > 45 ? 55 : 15], ["transit", age > 45 ? 10 : 45], ["delivered", 10], ["cancelled", 9], ["revision_requested", 1]] as const);
-        status = order === "cancelled" ? "lost" : order === "revision_requested" ? "negotiation" : "confirmed";
+        status = order === "cancelled" ? "lost" : order === "revision_requested" ? "revision_requested" : "confirmed";
       } else status = "lost";
-    } else status = weighted([["inquiry_received", 18], ["quoted", 50], ["negotiation", 20], ["offer_revised", 12]] as const);
-    const revised = status === "offer_revised" || (status !== "inquiry_received" && chance(0.15));
+    } else status = weighted([["inquiry_received", 18], ["quoted", 82]] as const);
+    // Requoted once with new figures (history keeps the first quote).
+    const revised = status !== "inquiry_received" && chance(0.2);
 
     // Cargo
     const unit: DimensionUnit = weighted([["cm", 5], ["m", 3], ["in", 1], ["ft", 1]] as const);
@@ -379,7 +385,7 @@ async function main() {
       provisional_profit: profit,
       notes: chance(0.15) ? pick(["Cargo ready next week.", "Client needs door delivery.", "Fragile items, handle with care.", "Commodity: electronics."]) : null,
       status,
-      cancel_reason: lostDirect ? pick(LOST_REASONS) : null,
+      ...(lostDirect ? lostReasonFields() : {}),
       cancelled_at: lostDirect ? between(enquiryDate, new Date(Math.min(NOW, enquiryDate.getTime() + 30 * DAY))) : null,
       cancelled_by_id: lostDirect ? salesmanId : null,
       created_by_id: salesmanId,
@@ -490,7 +496,7 @@ async function main() {
     const data: Prisma.EnquiryUpdateInput = {};
     if (a) Object.assign(data, { actual_cost: a.cost, actual_profit: a.profit });
     if (o.status === "cancelled") {
-      Object.assign(data, { cancel_reason: orderRows[i].closed_reason, cancelled_at: between(o.created, new Date(NOW)), cancelledBy: { connect: { id: accountantFor(o.orgId).id } } });
+      Object.assign(data, { ...lostReasonFields(orderRows[i].closed_reason as string), cancelled_at: between(o.created, new Date(NOW)), cancelledBy: { connect: { id: accountantFor(o.orgId).id } } });
     }
     if (Object.keys(data).length) enquiryUpdates.push(prisma.enquiry.update({ where: { id: e.id }, data }));
   });
@@ -519,16 +525,10 @@ async function main() {
     const firstCost = plan.revised && cost !== null ? Math.round(cost * 1.08) : cost;
     const firstProfit = plan.revised && profit !== null ? Math.round(profit * 1.15) : profit;
     eventRows.push({ enquiry_id: e.id, action: "quoted", from_status: quotedLater ? "inquiry_received" : null, to_status: "quoted", cost: firstCost, profit: firstProfit, created_by_id: by, created_at: new Date(t) });
-    let current = "quoted";
-    if (plan.revised || plan.status === "negotiation" || plan.order === "revision_requested" || chance(0.25)) {
-      step();
-      eventRows.push({ enquiry_id: e.id, action: "negotiation", from_status: current, to_status: "negotiation", created_by_id: by, created_at: new Date(t) });
-      current = "negotiation";
-    }
+    const current = "quoted";
     if (plan.revised) {
       step();
-      eventRows.push({ enquiry_id: e.id, action: "offer_revised", from_status: current, to_status: "offer_revised", prev_cost: firstCost, prev_profit: firstProfit, cost, profit, created_by_id: by, created_at: new Date(t) });
-      current = "offer_revised";
+      eventRows.push({ enquiry_id: e.id, action: "requoted", from_status: current, to_status: "quoted", prev_cost: firstCost, prev_profit: firstProfit, cost, profit, created_by_id: by, created_at: new Date(t) });
     }
     if (plan.status === "lost" && !plan.order) {
       step();
@@ -540,7 +540,7 @@ async function main() {
     const orderId = orders[orderIdx].id;
     eventRows.push({ enquiry_id: e.id, action: "confirmed", from_status: current, to_status: "confirmed", cost, profit, order_id: orderId, created_by_id: by, created_at: orderPlans[orderIdx].created });
     if (plan.order === "revision_requested") {
-      eventRows.push({ enquiry_id: e.id, action: "revision_requested", from_status: "confirmed", to_status: "negotiation", note: orderRows[orderIdx].closed_reason as string, order_id: orderId, created_by_id: by, created_at: between(orderPlans[orderIdx].created, new Date(NOW)) });
+      eventRows.push({ enquiry_id: e.id, action: "revision_requested", from_status: "confirmed", to_status: "revision_requested", note: orderRows[orderIdx].closed_reason as string, order_id: orderId, created_by_id: by, created_at: between(orderPlans[orderIdx].created, new Date(NOW)) });
     }
     if (plan.order === "cancelled") {
       eventRows.push({ enquiry_id: e.id, action: "order_cancelled", from_status: "confirmed", to_status: "lost", note: orderRows[orderIdx].closed_reason as string, order_id: orderId, created_by_id: accountantFor(orderPlans[orderIdx].orgId).id, created_at: between(orderPlans[orderIdx].created, new Date(NOW)) });
@@ -620,7 +620,7 @@ async function main() {
   const followUpRows: Prisma.EnquiryFollowUpCreateManyInput[] = [];
   const followUpTasks: Prisma.TaskCreateManyInput[] = [];
   enquiries.forEach((e, idx) => {
-    const active = ["inquiry_received", "quoted", "negotiation", "offer_revised"].includes(plans[idx].status);
+    const active = ["inquiry_received", "quoted", "revision_requested"].includes(plans[idx].status);
     const age = (NOW - e.enquiry_date.getTime()) / DAY;
     if (!active || age < 30) return;
     for (let k = 0; k < int(0, 3); k++) {
@@ -661,18 +661,51 @@ async function main() {
   blacklisted.forEach((id) => finalStatus.set(id, "blacklisted"));
   log(`client statuses settled: ${toOnboarded.length} onboarded, ${toEnquiry.length} enquiry`);
 
-  /* Client logs, KPI logs */
+  /* Client status history: a status path from lead to each client's final status, as status events
+     (what the pipeline metrics read) and matching "Status changed to …" history lines, plus free-text notes. */
+  const PATHS: Record<string, string[]> = {
+    lead: ["lead"],
+    contacted: ["lead", "contacted"],
+    follow_up: ["lead", "contacted", "follow_up"],
+    enquiry: ["lead", "contacted", "follow_up", "enquiry"],
+    onboarded: ["lead", "contacted", "follow_up", "enquiry", "onboarded"],
+    dormant: ["lead", "contacted", "follow_up", "enquiry", "onboarded", "dormant"],
+    lost: ["lead", "contacted", "lost"],
+    blacklisted: ["lead", "contacted", "blacklisted"],
+  };
+  const SOURCE: Record<string, string> = { enquiry: "enquiry", onboarded: "order", dormant: "dormant_sweep" };
+  const statusEventRows: Prisma.ClientStatusEventCreateManyInput[] = [];
   const logRows: Prisma.ClientLogCreateManyInput[] = [];
-  for (let i = 0; i < N.clientLogs; i++) {
-    const c = clients[i % clients.length];
-    const action = chance(0.55) ? `Status changed to ${chance(0.6) ? finalStatus.get(c.id) : pick(["lead", "contacted", "follow_up"])}` : pick(["Called client", "Logged follow up", "Sent rate card", "Visited client"]);
-    logRows.push({ client_id: c.id, action, done_by: c.assigned_salesman_id, created_at: between(c.created_at, new Date(NOW)) });
+  for (const c of clients) {
+    const path = PATHS[finalStatus.get(c.id) ?? "lead"] ?? ["lead"];
+    // Some steps are skipped in real life (straight from lead to follow-up, contacted to lost …).
+    const steps = path.filter((st, i) => i === 0 || i === path.length - 1 || chance(0.75));
+    let t = c.created_at.getTime();
+    const span = Math.max(NOW - t, DAY);
+    steps.forEach((to, i) => {
+      if (i > 0) t = Math.min(NOW - 60_000, t + rand() * (span / steps.length) * 1.6);
+      const auto = to === "dormant";
+      statusEventRows.push({
+        client_id: c.id,
+        from_status: i === 0 ? null : steps[i - 1],
+        to_status: to,
+        owner_id: c.assigned_salesman_id,
+        actor_id: auto ? null : c.assigned_salesman_id,
+        org_id: c.org_id,
+        source: i === 0 ? "create" : SOURCE[to] ?? "manual",
+        created_at: new Date(t),
+      });
+      if (i > 0) logRows.push({ client_id: c.id, action: `Status changed to ${to}${auto ? " (no enquiry in 60 days)" : ""}`, done_by: c.assigned_salesman_id, created_at: new Date(t) });
+    });
   }
+  for (let i = 0; i < N.clientLogs - logRows.length && i < N.clientLogs; i++) {
+    const c = clients[i % clients.length];
+    logRows.push({ client_id: c.id, action: pick(["Called client", "Logged follow up", "Sent rate card", "Visited client"]), done_by: c.assigned_salesman_id, created_at: between(c.created_at, new Date(NOW)) });
+  }
+  await inChunks(statusEventRows, 20000, (chunk) => prisma.clientStatusEvent.createMany({ data: chunk }));
   await inChunks(logRows, 20000, (chunk) => prisma.clientLog.createMany({ data: chunk }));
-  await prisma.salesmanKpiLog.createMany({
-    data: Array.from({ length: N.kpiLogs }, (_, i) => ({ salesman_id: salesmen[i % salesmen.length].id, action: weighted([["onboarded", 2], ["lead", 3], ["follow_up", 4], ["enquiry", 2], ["lost", 2]] as const) })),
-  });
-  log(`client logs: ${logRows.length} · KPI logs: ${N.kpiLogs}`);
+  await prisma.$executeRaw`UPDATE clients c SET status_changed_at = x.at FROM (SELECT client_id, MAX(created_at) AS at FROM client_status_events GROUP BY client_id) x WHERE x.client_id = c.id`;
+  log(`client status events: ${statusEventRows.length} · client logs: ${logRows.length}`);
 
   /* Tasks (general, order and payment follow-ups) and client tasks */
   const taskRows: Prisma.TaskCreateManyInput[] = [...followUpTasks];

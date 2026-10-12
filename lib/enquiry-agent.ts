@@ -1,6 +1,7 @@
 import { randomBytes } from "node:crypto";
 import type { Prisma } from "@prisma/client";
 import { escapeHtml, sendMail } from "@/lib/mailer";
+import { publicBaseUrl } from "@/lib/public-url";
 import { dimensionUnitLabels, readPackages, type DimensionUnit } from "@/lib/freight";
 import { equipmentLabel, formatTemp, incotermNames, jobRefNames, type Incoterm, type JobRef } from "@/types/enquiry";
 
@@ -12,8 +13,7 @@ export const AGENT_LINK_VALID_DAYS = 30;
 
 export const newAgentToken = () => randomBytes(24).toString("base64url");
 export const agentQuotePath = (token: string) => `/agent-quote/${token}`;
-export const agentQuoteUrl = (token: string, requestUrl: string) =>
-  new URL(agentQuotePath(token), process.env.APP_URL || new URL(requestUrl).origin).toString();
+export const agentQuoteUrl = (token: string, request: Request) => new URL(agentQuotePath(token), publicBaseUrl(request)).toString();
 export const agentLinkExpired = (sentAt: Date) => Date.now() - sentAt.getTime() > AGENT_LINK_VALID_DAYS * 86_400_000;
 
 /** Enquiry fields the agent sees — the shipment only, never the client. */

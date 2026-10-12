@@ -73,6 +73,7 @@ export function ManagerTasksList({ data, salesmen }: ManagerTasksListProps) {
     due_date: "",
     assigned_to_id: "",
     client_id: "",
+    category: "",
     notification: true, // Default to true (on)
   });
 
@@ -98,7 +99,14 @@ export function ManagerTasksList({ data, salesmen }: ManagerTasksListProps) {
     setErrorMsg(null);
     setIsSaving(true);
 
-    const isClientLinked = pickedClient !== null;
+    // A "Client follow-up" is a regular task about the client; otherwise picking a client makes it a client task.
+    const isClientFollowUp = addTaskForm.category === "client_follow_up";
+    if (isClientFollowUp && !pickedClient) {
+      setErrorMsg("Select the client to follow up.");
+      setIsSaving(false);
+      return;
+    }
+    const isClientLinked = pickedClient !== null && !isClientFollowUp;
     const selectedClientId = pickedClient?.id ?? 0;
     const assignedSalesmanId = Number(addTaskForm.assigned_to_id);
 
@@ -131,6 +139,8 @@ export function ManagerTasksList({ data, salesmen }: ManagerTasksListProps) {
             assigned_to_id: assignedSalesmanId,
             status: "pending",
             notification: addTaskForm.notification,
+            category: addTaskForm.category || null,
+            client_id: isClientFollowUp ? pickedClient?.id : undefined,
           };
 
       const res = await fetch(url, {
@@ -152,6 +162,7 @@ export function ManagerTasksList({ data, salesmen }: ManagerTasksListProps) {
         due_date: "",
         assigned_to_id: "",
         client_id: "",
+        category: "",
         notification: true,
       });
       setPickedClient(null);
@@ -162,8 +173,9 @@ export function ManagerTasksList({ data, salesmen }: ManagerTasksListProps) {
         const newTask: UnifiedTask = {
           ...data.task,
           isClientTask: isClientLinked,
-          clientId: isClientLinked ? selectedClientId : null,
-          clientName: isClientLinked ? pickedClient?.name ?? null : null,
+          clientId: pickedClient ? selectedClientId : null,
+          clientName: pickedClient?.name ?? null,
+          kind: data.task.category ?? "general",
           assignedTo: {
             name: salesmen.find((s) => s.id === assignedSalesmanId)?.name || null,
           },
@@ -380,7 +392,7 @@ export function ManagerTasksList({ data, salesmen }: ManagerTasksListProps) {
           <>
             <div className="hidden overflow-hidden rounded-card border border-border bg-card shadow-card md:block">
               <table className="w-full table-fixed text-left text-sm">
-                <thead className="border-b border-border bg-subtle text-xs text-muted-foreground">
+                <thead className="border-b border-border text-muted-foreground text-[13px]">
                   <tr>
                     <th scope="col" className="px-4 py-3 font-medium">Task</th>
                     <th scope="col" className="hidden w-[16%] px-4 py-3 font-medium lg:table-cell">Assigned to</th>
@@ -538,6 +550,23 @@ export function ManagerTasksList({ data, salesmen }: ManagerTasksListProps) {
               </div>
             </div>
 
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-semibold text-foreground/85" htmlFor="task-category">
+                Task type
+              </label>
+              <select
+                id="task-category"
+                value={addTaskForm.category}
+                onChange={(e) => setAddTaskForm({ ...addTaskForm, category: e.target.value })}
+                className="w-full rounded-control border border-input bg-card px-3 text-sm text-foreground shadow-xs outline-none transition-[border-color,box-shadow] duration-150 hover:border-border-strong focus:border-ring focus:ring-3 focus:ring-ring/15 h-10 cursor-pointer"
+              >
+                <option value="">General</option>
+                <option value="client_follow_up">Client follow-up</option>
+                <option value="order_follow_up">Order follow-up</option>
+                <option value="payment_follow_up">Payment follow-up</option>
+              </select>
+            </div>
+
             {/* Row: Assign To (Salesman) and Client (Optional) */}
             <div className="grid grid-cols-2 gap-3">
               <div className="flex flex-col gap-1">
@@ -562,7 +591,7 @@ export function ManagerTasksList({ data, salesmen }: ManagerTasksListProps) {
 
               <div className="flex flex-col gap-1">
                 <label className="text-xs font-semibold text-foreground/85" htmlFor="task-client">
-                  Client (Optional)
+                  {addTaskForm.category === "client_follow_up" ? "Client" : "Client (Optional)"}
                 </label>
                 <ClientPicker id="task-client" value={pickedClient} onChange={setPickedClient} inputClassName="text-xs" />
               </div>

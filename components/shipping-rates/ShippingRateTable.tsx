@@ -46,6 +46,8 @@ import type { LucideIcon } from "lucide-react";
 interface ShippingRateTableProps {
   initialRates: ShippingRateListItem[];
   editable?: boolean;
+  /** Delete buttons (accounts only); defaults to `editable`. */
+  canDelete?: boolean;
 }
 
 const MODE_ICON: Record<string, LucideIcon> = {
@@ -63,7 +65,7 @@ function formatRatePrice(price: number | string, currency?: string | null): stri
    MAIN COMPONENT
    ═══════════════════════════════════════════════════════════════════ */
 
-export function ShippingRateTable({ initialRates, editable = false }: ShippingRateTableProps) {
+export function ShippingRateTable({ initialRates, editable = false, canDelete = editable }: ShippingRateTableProps) {
   const router = useRouter();
   const [rates, setRates] = useState<ShippingRateListItem[]>(initialRates);
 
@@ -675,7 +677,7 @@ export function ShippingRateTable({ initialRates, editable = false }: ShippingRa
                     badge={cardBadge}
                     editable={editable}
                     onEdit={() => { setEditingRate(rate); setModalOpen(true); }}
-                    onDelete={() => handleDelete(rate.id)}
+                    onDelete={canDelete ? () => handleDelete(rate.id) : undefined}
                     isDeleting={deletingId === rate.id}
                   />
                 );
@@ -778,6 +780,7 @@ export function ShippingRateTable({ initialRates, editable = false }: ShippingRa
                               >
                                 <Edit3 size={14} />
                               </button>
+                              {canDelete && (
                               <button
                                 type="button"
                                 onClick={() => handleDelete(rate.id)}
@@ -792,6 +795,7 @@ export function ShippingRateTable({ initialRates, editable = false }: ShippingRa
                                   <Trash2 size={14} />
                                 )}
                               </button>
+                              )}
                             </div>
                           </td>
                         )}

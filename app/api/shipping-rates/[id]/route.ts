@@ -10,7 +10,8 @@ import { num } from "@/lib/decimal";
 export async function PATCH(request: NextRequest, context: { params: Promise<{ id: string }> }) {
   const token = await getToken({ req: request, secret: process.env.NEXTAUTH_SECRET });
   if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  if (!isRole(token, 4)) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  // Accounts and managers update rates; only accounts delete them (DELETE below).
+  if (!isRole(token, [2, 4])) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   const { id } = await context.params;
   const existing = await prisma.shippingRate.findUnique({ where: { id: Number(id) } });

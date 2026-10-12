@@ -159,7 +159,7 @@ export const incotermNames: Record<Incoterm, string> = {
   DDP: "Delivered Duty Paid",
 };
 
-export const enquiryStatuses = ["sent_to_client", "inquiry_received", "with_agent", "quoted", "negotiation", "offer_revised", "confirmed", "lost"] as const;
+export const enquiryStatuses = ["sent_to_client", "inquiry_received", "with_agent", "quoted", "revision_requested", "confirmed", "lost"] as const;
 export type EnquiryStatus = (typeof enquiryStatuses)[number];
 
 export const enquiryStatusLabels: Record<EnquiryStatus, string> = {
@@ -167,14 +167,13 @@ export const enquiryStatusLabels: Record<EnquiryStatus, string> = {
   inquiry_received: "Inquiry received",
   with_agent: "With agent",
   quoted: "Quoted",
-  negotiation: "On negotiations",
-  offer_revised: "Offer revised",
+  revision_requested: "Revision requested",
   confirmed: "Confirmed",
   lost: "Lost",
 };
 
 /** Stages still being worked: they get 30-day follow-up tasks and can be marked lost. */
-export const ACTIVE_ENQUIRY_STATUSES: readonly EnquiryStatus[] = ["sent_to_client", "inquiry_received", "with_agent", "quoted", "negotiation", "offer_revised"];
+export const ACTIVE_ENQUIRY_STATUSES: readonly EnquiryStatus[] = ["sent_to_client", "inquiry_received", "with_agent", "quoted", "revision_requested"];
 
 export function isActiveEnquiry(status: string) {
   return (ACTIVE_ENQUIRY_STATUSES as readonly string[]).includes(status);
@@ -279,3 +278,17 @@ export type EnquiryListItem = {
   /** Set once the client submitted the form: who signed, when, and the signature image. */
   client_signature: { name: string; at: string; url: string } | null;
 };
+
+/** Why an enquiry (or its order) was lost; each can carry an optional remark. */
+export const lostReasons = ["high_rate", "late_quote", "dispute", "credit_terms", "other"] as const;
+export type LostReason = (typeof lostReasons)[number];
+export const lostReasonLabels: Record<LostReason, string> = {
+  high_rate: "High rate",
+  late_quote: "Late quote",
+  dispute: "Dispute",
+  credit_terms: "Credit terms",
+  other: "Other",
+};
+export const isLostReason = (v: unknown): v is LostReason => typeof v === "string" && (lostReasons as readonly string[]).includes(v);
+/** The reason as shown everywhere: "High rate — remark". */
+export const lostReasonText = (reason: LostReason, remark?: string | null) => (remark ? `${lostReasonLabels[reason]} — ${remark}` : lostReasonLabels[reason]);

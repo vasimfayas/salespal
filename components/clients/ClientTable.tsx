@@ -243,7 +243,7 @@ export function ClientTable({
         <div className={cn("space-y-1 transition-opacity", isPending && "opacity-60")} aria-busy={isPending}>
         <div className="overflow-x-auto rounded-card border border-border bg-card shadow-card">
           <table className="w-full text-left text-sm">
-            <thead className="bg-subtle text-xs text-muted-foreground font-medium">
+            <thead className="border-border border-b text-muted-foreground text-[13px]">
               <tr>
                 <th className="w-10 px-2 py-3"></th>
                 <th className="px-4 py-3">Client</th>

@@ -21,7 +21,8 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   const token = await getToken({ req: request, secret: process.env.NEXTAUTH_SECRET });
   if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  if (!isRole(token, 4)) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  // Accounts and managers add rates; only accounts delete them.
+  if (!isRole(token, [2, 4])) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   const body = await request.json();
   const location = String(body.location || "").trim();

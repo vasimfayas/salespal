@@ -1,3 +1,4 @@
+import { changeLabel, COHORT_DAYS } from "@/lib/pipeline-metrics";
 import { getCachedAdminActivityFeed, getCachedAdminOrgs } from "@/lib/cached-queries";
 import {
   getAdminCompanyScorecards,
@@ -148,27 +149,14 @@ export async function KpiCardsRow({
     onboardedPrev: onboardedPrevPeriod,
     lostThis: lostThisPeriod,
     lostPrev: lostPrevPeriod,
+    funnel,
   } = await getAdminKpiCounts(orgId ?? null, start.toISOString(), end?.toISOString() ?? null, prevStart.toISOString(), prevEnd.toISOString());
 
-  const totalClients = Object.values(counts).reduce((a, b) => a + b, 0);
   const onboardedClients = counts.onboarded ?? 0;
   const activePipeline = (counts.follow_up ?? 0) + (counts.lead ?? 0);
-  const conversionRate =
-    totalClients > 0 ? Math.round((onboardedClients / totalClients) * 100) : 0;
-
-  const onboardedDiff = onboardedThisPeriod - onboardedPrevPeriod;
-  const onboardedPct = onboardedPrevPeriod > 0
-    ? Math.round((onboardedDiff / onboardedPrevPeriod) * 100)
-    : onboardedThisPeriod > 0
-      ? 100
-      : 0;
-
-  const lostDiff = lostThisPeriod - lostPrevPeriod;
-  const lostPct = lostPrevPeriod > 0
-    ? Math.round((lostDiff / lostPrevPeriod) * 100)
-    : lostThisPeriod > 0
-      ? 100
-      : 0;
+  // Same-length previous period (lib/pipeline-metrics.ts likeForLike); % only once the base is big enough.
+  const onboarded = changeLabel(onboardedThisPeriod, onboardedPrevPeriod);
+  const lost = changeLabel(lostThisPeriod, lostPrevPeriod);
 
   return (
     <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
@@ -176,9 +164,9 @@ export async function KpiCardsRow({
         icon={UserCheck}
         label="Onboarded"
         value={onboardedThisPeriod}
-        badgeLabel={`${onboardedDiff > 0 ? "+" : ""}${onboardedPct}%`}
-        badgeDirection={onboardedDiff > 0 ? "up" : onboardedDiff < 0 ? "down" : "flat"}
-        caption={<>{onboardedClients} total onboarded</>}
+        badgeLabel={onboarded.label}
+        badgeDirection={onboarded.diff > 0 ? "up" : onboarded.diff < 0 ? "down" : "flat"}
+        caption={<>{onboardedClients} onboarded now · {onboardedPrevPeriod} in the same days before</>}
         theme={{ bg: "bg-primary" }}
       />
       <StatCard
@@ -191,10 +179,11 @@ export async function KpiCardsRow({
       <StatCard
         icon={BarChart3}
         label="Conversion Rate"
-        value={`${conversionRate}%`}
+        value={funnel.rate === null ? "—" : `${funnel.rate}%`}
         caption={
           <>
-            {totalClients} leads &rarr; {onboardedClients} converted
+            {funnel.onboarded} of {funnel.added} clients added in the last {COHORT_DAYS} days onboarded
+            {funnel.medianDays !== null ? ` · median ${funnel.medianDays} days` : ""}
           </>
         }
         theme={{ bg: "bg-primary" }}
@@ -203,8 +192,10 @@ export async function KpiCardsRow({
         icon={XCircle}
         label="Lost Clients"
         value={lostThisPeriod}
-        badgeLabel={`${lostDiff > 0 ? "+" : ""}${lostPct}%`}
-        badgeDirection={lostDiff > 0 ? "up" : lostDiff < 0 ? "down" : "flat"}
+        badgeLabel={lost.label}
+        badgeDirection={lost.diff > 0 ? "up" : lost.diff < 0 ? "down" : "flat"}
+        goodWhen="down"
+        caption={<>{lostPrevPeriod} in the same days before</>}
         theme={{ bg: "bg-primary" }}
       />
     </div>
@@ -577,7 +568,7 @@ export async function LostClientsSection({
       <div className="overflow-auto flex-1">
         {filteredLost.length > 0 ? (
           <table className="w-full text-left text-sm">
-            <thead className="bg-subtle text-xs text-muted-foreground sticky top-0 z-10 bg-card">
+            <thead className="border-border border-b text-muted-foreground sticky top-0 z-10 bg-card text-[13px]">
               <tr>
                 <th className="px-5 py-2.5 font-semibold">Client</th>
                 <th className="px-5 py-2.5 font-semibold">Company</th>
@@ -704,7 +695,7 @@ export function KpiSkeleton() {
 export function HeroSkeleton() {
   const dark = "skeleton rounded-lg";
   return (
-    <div className="grid gap-4 lg:grid-cols-2">
+    <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
       {[0, 1].map((i) => (
         <div key={i} className="space-y-4 rounded-card border border-border bg-card shadow-card p-6 pt-7">
           <div className="flex justify-between">
@@ -726,7 +717,7 @@ export function HeroSkeleton() {
 
 export function MiddleSkeleton() {
   return (
-    <div className="grid gap-4 lg:grid-cols-3">
+    <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
       {[0, 1, 2].map((i) => (
         <div
           key={i}
@@ -750,7 +741,7 @@ export function MiddleSkeleton() {
 
 export function BottomSkeleton() {
   return (
-    <div className="grid gap-4 lg:grid-cols-2">
+    <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
       <div className="rounded-card border border-border bg-card overflow-hidden">
         <div className="px-5 py-4 border-b border-border">
           <Skeleton className="h-4 w-28" />

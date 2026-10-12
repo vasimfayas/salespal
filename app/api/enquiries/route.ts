@@ -68,10 +68,7 @@ export async function POST(request: NextRequest) {
     });
     if (nextStatus) {
       // A dormant client coming back isn't a new onboarding, so no KPI entry for it.
-      await applyClientStatus(tx, client, nextStatus, getTokenUserId(token), {
-        kpi: nextStatus === "enquiry",
-        reason: "enquiry raised",
-      });
+      await applyClientStatus(tx, client, nextStatus, getTokenUserId(token), { reason: "enquiry raised", source: "enquiry" });
     }
     return created;
   });

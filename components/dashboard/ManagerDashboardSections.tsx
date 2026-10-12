@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { changeLabel, cohortFunnel, COHORT_DAYS, likeForLike } from "@/lib/pipeline-metrics";
 import { getCachedManagerOrg, getCachedManagerActivityFeed, getMonthlyOrderStats } from "@/lib/cached-queries";
 import { getManagerKpiCards, getManagerPendingTasks, getManagerTaskStats, getManagerTeam, type TeamMember } from "@/lib/manager-dashboard";
 import { orderStatsScope } from "@/lib/scoping";
@@ -111,29 +112,34 @@ export async function ManagerKpiCardsRow({
   const salesmanIds = sortedSalesmen.map((s) => s.id);
   // Team order value this period vs the month before (what the team brought in).
   const teamValue = sumPerformance(sortedSalesmen.map((s) => s.perf));
-  const prevValue = sumPerformance((await getPerformance(salesmanIds, monthPeriod(period === "last_month" ? -2 : -1))).values());
+  // This month so far is compared with the same days of last month; a finished month with the whole month before.
+  const prevValue = sumPerformance(
+    (
+      await getPerformance(
+        salesmanIds,
+        period === "last_month"
+          ? monthPeriod(-2)
+          : likeForLike({ from: monthPeriod(0).from, to: new Date() }, monthPeriod(-1).from, monthPeriod(0).from),
+      )
+    ).values(),
+  );
 
   const thisMonth = getMonthRange(0);
   const lastMonth = getMonthRange(-1);
   const current = period === "last_month" ? lastMonth : thisMonth;
+  const previous = period === "last_month" ? getMonthRange(-2) : lastMonth;
   const k = await getManagerKpiCards(
     salesmanIds,
     current.start.toISOString(),
     current.end?.toISOString() ?? null,
-    period === "last_month" ? null : lastMonth.start.toISOString(),
-    period === "last_month" ? null : lastMonth.end!.toISOString(),
+    previous.start.toISOString(),
+    previous.end!.toISOString(),
     getWeekStart().toISOString()
   );
 
   const allCounts = teamCounts(sortedSalesmen);
   const onboardedThis = k.onboardedThis;
-  const onboardedPrev = k.onboardedPrev;
-  const onboardedPct =
-    onboardedPrev > 0
-      ? Math.round(((onboardedThis - onboardedPrev) / onboardedPrev) * 100)
-      : onboardedThis > 0
-        ? 100
-        : 0;
+  const onboarded = changeLabel(onboardedThis, k.onboardedPrev);
 
   const activePipeline = (allCounts.follow_up ?? 0) + (allCounts.lead ?? 0);
   const weekNew = k.weekNew;
@@ -150,6 +156,7 @@ export async function ManagerKpiCardsRow({
     direction: "up" | "down" | "flat";
     Icon: typeof UserCheck;
     bg: string;
+    goodWhen?: "up" | "down";
     items: StatDetailItem[];
     emptyMessage: string;
     viewAllHref: string;
@@ -158,14 +165,14 @@ export async function ManagerKpiCardsRow({
     {
       label: "Team Onboarded",
       value: onboardedThis,
-      badgeLabel: `${onboardedPct > 0 ? "+" : ""}${onboardedPct}% vs last month`,
-      direction: onboardedPct > 0 ? "up" : onboardedPct < 0 ? "down" : "flat",
+      badgeLabel: `${onboarded.label} vs ${period === "last_month" ? "month before" : "same days last month"}`,
+      direction: onboarded.diff > 0 ? "up" : onboarded.diff < 0 ? "down" : "flat",
       Icon: UserCheck,
       bg: "bg-primary",
       items: k.onboardedLogs.map((l) => ({
         id: l.id,
         primary: l.client?.name ?? "Client",
-        secondary: `by ${l.author?.name ?? "—"}`,
+        secondary: l.client?.assignedSalesman?.name ?? undefined,
         meta: formatDate(l.created_at),
       })),
       emptyMessage: "No clients onboarded in this period.",
@@ -193,7 +200,7 @@ export async function ManagerKpiCardsRow({
     {
       label: "Team Order Value",
       value: formatAmount(teamValue.value),
-      badgeLabel: `${valueChangePct > 0 ? "+" : ""}${valueChangePct}% vs prev. month`,
+      badgeLabel: `${valueChangePct > 0 ? "+" : ""}${valueChangePct}% vs ${period === "last_month" ? "month before" : "same days last month"}`,
       direction: valueChangePct > 0 ? "up" : valueChangePct < 0 ? "down" : "flat",
       Icon: BarChart3,
       bg: "bg-primary",
@@ -213,6 +220,7 @@ export async function ManagerKpiCardsRow({
       value: overdueCount,
       badgeLabel: `${overdueCount} pending`,
       direction: overdueCount > 0 ? "up" : "flat",
+      goodWhen: "down",
       Icon: XCircle,
       bg: "bg-primary",
       items: k.overdue.map((t) => ({
@@ -246,6 +254,7 @@ export async function ManagerKpiCardsRow({
             value={card.value}
             badgeLabel={card.badgeLabel}
             badgeDirection={card.direction}
+            goodWhen={card.goodWhen}
             theme={{ bg: card.bg }}
           />
         </StatCardWithDetails>
@@ -320,7 +329,7 @@ export async function SalesmanPerformanceSection({
         <p className="text-xs text-muted-foreground">This month · ranked by order value</p>
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-2 items-stretch">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 items-stretch">
         {/* ── Top performer ── */}
         <div className="relative flex h-full flex-col overflow-hidden rounded-card border border-border bg-card shadow-card">
           <span className="absolute inset-x-0 top-0 h-[3px] bg-success" aria-hidden />
@@ -436,17 +445,14 @@ export async function FunnelAndTasksSection({
 }) {
   const team = await getManagerTeam(managerId);
   const pending = await getManagerPendingTasks(team.map((s) => s.id));
-  const allCounts = teamCounts(team);
-
-  const newLeads = allCounts.lead ?? 0;
-  const followUp = allCounts.follow_up ?? 0;
-  const onboarded = allCounts.onboarded ?? 0;
-  const conversionRate =
-    newLeads > 0 ? Math.round((onboarded / newLeads) * 100) : 0;
-  const followUpPct =
-    newLeads > 0 ? Math.round((followUp / newLeads) * 100) : 0;
-  const onboardedPct =
-    newLeads > 0 ? Math.round((onboarded / newLeads) * 100) : 0;
+  // Follows the same clients: those added in the last COHORT_DAYS, and how far they got.
+  const funnel = await cohortFunnel({ ownerIds: team.map((s) => s.id) });
+  const newLeads = funnel.added;
+  const followUp = funnel.followUp;
+  const onboarded = funnel.onboarded;
+  const conversionRate = funnel.rate ?? 0;
+  const followUpPct = newLeads > 0 ? Math.round((followUp / newLeads) * 100) : 0;
+  const onboardedPct = newLeads > 0 ? Math.round((onboarded / newLeads) * 100) : 0;
 
   // Pending tasks
   const now = new Date();
@@ -496,20 +502,20 @@ export async function FunnelAndTasksSection({
   }
 
   return (
-    <div className="grid gap-4 lg:grid-cols-2">
+    <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
       {/* ── LEFT: Conversion Funnel ── */}
-      <SectionCard title="Team Conversion Funnel" subtitle="this month" href="/dashboard/manager/clients">
+      <SectionCard title="Team Conversion Funnel" subtitle={`Clients added in the last ${COHORT_DAYS} days`} href="/dashboard/manager/clients">
         <div className="space-y-4">
           {/* Funnel bars */}
           {[
             {
-              label: "New Leads",
+              label: "Added",
               count: newLeads,
               pct: 100,
               color: "bg-primary",
             },
             {
-              label: "Follow-up",
+              label: "Reached follow-up",
               count: followUp,
               pct: followUpPct,
               color: "bg-primary",
@@ -537,7 +543,8 @@ export async function FunnelAndTasksSection({
                     bar.color
                   )}
                   style={{
-                    width: `${Math.max(bar.pct, bar.count > 0 ? 12 : 0)}%`,
+                    // Follow-ups can outnumber this month's new leads; a bar never exceeds its track.
+                    width: `${Math.min(100, Math.max(bar.pct, bar.count > 0 ? 12 : 0))}%`,
                   }}
                 >
                   {bar.count > 0 && (
@@ -556,7 +563,7 @@ export async function FunnelAndTasksSection({
               {conversionRate}%
             </p>
             <p className="text-xs font-medium text-muted-foreground/80 mt-1">
-              Team Conversion Rate
+              Onboarded within {COHORT_DAYS} days{funnel.medianDays !== null ? ` · median ${funnel.medianDays} days to onboard` : ""}
             </p>
           </div>
         </div>
@@ -767,7 +774,7 @@ export function ManagerPerfSkeleton() {
         <Skeleton className="h-5 w-44" />
         <Skeleton className="h-3 w-20" />
       </div>
-      <div className="grid gap-4 lg:grid-cols-2 items-stretch">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 items-stretch">
         <div className="rounded-card border border-border bg-card shadow-card p-4 space-y-3">
           <div className={cn(dark, "h-4 w-24 rounded-full")} />
           <div className="flex items-center gap-3">
@@ -807,7 +814,7 @@ export function ManagerPerfSkeleton() {
 
 export function ManagerFunnelTasksSkeleton() {
   return (
-    <div className="grid gap-4 lg:grid-cols-2">
+    <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
       <div className="rounded-card border border-border bg-card p-5 space-y-4">
         <Skeleton className="h-5 w-40" />
         {Array.from({ length: 3 }).map((_, j) => (

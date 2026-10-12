@@ -5,7 +5,7 @@ import { getTokenUserId } from "@/lib/scoping";
 import { enquiryScopeWhere } from "@/lib/enquiries";
 import { FlowError, applyEnquiryAction, type EnquiryAction } from "@/lib/enquiry-flow";
 
-const ACTIONS: EnquiryAction[] = ["quote", "negotiate", "revise", "confirm", "lose"];
+const ACTIONS: EnquiryAction[] = ["quote", "requote", "confirm", "lose"];
 
 /** Move an enquiry to its next stage: { action, cost?, profit?, reason? } (see lib/enquiry-flow.ts). */
 export async function POST(request: NextRequest, context: { params: Promise<{ id: string }> }) {

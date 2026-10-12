@@ -36,19 +36,41 @@ export function statusAfterOrder(current: string): ClientStatus | null {
 
 type Tx = Prisma.TransactionClient;
 
-/** Same records a manual status change writes: client log + salesman KPI log. */
+/** What caused a status change (client_status_events.source). */
+export type StatusSource = "manual" | "lead_outcome" | "enquiry" | "order" | "dormant_sweep" | "create";
+
+/**
+ * The one place a client's status changes (besides creation and the dormant sweep's bulk SQL): updates the status
+ * and when it was entered, writes the history line, and records a status event credited to the client's salesman.
+ * A "change" to the status the client already has records nothing. Returns whether the status changed.
+ */
 export async function applyClientStatus(
   tx: Tx,
-  client: { id: number; assigned_salesman_id: number },
+  client: { id: number },
   status: ClientStatus,
   doneBy: number,
-  { kpi = true, reason }: { kpi?: boolean; reason?: string } = {},
+  { reason, source }: { reason?: string; source: StatusSource },
 ) {
-  await tx.client.update({ where: { id: client.id }, data: { status } });
+  const current = await tx.client.findUniqueOrThrow({ where: { id: client.id }, select: { status: true, assigned_salesman_id: true, org_id: true } });
+  if (current.status === status) return false;
+  const now = new Date();
+  await tx.client.update({ where: { id: client.id }, data: { status, status_changed_at: now } });
   await tx.clientLog.create({
-    data: { client_id: client.id, action: `Status changed to ${status}${reason ? ` (${reason})` : ""}`, done_by: doneBy },
+    data: { client_id: client.id, action: `Status changed to ${status}${reason ? ` (${reason})` : ""}`, done_by: doneBy, created_at: now },
   });
-  if (kpi) await tx.salesmanKpiLog.create({ data: { salesman_id: client.assigned_salesman_id, action: status } });
+  await tx.clientStatusEvent.create({
+    data: {
+      client_id: client.id,
+      from_status: current.status,
+      to_status: status,
+      owner_id: current.assigned_salesman_id,
+      actor_id: doneBy,
+      org_id: current.org_id,
+      source,
+      created_at: now,
+    },
+  });
+  return true;
 }
 
 export function revalidateClientViews() {
@@ -83,10 +105,15 @@ export async function sweepDormantClients(force = false) {
             ) < CURRENT_DATE - ${DORMANT_AFTER_DAYS}::int
     ),
     updated AS (
-      UPDATE clients c SET status = 'dormant'
+      UPDATE clients c SET status = 'dormant', status_changed_at = NOW()
       FROM stale s
       WHERE c.id = s.id AND c.status = 'onboarded'
-      RETURNING c.id, c.assigned_salesman_id
+      RETURNING c.id, c.assigned_salesman_id, c.org_id
+    ),
+    events AS (
+      INSERT INTO client_status_events (client_id, from_status, to_status, owner_id, actor_id, org_id, source, created_at)
+      SELECT id, 'onboarded', 'dormant', assigned_salesman_id, NULL, org_id, 'dormant_sweep', NOW()
+      FROM updated
     ),
     logged AS (
       INSERT INTO client_logs (client_id, action, done_by, created_at)

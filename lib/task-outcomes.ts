@@ -79,7 +79,7 @@ export async function applyLeadOutcome(taskId: number, input: OutcomeInput, acto
     await prisma.$transaction(async (tx) => {
       await tx.client.update({ where: { id: client.id }, data: { ...fields, ...(mail ? { mail_id: mail } : {}) } });
       if (MOVES_FROM.contacted.includes(client.status)) {
-        await applyClientStatus(tx, client, OUTCOME_STATUS.contacted, actorId, { reason: "lead contacted" });
+        await applyClientStatus(tx, client, OUTCOME_STATUS.contacted, actorId, { reason: "lead contacted", source: "lead_outcome" });
       }
       const summary = `Contacted ${fields.contact_person_name} (${fields.contact_person_designation}, ${fields.contact_no}${mail ? `, ${mail}` : ""})${note ? ` — ${note}` : ""}`;
       await tx.task.update({ where: { id: task.id }, data: { status: "achieved", outcome: "contacted", closed_at: now } });
@@ -97,7 +97,7 @@ export async function applyLeadOutcome(taskId: number, input: OutcomeInput, acto
     await prisma.$transaction(async (tx) => {
       // Follow-up status needs contact details (client-contact rule); without them the lead stays a lead.
       if (MOVES_FROM.follow_up.includes(client.status) && missingContactFields(client).length === 0) {
-        await applyClientStatus(tx, client, OUTCOME_STATUS.follow_up, actorId, { reason: note });
+        await applyClientStatus(tx, client, OUTCOME_STATUS.follow_up, actorId, { reason: note, source: "lead_outcome" });
       }
       await tx.task.update({ where: { id: task.id }, data: { status: "in_process", outcome: "follow_up", due_date: due } });
       await tx.taskUpdate.create({
@@ -113,7 +113,7 @@ export async function applyLeadOutcome(taskId: number, input: OutcomeInput, acto
   // rejected
   await prisma.$transaction(async (tx) => {
     if (MOVES_FROM.rejected.includes(client.status)) {
-      await applyClientStatus(tx, client, OUTCOME_STATUS.rejected, actorId, { reason: note });
+      await applyClientStatus(tx, client, OUTCOME_STATUS.rejected, actorId, { reason: note, source: "lead_outcome" });
     }
     await tx.task.update({ where: { id: task.id }, data: { status: "unsuccessful", outcome: "rejected", closed_at: now } });
     await tx.taskUpdate.create({ data: { task_id: task.id, action: "rejected", note, created_by_id: actorId } });

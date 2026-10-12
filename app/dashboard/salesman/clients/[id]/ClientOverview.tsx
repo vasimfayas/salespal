@@ -84,9 +84,11 @@ interface ClientOverviewProps {
   history?: React.ReactNode;
   /** Attachments card, rendered under the tasks. */
   documents?: React.ReactNode;
+  /** Contacts card (main + extra contacts), rendered under the client information. */
+  contacts?: React.ReactNode;
 }
 
-export function ClientOverview({ client: initialClient, initialTasks, backLink, teamOnly = false, history, documents }: ClientOverviewProps) {
+export function ClientOverview({ client: initialClient, initialTasks, backLink, teamOnly = false, history, documents, contacts }: ClientOverviewProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
 
@@ -482,6 +484,8 @@ export function ClientOverview({ client: initialClient, initialTasks, backLink, 
               </div>
             )}
           </div>
+
+          {contacts}
 
           {/* Card 2: Client Related Tasks */}
           <div className="rounded-card border border-border bg-card p-6 shadow-card">

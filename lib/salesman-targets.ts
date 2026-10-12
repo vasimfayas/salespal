@@ -17,7 +17,7 @@ export function parseDateOnly(value: unknown): Date | null {
   return date;
 }
 
-function targetState(
+export function targetState(
   target: { period_start: Date; period_end: Date; closed_at: Date | null },
   achieved: number,
   amount: number,
@@ -85,7 +85,7 @@ export async function getSalesmenWithTargets(user: { id: number; role_id: number
 }
 
 /** Achieved amount for every target of these salesmen in one query: their orders created inside the period that still count (not cancelled / sent back for revision). */
-async function getTargetAchievements(salesmanIds: number[]) {
+export async function getTargetAchievements(salesmanIds: number[]) {
   if (salesmanIds.length === 0) return new Map<number, number>();
   const rows = await prisma.$queryRaw<{ id: number; achieved: number }[]>(Prisma.sql`
     SELECT t.id, COALESCE(SUM(o.amount), 0)::float8 AS achieved

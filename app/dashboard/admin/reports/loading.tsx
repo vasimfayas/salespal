@@ -10,7 +10,7 @@ export default function Loading() {
       </div>
 
       {/* Charts / report cards skeleton */}
-      <div className="grid gap-6 md:grid-cols-2">
+      <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
         {Array.from({ length: 2 }).map((_, i) => (
           <div key={i} className="rounded-card border border-border/80 bg-card p-5 space-y-4">
             <Skeleton className="h-5 w-36" />

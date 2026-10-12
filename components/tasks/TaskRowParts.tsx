@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Calendar, ListTodo, Loader2, MessageSquareText, Package, UserPlus, Wallet } from "lucide-react";
+import { Calendar, ListTodo, Loader2, MessageSquareText, Package, RotateCcw, UserPlus, UserRound, Wallet } from "lucide-react";
 import type { ActionTask } from "@/components/tasks/TaskActions";
 import { enquiryRef } from "@/types/enquiry";
 import { cn, formatDate, titleCase } from "@/lib/utils";
@@ -13,8 +13,10 @@ export type RowTask = ActionTask & { due_date: Date | string };
 const KIND_BADGE: Record<TaskKind, { icon: typeof ListTodo; className: string }> = {
   general: { icon: ListTodo, className: "bg-muted text-muted-foreground" },
   lead_follow_up: { icon: UserPlus, className: "bg-success-soft text-success-foreground" },
+  client_follow_up: { icon: UserRound, className: "bg-primary-soft text-primary-soft-foreground" },
   enquiry_follow_up: { icon: MessageSquareText, className: "bg-warning-soft text-warning-foreground" },
   order_follow_up: { icon: Package, className: "bg-info-soft text-info-foreground" },
+  order_revision: { icon: RotateCcw, className: "bg-danger-soft text-danger-foreground" },
   payment_follow_up: { icon: Wallet, className: "bg-primary-soft text-primary-soft-foreground" },
 };
 

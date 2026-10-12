@@ -35,7 +35,7 @@ export default function Loading() {
           <Skeleton className="h-5 w-44" />
           <Skeleton className="h-3 w-20" />
         </div>
-        <div className="grid gap-4 lg:grid-cols-2">
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
           {/* Spotlight card */}
           <div className="rounded-card border border-border bg-card p-5 space-y-4">
             <Skeleton className="h-5 w-28 rounded-full" />
@@ -74,7 +74,7 @@ export default function Loading() {
       </div>
 
       {/* Funnel + Tasks — 2 columns */}
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <div className="rounded-card border border-border bg-card p-5 space-y-4">
           <Skeleton className="h-5 w-40" />
           {Array.from({ length: 3 }).map((_, j) => (

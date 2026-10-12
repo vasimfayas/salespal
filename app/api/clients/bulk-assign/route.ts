@@ -6,7 +6,10 @@ import { canAccessSalesman, clientScopeWhere, getManagerOrgIds, getTokenUserId, 
 
 import { createLeadTasks, leadClientSelect } from "@/lib/lead-tasks";
 import { revalidateTaskViews } from "@/lib/enquiry-follow-ups";
-/** Managers reassign several of their organization's clients to one salesman on their team, optionally under another of their companies. */
+/**
+ * Managers reassign several of their organization's clients to one salesman on their team, optionally under another of
+ * their companies. Body: salesman_id, and either client_ids or from_salesman_id (transfer all of that salesman's clients).
+ */
 export async function POST(request: NextRequest) {
   const token = await getToken({ req: request, secret: process.env.NEXTAUTH_SECRET });
   if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -14,9 +17,19 @@ export async function POST(request: NextRequest) {
 
   const body = await request.json();
   const salesmanId = Number(body.salesman_id);
-  const clientIds: number[] = Array.isArray(body.client_ids) ? [...new Set<number>(body.client_ids.map(Number))] : [];
+  let clientIds: number[] = Array.isArray(body.client_ids) ? [...new Set<number>(body.client_ids.map(Number))] : [];
 
   if (!Number.isInteger(salesmanId)) return NextResponse.json({ error: "Invalid salesman" }, { status: 400 });
+
+  // Transfer every client of another salesman on the team (e.g. someone leaving).
+  if (body.from_salesman_id !== undefined) {
+    const fromId = Number(body.from_salesman_id);
+    if (!Number.isInteger(fromId) || fromId === salesmanId) return NextResponse.json({ error: "Pick a different salesman to transfer to" }, { status: 400 });
+    if (!(await canAccessSalesman(token, fromId))) return NextResponse.json({ error: "Salesman is not on your team" }, { status: 403 });
+    const owned = await prisma.client.findMany({ where: { AND: [{ assigned_salesman_id: fromId }, await clientScopeWhere(token)] }, select: { id: true } });
+    if (owned.length === 0) return NextResponse.json({ error: "This salesman has no clients to transfer" }, { status: 400 });
+    clientIds = owned.map((c) => c.id);
+  }
   if (clientIds.length === 0 || clientIds.some((id) => !Number.isInteger(id))) {
     return NextResponse.json({ error: "Select at least one client" }, { status: 400 });
   }

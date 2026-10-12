@@ -4,11 +4,13 @@ import { prisma } from "@/lib/prisma";
 import { getTokenUserId, isRole } from "@/lib/scoping";
 import { enquiryScopeWhere, revalidateEnquiryPages } from "@/lib/enquiries";
 import { isActiveEnquiry } from "@/types/enquiry";
-import { closeFollowUpTasks, nextFollowUpDate, revalidateTaskViews } from "@/lib/enquiry-follow-ups";
+import { extendFollowUpTasks, nextFollowUpDate, revalidateTaskViews } from "@/lib/enquiry-follow-ups";
+import { parseDateOnly } from "@/lib/salesman-targets";
 
 /**
- * Salesman / manager logs a follow-up comment on an open enquiry. This completes any outstanding
- * follow-up task for it and pushes the next automatic follow-up out by another 30 days.
+ * Salesman / manager logs a follow-up comment on an open enquiry, with the date to follow up next (body: comment,
+ * next_date YYYY-MM-DD; default 30 days). The open follow-up task moves to that date — it stays open until the
+ * enquiry becomes an order — and the next automatic follow-up is due then too.
  */
 export async function POST(request: NextRequest, context: { params: Promise<{ id: string }> }) {
   const token = await getToken({ req: request, secret: process.env.NEXTAUTH_SECRET });
@@ -20,6 +22,10 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
   const comment = String(body.comment ?? "").trim();
   if (!comment) return NextResponse.json({ error: "Write a follow-up comment" }, { status: 400 });
   if (comment.length > 2000) return NextResponse.json({ error: "Comment is too long (max 2000 characters)" }, { status: 400 });
+  const nextDate = body.next_date ? parseDateOnly(body.next_date) : nextFollowUpDate();
+  if (!nextDate || nextDate < new Date(new Date().toISOString().slice(0, 10))) {
+    return NextResponse.json({ error: "Pick a next follow-up date from today onwards" }, { status: 400 });
+  }
 
   const enquiry = await prisma.enquiry.findFirst({
     where: { AND: [{ id: Number(id) }, await enquiryScopeWhere(token)] },
@@ -33,8 +39,8 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
     const created = await tx.enquiryFollowUp.create({
       data: { enquiry_id: enquiry.id, comment, created_by_id: getTokenUserId(token) },
     });
-    await tx.enquiry.update({ where: { id: enquiry.id }, data: { next_follow_up_at: nextFollowUpDate() } });
-    await closeFollowUpTasks(tx, enquiry.id, "achieved", { action: "enquiry_follow_up", note: comment, by: getTokenUserId(token) });
+    await tx.enquiry.update({ where: { id: enquiry.id }, data: { next_follow_up_at: nextDate } });
+    await extendFollowUpTasks(tx, enquiry.id, nextDate, { note: comment, by: getTokenUserId(token) });
     return created;
   });
 

@@ -70,9 +70,9 @@ function SidebarNav({ compact }: { compact: boolean }) {
                         }}
                         className={cn(
                           "group flex items-center gap-3 rounded-control text-sm font-medium transition-colors",
-                          compact ? "mx-auto size-10 justify-center" : "h-9 px-3",
+                          compact ? "mx-auto size-10 justify-center" : "h-10 px-3",
                           active
-                            ? "bg-sidebar-accent text-sidebar-accent-foreground"
+                            ? "bg-sidebar-accent font-semibold text-sidebar-accent-foreground shadow-[inset_3px_0_0_var(--chart-1)]"
                             : "text-sidebar-foreground hover:bg-sidebar-hover hover:text-foreground",
                         )}
                       >

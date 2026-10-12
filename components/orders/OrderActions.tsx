@@ -6,6 +6,7 @@ import { Ban, CheckCircle2, ClipboardEdit, RotateCcw, Truck } from "lucide-react
 import { Button } from "@/components/ui/Button";
 import { Dialog, DialogBody, DialogContent, DialogFooter } from "@/components/ui/dialog";
 import { ReasonDialog } from "@/components/shared/ReasonDialog";
+import { LostReasonDialog } from "@/components/shared/LostReasonDialog";
 import { formatAmount, formatDate } from "@/lib/utils";
 import type { OrderListItem } from "@/types/order";
 
@@ -94,7 +95,7 @@ export function OrderActions({ order, role, onDone, size = "sm" }: { order: Orde
       <ReasonDialog
         open={dialog === "revision"}
         title="Request revision"
-        description="The order is put on hold and its enquiry goes back to On negotiations. Revise the offer and confirm again to reopen this same order."
+        description="The order is put on hold and its enquiry becomes Revision requested. Requote it (or confirm it as it was) to reopen this same order."
         confirmLabel="Send back for revision"
         onClose={() => setDialog(null)}
         onConfirm={async (reason) => {
@@ -104,15 +105,14 @@ export function OrderActions({ order, role, onDone, size = "sm" }: { order: Orde
           router.refresh();
         }}
       />
-      <ReasonDialog
+      <LostReasonDialog
         open={dialog === "cancel"}
         title="Cancel order"
         description="The order is cancelled and its enquiry is marked Lost with this reason. This can't be undone."
         confirmLabel="Cancel order"
-        danger
         onClose={() => setDialog(null)}
-        onConfirm={async (reason) => {
-          await postJson(`/api/orders/${order.id}/status`, { action: "cancel", reason });
+        onConfirm={async (reason, remark) => {
+          await postJson(`/api/orders/${order.id}/status`, { action: "cancel", reason, remark });
           setDialog(null);
           onDone("Order cancelled");
           router.refresh();

@@ -13,7 +13,7 @@ export default async function UsersPage() {
       />
       <div className="overflow-x-auto rounded-card border border-border bg-card">
         <table className="w-full text-left text-sm">
-          <thead className="bg-subtle text-xs text-muted-foreground font-medium">
+          <thead className="border-border border-b text-muted-foreground text-[13px]">
             <tr>
               <th className="px-4 py-3">Name</th>
               <th className="px-4 py-3">Role</th>

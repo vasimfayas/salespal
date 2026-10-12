@@ -3,7 +3,7 @@ import { revalidateTag } from "next/cache";
 import { getToken } from "next-auth/jwt";
 import { prisma } from "@/lib/prisma";
 import { isRole, taskScopeWhere } from "@/lib/scoping";
-import { LEAD_TASK_CATEGORY, isOpenTask, taskStatuses } from "@/types/task";
+import { LEAD_TASK_CATEGORY, REVISION_TASK_CATEGORY, isOpenTask, taskStatuses } from "@/types/task";
 
 export async function PATCH(request: NextRequest, context: { params: Promise<{ id: string }> }) {
   const token = await getToken({ req: request, secret: process.env.NEXTAUTH_SECRET });
@@ -20,7 +20,14 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
   const guided = scoped.category === LEAD_TASK_CATEGORY || scoped.enquiry_id !== null;
   if (guided && nextStatus !== scoped.status && !isOpenTask(nextStatus)) {
     return NextResponse.json(
-      { error: scoped.enquiry_id ? "Close this task by following up, moving or closing the enquiry" : "Record the outcome: contacted, follow-up or rejected" },
+      {
+        error:
+          scoped.category === REVISION_TASK_CATEGORY
+            ? "This task completes when the offer is revised or re-confirmed"
+            : scoped.enquiry_id
+              ? "This task completes when the enquiry becomes an order (or is lost). Use Follow up to move its date."
+              : "Record the outcome: contacted, follow-up or rejected",
+      },
       { status: 409 },
     );
   }

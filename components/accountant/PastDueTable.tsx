@@ -111,7 +111,7 @@ export function PastDueTable({ data }: { data: PastDuePage }) {
             {/* Table (md+) */}
             <div className="-mx-6 hidden md:block">
               <table className="w-full table-fixed text-left text-sm">
-                <thead className="border-y border-border bg-subtle text-xs font-medium text-muted-foreground">
+                <thead className="border-b border-border text-muted-foreground text-[13px]">
                   <tr>
                     <th scope="col" className="w-[17%] py-2.5 pl-6 pr-3 font-medium">Order</th>
                     <th scope="col" className="px-3 py-2.5 font-medium">Client</th>

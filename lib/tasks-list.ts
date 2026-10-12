@@ -39,7 +39,9 @@ function unionSql(scope: Scope) {
            t.assigned_to_id, t.created_by_id, a.name AS assigned_name, cb.name AS created_name, t.enquiry_id, e.status AS enquiry_status,
            eo.prefix AS enquiry_prefix, t.outcome,
            CASE WHEN t.category = 'lead_follow_up' THEN 'lead_follow_up'
+                WHEN t.category = 'order_revision' THEN 'order_revision'
                 WHEN t.enquiry_id IS NOT NULL THEN 'enquiry_follow_up'
+                WHEN t.category = 'client_follow_up' THEN 'client_follow_up'
                 -- Accountant payment reminders created before tasks had a category
                 WHEN t.category = 'payment_follow_up' OR t.description LIKE 'Payment reminder:%' THEN 'payment_follow_up'
                 WHEN t.category = 'order_follow_up' THEN 'order_follow_up'
@@ -72,13 +74,13 @@ function viewSql(view: TaskView, userId: number) {
   switch (view) {
     case "mine":
       // Tasks the salesman wrote themselves (not system enquiry follow-ups or reminders from others)
-      return Prisma.sql`x.created_by_id = ${userId} AND x.kind NOT IN ('enquiry_follow_up', 'lead_follow_up') AND ${OPEN}`;
+      return Prisma.sql`x.created_by_id = ${userId} AND x.kind NOT IN ('enquiry_follow_up', 'lead_follow_up', 'order_revision') AND ${OPEN}`;
     case "lead":
       return Prisma.sql`x.kind = 'lead_follow_up' AND ${OPEN}`;
     case "enquiry":
       return Prisma.sql`x.kind = 'enquiry_follow_up' AND ${OPEN}`;
     case "order":
-      return Prisma.sql`x.kind = 'order_follow_up' AND ${OPEN}`;
+      return Prisma.sql`x.kind IN ('order_follow_up', 'order_revision') AND ${OPEN}`;
     case "payment":
       return Prisma.sql`x.kind = 'payment_follow_up' AND ${OPEN}`;
     case "completed":

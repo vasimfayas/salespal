@@ -20,7 +20,7 @@ export function MantineChartsProvider({ children }: { children: React.ReactNode 
     <MantineProvider
       forceColorScheme={resolvedTheme === "dark" ? "dark" : "light"}
       cssVariablesResolver={resolver}
-      theme={{ fontFamily: "var(--font-inter), system-ui, sans-serif", primaryColor: "teal" }}
+      theme={{ fontFamily: "var(--font-app), system-ui, sans-serif", primaryColor: "teal" }}
     >
       {children}
     </MantineProvider>

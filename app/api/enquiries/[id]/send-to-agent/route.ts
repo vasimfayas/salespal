@@ -41,7 +41,7 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
   revalidateEnquiryPages();
 
   const ref = enquiryRef(enquiry.id, enquiry.organization.prefix);
-  const url = agentQuoteUrl(agentToken, request.url);
+  const url = agentQuoteUrl(agentToken, request);
   let emailed = false;
   let emailError: string | null = null;
   try {

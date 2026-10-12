@@ -73,14 +73,15 @@ export function EnquiriesClient({
   const [toast, setToast] = useState<string | undefined>();
   const enquiries = data.rows;
 
-  const [createOpen, setCreateOpen] = useState(false);
+  // ?new=1 / ?send=1 (dashboard quick actions) open the new-enquiry / send-to-client dialogs.
+  const [createOpen, setCreateOpen] = useState(() => canCreate && get("new") === "1");
   // Set while the form edits an existing enquiry instead of creating one.
   const [editing, setEditing] = useState<EnquiryListItem | null>(null);
   const [form, setForm] = useState(emptyEnquiryForm);
   const [client, setClient] = useState<{ id: number; name: string } | null>(null);
   // Company the new enquiry is raised under; "" = the client's company.
   const [orgId, setOrgId] = useState("");
-  const [sendOpen, setSendOpen] = useState(false);
+  const [sendOpen, setSendOpen] = useState(() => canCreate && get("send") === "1");
 
 
   const [saving, setSaving] = useState(false);
@@ -246,7 +247,7 @@ export function EnquiriesClient({
         <div className={cn("space-y-1 transition-opacity", isPending && "opacity-60")} aria-busy={isPending}>
           <div className="hidden overflow-hidden rounded-card border border-border bg-card shadow-card lg:block">
             <table className="w-full table-fixed text-left text-sm">
-              <thead className="border-b border-border bg-subtle text-xs font-medium text-muted-foreground">
+              <thead className="border-b border-border text-muted-foreground text-[13px]">
                 <tr>
                   <th scope="col" className="w-[22%] px-4 py-3 font-medium">Enquiry</th>
                   <th scope="col" className="px-4 py-3 font-medium">Client</th>

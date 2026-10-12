@@ -9,6 +9,7 @@ import { normalizeCrNo, parseCrExpiryDate } from "@/lib/client-fields";
 import { canSetStatus, isClientStatus } from "@/lib/client-status-flow";
 import { cleanText, contactRequiredMessage, missingContactFields, statusRequiresContact } from "@/lib/client-contact";
 import { departmentTaken } from "@/lib/client-fields";
+import { MAX_EXTRA_CONTACTS, parseContact } from "@/lib/client-contacts";
 import { clientLabel } from "@/types/client";
 
 import { createLeadTasks } from "@/lib/lead-tasks";
@@ -96,6 +97,15 @@ export async function POST(request: NextRequest) {
   // A CR that's already on file is the same company: with a department filled in, the new client is that
   // company's department (own salesman, contact and pipeline); without one it's a duplicate.
   const department = cleanText(body.department) || null;
+
+  // Extra contact people entered with the client (same rules as adding them on the client page).
+  const rawContacts: Record<string, unknown>[] = Array.isArray(body.contacts) ? body.contacts.slice(0, MAX_EXTRA_CONTACTS) : [];
+  const extraContacts = [];
+  for (const raw of rawContacts) {
+    const parsed = parseContact(raw ?? {});
+    if ("error" in parsed) return NextResponse.json({ error: `Additional contact: ${parsed.error}` }, { status: 400 });
+    extraContacts.push(parsed.data);
+  }
   let parent: { id: number; name: string; org_id: number } | null = null;
   if (crNo) {
     const existing = await prisma.client.findUnique({ where: { cr_no: crNo }, select: { id: true, name: true, org_id: true } });
@@ -177,6 +187,9 @@ export async function POST(request: NextRequest) {
         cr_expiry_date: parent ? null : crExpiry.value ?? null,
         department,
         parent_client_id: parent?.id ?? null,
+        // Pipeline metrics count from the client's first status.
+        statusEvents: { create: { to_status: status, owner_id: assignedSalesmanId, actor_id: getTokenUserId(token), org_id: orgId, source: "create" } },
+        contacts: { create: extraContacts.map((c) => ({ ...c, created_by_id: getTokenUserId(token) })) },
         contact_person_designation: designation,
         assigned_salesman_id: assignedSalesmanId,
         org_id: orgId,

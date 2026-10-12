@@ -1,7 +1,7 @@
 import { Prisma } from "@prisma/client";
 import { unstable_cache } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { literal } from "@/lib/list-params";
+import { cohortFunnel, likeForLike, statusEntries } from "@/lib/pipeline-metrics";
 
 import { byPerformance, getPerformance, monthPeriod } from "@/lib/performance";
 import { VOID_ORDER_STATUSES } from "@/types/order";
@@ -16,10 +16,6 @@ const CACHE = { revalidate: 30, tags: ["admin-dashboard", "admin-clients"] };
 
 type Counts = Record<string, number>;
 
-// Clients onboarded in the period, counted while they are onboarded / dormant / lost (same rule as before).
-const ONBOARDED_NOW = ["onboarded", "dormant", "lost"];
-const LOST_NOW = ["lost", "blacklisted"];
-
 function range(sinceIso: string, untilIso?: string): Prisma.DateTimeFilter {
   return untilIso ? { gte: new Date(sinceIso), lte: new Date(untilIso) } : { gte: new Date(sinceIso) };
 }
@@ -29,23 +25,30 @@ async function statusCounts(where: Prisma.ClientWhereInput): Promise<Counts> {
   return Object.fromEntries(rows.map((r) => [r.status, r._count._all]));
 }
 
-/** KPI cards: client status counts + onboarded / lost log counts for the period and the previous one. */
+/**
+ * KPI cards: client status counts, clients onboarded / lost in the period vs the previous one (cut to the same
+ * length, so a period in progress compares like for like), and the 90-day cohort conversion. From status events.
+ */
 export const getAdminKpiCounts = unstable_cache(
   async (orgId: number | null, start: string, end: string | null, prevStart: string, prevEnd: string) => {
     const org = orgId ? { org_id: orgId } : {};
-    // A log counts while its client still holds a matching status (same rule as before).
-    const logCount = (action: string, statuses: string[], since: string, until?: string) =>
-      prisma.clientLog.count({
-        where: { action: { contains: literal(action) }, created_at: range(since, until), client: { status: { in: statuses }, ...org } },
-      });
-    const [counts, onboardedThis, onboardedPrev, lostThis, lostPrev] = await Promise.all([
+    const scope = { orgId };
+    const current = { from: new Date(start), to: end ? new Date(new Date(end).getTime() + 1) : new Date() };
+    const previous = likeForLike(current, new Date(prevStart), new Date(new Date(prevEnd).getTime() + 1));
+    const [counts, entered, enteredBefore, funnel] = await Promise.all([
       statusCounts(org),
-      logCount("onboarded", ONBOARDED_NOW, start, end ?? undefined),
-      logCount("onboarded", ONBOARDED_NOW, prevStart, prevEnd),
-      logCount("lost", LOST_NOW, start, end ?? undefined),
-      logCount("lost", LOST_NOW, prevStart, prevEnd),
+      statusEntries(scope, current),
+      statusEntries(scope, previous),
+      cohortFunnel(scope),
     ]);
-    return { counts, onboardedThis, onboardedPrev, lostThis, lostPrev };
+    return {
+      counts,
+      onboardedThis: entered.onboarded ?? 0,
+      onboardedPrev: enteredBefore.onboarded ?? 0,
+      lostThis: entered.lost ?? 0,
+      lostPrev: enteredBefore.lost ?? 0,
+      funnel,
+    };
   },
   ["admin-kpi-counts"],
   CACHE
@@ -140,45 +143,44 @@ export const getAdminTaskHealth = unstable_cache(
 
 const LOST_LIST_LIMIT = 100;
 
-/** Lost-client log entries in the period: total count + the newest rows for the table. */
+/** Clients lost in the period (status events): total + the newest rows for the table, with the client's salesman. */
 export const getAdminLostClients = unstable_cache(
   async (orgId: number | null, start: string, end: string | null) => {
-    const where: Prisma.ClientLogWhereInput = {
-      action: { contains: "lost" },
+    const where: Prisma.ClientStatusEventWhereInput = {
+      to_status: "lost",
       created_at: range(start, end ?? undefined),
-      ...(orgId ? { client: { org_id: orgId } } : {}),
+      ...(orgId ? { org_id: orgId } : {}),
     };
-    const [total, rows] = await Promise.all([
-      prisma.clientLog.count({ where }),
-      prisma.clientLog.findMany({
+    const [total, events] = await Promise.all([
+      prisma.clientStatusEvent.count({ where }),
+      prisma.clientStatusEvent.findMany({
         where,
         orderBy: { created_at: "desc" },
         take: LOST_LIST_LIMIT,
         select: {
           id: true,
           created_at: true,
-          client: { select: { name: true, organization: { select: { name: true } } } },
-          author: { select: { name: true } },
+          client: { select: { name: true, organization: { select: { name: true } }, assignedSalesman: { select: { name: true } } } },
         },
       }),
     ]);
+    const rows = events.map((e) => ({ id: e.id, created_at: e.created_at, client: e.client, author: e.client.assignedSalesman }));
     return { total, rows };
   },
   ["admin-lost-clients"],
   CACHE
 );
 
-/** Onboarded logs per month (server time zone) and company since `sinceIso`. */
+/** Clients onboarded per month (in `timeZone`) and company since `sinceIso`, from status events. */
 export const getAdminOnboardingTrend = unstable_cache(
   async (sinceIso: string, timeZone: string) => {
     const rows = await prisma.$queryRaw<{ y: number; m: number; org_id: number; n: number }[]>(Prisma.sql`
-      SELECT EXTRACT(YEAR FROM local_ts)::int AS y, EXTRACT(MONTH FROM local_ts)::int AS m, c.org_id, COUNT(*)::int AS n
+      SELECT EXTRACT(YEAR FROM local_ts)::int AS y, EXTRACT(MONTH FROM local_ts)::int AS m, x.org_id, COUNT(DISTINCT x.client_id)::int AS n
       FROM (
-        SELECT l.client_id, (l.created_at AT TIME ZONE 'UTC') AT TIME ZONE ${timeZone} AS local_ts
-        FROM client_logs l
-        WHERE l.action LIKE '%onboarded%' AND l.created_at >= ${new Date(sinceIso)}
+        SELECT e.client_id, e.org_id, (e.created_at AT TIME ZONE 'UTC') AT TIME ZONE ${timeZone} AS local_ts
+        FROM client_status_events e
+        WHERE e.to_status = 'onboarded' AND e.created_at >= ${new Date(sinceIso)}
       ) x
-      JOIN clients c ON c.id = x.client_id
       GROUP BY 1, 2, 3`);
     return rows.map((r) => ({ year: Number(r.y), month: Number(r.m), orgId: r.org_id, count: Number(r.n) }));
   },

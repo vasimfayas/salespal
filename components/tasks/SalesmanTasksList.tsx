@@ -9,6 +9,7 @@ import { Plus, X, Loader2, Search } from "lucide-react";
 import { TaskActions, TaskStatusPill, isGuidedTask } from "@/components/tasks/TaskActions";
 import { ClientChip, DueDate, KindBadge, StatusSelect, hasInlineActions } from "@/components/tasks/TaskRowParts";
 import { Modal } from "@/components/ui/Modal";
+import { ClientPicker } from "@/components/clients/ClientPicker";
 import { Input } from "@/components/ui/Input";
 import { Toast } from "@/components/ui/Toast";
 import { cn } from "@/lib/utils";
@@ -83,7 +84,10 @@ export function SalesmanTasksList({ data, currentUserId }: SalesmanTasksListProp
   }
 
   // Modals state
-  const [isAddOpen, setIsAddOpen] = useState(false);
+  // ?add=1 (dashboard quick action) opens the add-task form.
+  const [isAddOpen, setIsAddOpen] = useState(() => get("add") === "1");
+  // Client of a "Client follow-up" task.
+  const [followUpClient, setFollowUpClient] = useState<{ id: number; name: string } | null>(null);
 
   // Form states
   const [addTaskForm, setAddTaskForm] = useState({
@@ -122,6 +126,7 @@ export function SalesmanTasksList({ data, currentUserId }: SalesmanTasksListProp
           due_date: addTaskForm.due_date,
           status: addTaskForm.status,
           category: addTaskForm.category || null,
+          client_id: addTaskForm.category === "client_follow_up" ? followUpClient?.id : undefined,
           notification: addTaskForm.notification
         })
       });
@@ -141,7 +146,8 @@ export function SalesmanTasksList({ data, currentUserId }: SalesmanTasksListProp
       });
       setIsAddOpen(false);
       if (data.task) {
-        setLocalTasks((prev) => [{ ...data.task, isClientTask: false, created_by_id: currentUserId, kind: data.task.category ?? "general" }, ...prev]);
+        setLocalTasks((prev) => [{ ...data.task, isClientTask: false, created_by_id: currentUserId, kind: data.task.category ?? "general", clientId: data.task.client_id, clientName: followUpClient?.name ?? null }, ...prev]);
+        setFollowUpClient(null);
       }
       router.refresh();
     } catch (err) {
@@ -272,7 +278,7 @@ export function SalesmanTasksList({ data, currentUserId }: SalesmanTasksListProp
           <>
             <div className="hidden overflow-hidden rounded-card border border-border bg-card shadow-card md:block">
               <table className="w-full table-fixed text-left text-sm">
-                <thead className="border-b border-border bg-subtle text-xs text-muted-foreground">
+                <thead className="border-b border-border text-muted-foreground text-[13px]">
                   <tr>
                     <th scope="col" className="px-4 py-3 font-medium">Task</th>
                     <th scope="col" className="hidden w-[16%] px-4 py-3 font-medium lg:table-cell">Assigned by</th>
@@ -392,10 +398,20 @@ export function SalesmanTasksList({ data, currentUserId }: SalesmanTasksListProp
                 className="w-full rounded-control border border-input bg-card px-3 text-sm text-foreground shadow-xs outline-none transition-[border-color,box-shadow] duration-150 placeholder:text-muted-foreground/70 hover:border-border-strong focus:border-ring focus:ring-3 focus:ring-ring/15 disabled:cursor-not-allowed disabled:bg-muted disabled:opacity-70 h-10 cursor-pointer"
               >
                 <option value="">General</option>
+                <option value="client_follow_up">Client follow-up</option>
                 <option value="order_follow_up">Order follow-up</option>
                 <option value="payment_follow_up">Payment follow-up</option>
               </select>
             </div>
+
+            {addTaskForm.category === "client_follow_up" && (
+              <div className="flex flex-col gap-1">
+                <label className="text-xs font-semibold text-foreground/85" htmlFor="add-task-client">
+                  Client
+                </label>
+                <ClientPicker id="add-task-client" required value={followUpClient} onChange={setFollowUpClient} inputClassName="text-xs" />
+              </div>
+            )}
 
             <Input
               label="Due Date"

@@ -144,7 +144,7 @@ export function ClientHistory({ data, role }: { data: History; role: AppRole }) 
               <>
                 {/* Table (md+) */}
                 <table className="hidden w-full table-fixed text-left text-sm md:table">
-                  <thead className="border-b border-border bg-subtle text-xs text-muted-foreground">
+                  <thead className="border-b border-border text-muted-foreground text-[13px]">
                     <tr>
                       <th scope="col" className={cn(th, "w-[18%] pl-5")}>Order</th>
                       <th scope="col" className={th}>Route</th>
@@ -215,7 +215,7 @@ export function ClientHistory({ data, role }: { data: History; role: AppRole }) 
           ) : (
             <>
               <table className="hidden w-full table-fixed text-left text-sm md:table">
-                <thead className="border-b border-border bg-subtle text-xs text-muted-foreground">
+                <thead className="border-b border-border text-muted-foreground text-[13px]">
                   <tr>
                     <th scope="col" className={cn(th, "w-[18%] pl-5")}>Enquiry</th>
                     <th scope="col" className={th}>Route</th>

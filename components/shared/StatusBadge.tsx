@@ -1,24 +1,40 @@
+import { ArrowRight, Check, CheckCheck, Circle, Clock3, Globe, Inbox, PackageCheck, RotateCcw, Send, Tag, X, type LucideIcon } from "lucide-react";
 import { cn, titleCase } from "@/lib/utils";
 import { enquiryStatusLabels } from "@/types/enquiry";
 
 export type StatusTone = "success" | "warning" | "danger" | "info" | "neutral" | "primary";
 
+// Coloured word + icon, no pill (the table style): tone sets the colour, the status its icon.
 const toneClasses: Record<StatusTone, string> = {
-  success: "bg-success-soft text-success-foreground",
-  warning: "bg-warning-soft text-warning-foreground",
-  danger: "bg-danger-soft text-danger-foreground",
-  info: "bg-info-soft text-info-foreground",
-  primary: "bg-primary-soft text-primary-soft-foreground",
-  neutral: "bg-muted text-muted-foreground",
+  success: "text-success-foreground",
+  warning: "text-warning-foreground",
+  danger: "text-danger-foreground",
+  info: "text-info-foreground",
+  primary: "text-primary-soft-foreground",
+  neutral: "text-muted-foreground",
 };
 
-const dotClasses: Record<StatusTone, string> = {
-  success: "bg-success",
-  warning: "bg-warning",
-  danger: "bg-danger",
-  info: "bg-info",
-  primary: "bg-primary",
-  neutral: "bg-muted-foreground",
+const TONE_ICONS: Record<StatusTone, LucideIcon> = {
+  success: Check,
+  warning: Clock3,
+  danger: X,
+  info: ArrowRight,
+  primary: Check,
+  neutral: Circle,
+};
+
+const STATUS_ICONS: Record<string, LucideIcon> = {
+  sent_to_client: Send,
+  inquiry_received: Inbox,
+  with_agent: Globe,
+  quoted: Tag,
+  confirmed: Check,
+  lost: X,
+  transit: ArrowRight,
+  delivered: PackageCheck,
+  completed: CheckCheck,
+  revision_requested: RotateCcw,
+  cancelled: X,
 };
 
 /** One place that decides which tone a status value gets. */
@@ -28,8 +44,7 @@ const STATUS_TONES: Record<string, StatusTone> = {
   inquiry_received: "neutral",
   with_agent: "warning",
   quoted: "info",
-  negotiation: "warning",
-  offer_revised: "primary",
+  revision_requested: "warning",
   confirmed: "success",
   lost: "danger",
 };
@@ -38,15 +53,10 @@ const STATUS_LABELS: Record<string, string> = enquiryStatusLabels;
 
 export function StatusBadge({ status, tone, label, className }: { status: string; tone?: StatusTone; label?: string; className?: string }) {
   const t = tone ?? STATUS_TONES[status] ?? "neutral";
+  const Icon = STATUS_ICONS[status] ?? TONE_ICONS[t];
   return (
-    <span
-      className={cn(
-        "inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-medium",
-        toneClasses[t],
-        className,
-      )}
-    >
-      <span className={cn("size-1.5 rounded-full", dotClasses[t])} aria-hidden />
+    <span className={cn("inline-flex items-center gap-1.5 whitespace-nowrap text-[13px] font-medium", toneClasses[t], className)}>
+      <Icon className={cn("shrink-0", Icon === Circle ? "size-2 fill-current" : "size-3.5")} strokeWidth={2.4} aria-hidden />
       {label ?? STATUS_LABELS[status] ?? titleCase(status)}
     </span>
   );

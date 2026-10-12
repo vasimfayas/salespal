@@ -14,68 +14,68 @@
 :root {
   color-scheme: light;
 
-  /* Surfaces */
-  --background: #f8fafc;
-  --foreground: #0f172a;
+  /* Surfaces — warm greys, white cards */
+  --background: #f4f4f0;
+  --foreground: #15171a;
   --card: #ffffff;
-  --card-foreground: #0f172a;
+  --card-foreground: #15171a;
   --popover: #ffffff;
-  --popover-foreground: #0f172a;
-  --muted: #f1f5f9;
-  --muted-foreground: #64748b;
-  --subtle: #f8fafc;
+  --popover-foreground: #15171a;
+  --muted: #f1f2ee;
+  --muted-foreground: #6b6f76;
+  --subtle: #fafaf8;
 
   /* Lines & focus */
-  --border: #e5e7eb;
-  --border-strong: #cbd5e1;
-  --input: #e2e8f0;
-  --ring: #059669;
+  --border: #ecede8;
+  --border-strong: #d4d6cf;
+  --input: #dedfda;
+  --ring: #6fa53a;
 
-  /* Accent — the one brand color */
-  --primary: #059669;
-  --primary-hover: #047857;
+  /* Primary actions are near-black; lime is the highlight accent (soft fills, active nav, charts) */
+  --primary: #15171a;
+  --primary-hover: #2a2d32;
   --primary-foreground: #ffffff;
-  --primary-soft: #ecfdf5;
-  --primary-soft-foreground: #047857;
+  --primary-soft: #eef3e3;
+  --primary-soft-foreground: #3f6b17;
 
   /* Semantic status (badges, dots, small text only) */
-  --success: #059669;
-  --success-soft: #ecfdf5;
-  --success-foreground: #047857;
-  --warning: #d97706;
-  --warning-soft: #fffbeb;
-  --warning-foreground: #b45309;
-  --danger: #dc2626;
-  --danger-soft: #fef2f2;
-  --danger-foreground: #b91c1c;
-  --info: #2563eb;
-  --info-soft: #eff6ff;
-  --info-foreground: #1d4ed8;
+  --success: #6fa53a;
+  --success-soft: #eef3e3;
+  --success-foreground: #3f6b17;
+  --warning: #d98a1f;
+  --warning-soft: #fbf3e2;
+  --warning-foreground: #8a4b0f;
+  --danger: #d9534f;
+  --danger-soft: #fbe6e1;
+  --danger-foreground: #9b3b26;
+  --info: #4f86c6;
+  --info-soft: #eef4fa;
+  --info-foreground: #24507f;
 
   /* Sidebar */
   --sidebar: #ffffff;
-  --sidebar-foreground: #475569;
-  --sidebar-muted: #94a3b8;
-  --sidebar-accent: #ecfdf5;
-  --sidebar-accent-foreground: #047857;
-  --sidebar-hover: #f1f5f9;
-  --sidebar-border: #e5e7eb;
+  --sidebar-foreground: #3a3d42;
+  --sidebar-muted: #8a8e94;
+  --sidebar-accent: #f2f4ec;
+  --sidebar-accent-foreground: #15171a;
+  --sidebar-hover: #f5f6f2;
+  --sidebar-border: #efefeb;
 
-  /* Charts: primary + neutral shades */
-  --chart-1: #059669;
-  --chart-2: #34d399;
-  --chart-3: #94a3b8;
-  --chart-4: #cbd5e1;
-  --chart-5: #475569;
-  --chart-grid: #eef2f6;
-  --chart-axis: #94a3b8;
+  /* Charts: lime family + warm neutrals */
+  --chart-1: #8dbb45;
+  --chart-2: #c6de95;
+  --chart-3: #ede36a;
+  --chart-4: #e4e9d8;
+  --chart-5: #15171a;
+  --chart-grid: #efefeb;
+  --chart-axis: #8a8e94;
 
-  /* Elevation */
-  --shadow-card: 0 1px 2px rgb(15 23 42 / 0.04), 0 1px 3px rgb(15 23 42 / 0.04);
-  --shadow-pop: 0 10px 30px -8px rgb(15 23 42 / 0.16), 0 2px 6px rgb(15 23 42 / 0.06);
+  /* Elevation — flat cards, soft popovers */
+  --shadow-card: 0 1px 2px rgb(21 23 26 / 0.03);
+  --shadow-pop: 0 18px 48px -12px rgb(21 23 26 / 0.18), 0 2px 6px rgb(21 23 26 / 0.06);
 
   /* Welcome banner — the only gradient in the app */
-  --banner-from: #ecfdf5;
+  --banner-from: #eef3e3;
   --banner-to: #ffffff;
 }
 
@@ -95,14 +95,14 @@
   --border: #334155;
   --border-strong: #475569;
   --input: #3b4a61;
-  --ring: #10b981;
+  --ring: #a3ce5b;
 
-  /* Accent dimmed slightly to avoid glare on dark surfaces */
-  --primary: #10b981;
-  --primary-hover: #34d399;
-  --primary-foreground: #04261b;
-  --primary-soft: rgb(16 185 129 / 0.14);
-  --primary-soft-foreground: #6ee7b7;
+  /* Lime accent, dimmed slightly to avoid glare on dark surfaces */
+  --primary: #a3ce5b;
+  --primary-hover: #b9d586;
+  --primary-foreground: #15171a;
+  --primary-soft: rgb(163 206 91 / 0.14);
+  --primary-soft-foreground: #c8e68e;
 
   --success: #34d399;
   --success-soft: rgb(16 185 129 / 0.14);
@@ -120,13 +120,13 @@
   --sidebar: #0b1222;
   --sidebar-foreground: #cbd5e1;
   --sidebar-muted: #64748b;
-  --sidebar-accent: rgb(16 185 129 / 0.14);
-  --sidebar-accent-foreground: #6ee7b7;
+  --sidebar-accent: rgb(163 206 91 / 0.14);
+  --sidebar-accent-foreground: #c8e68e;
   --sidebar-hover: #1a2436;
   --sidebar-border: #1e293b;
 
-  --chart-1: #10b981;
-  --chart-2: #6ee7b7;
+  --chart-1: #a3ce5b;
+  --chart-2: #c8e68e;
   --chart-3: #64748b;
   --chart-4: #475569;
   --chart-5: #cbd5e1;
@@ -136,7 +136,7 @@
   --shadow-card: 0 1px 2px rgb(0 0 0 / 0.3);
   --shadow-pop: 0 12px 32px -8px rgb(0 0 0 / 0.55), 0 2px 6px rgb(0 0 0 / 0.3);
 
-  --banner-from: rgb(16 185 129 / 0.16);
+  --banner-from: rgb(163 206 91 / 0.16);
   --banner-to: #1e293b;
 }
 
@@ -191,28 +191,28 @@
   --shadow-card: var(--shadow-card);
   --shadow-pop: var(--shadow-pop);
 
-  /* Shape: cards 16px, controls 10px */
-  --radius-card: 1rem;
-  --radius-control: 0.625rem;
+  /* Shape: cards 22px, controls 12px */
+  --radius-card: 1.375rem;
+  --radius-control: 0.75rem;
 
-  /* Type: next/font exposes --font-inter on <html> */
-  --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system, sans-serif;
-  --font-display: var(--font-inter), ui-sans-serif, system-ui, -apple-system, sans-serif;
+  /* Type: next/font exposes --font-app (Plus Jakarta Sans) on <html> */
+  --font-sans: var(--font-app), ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-display: var(--font-app), ui-sans-serif, system-ui, -apple-system, sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
-/* Legacy teal brand accents now resolve to the single emerald accent. */
+/* Legacy teal brand accents now resolve to the lime accent. */
 @theme {
-  --color-teal-50: #ecfdf5;
-  --color-teal-100: #d1fae5;
-  --color-teal-200: #a7f3d0;
-  --color-teal-300: #6ee7b7;
-  --color-teal-400: #34d399;
-  --color-teal-500: #10b981;
-  --color-teal-600: #059669;
-  --color-teal-700: #047857;
-  --color-teal-800: #065f46;
-  --color-teal-900: #064e3b;
+  --color-teal-50: #f4f8ec;
+  --color-teal-100: #e8f0d6;
+  --color-teal-200: #d3e4b1;
+  --color-teal-300: #b9d586;
+  --color-teal-400: #a3ce5b;
+  --color-teal-500: #8dbb45;
+  --color-teal-600: #6fa53a;
+  --color-teal-700: #4f7f25;
+  --color-teal-800: #3f6b17;
+  --color-teal-900: #2c4d0f;
 }
 
 @layer base {
@@ -236,6 +236,11 @@
 
   a {
     text-decoration: none;
+  }
+
+  /* Table headings read as quiet labels (utilities can still override). */
+  th {
+    font-weight: 500;
   }
 
   /* Visible, consistent keyboard focus everywhere */

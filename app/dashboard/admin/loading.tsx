@@ -32,7 +32,7 @@ export default function Loading() {
       </div>
 
       {/* Company hero — 2 columns */}
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         {[0, 1].map((i) => (
           <div key={i} className="rounded-card border border-border bg-card p-5 space-y-4">
             <div className="flex justify-between">

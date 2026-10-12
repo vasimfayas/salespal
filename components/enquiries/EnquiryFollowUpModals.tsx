@@ -65,6 +65,8 @@ function FollowUpForm({
   onSaved: () => void;
 }) {
   const [comment, setComment] = useState("");
+  // Next follow-up date: the enquiry's follow-up task moves to it.
+  const [nextDate, setNextDate] = useState(() => new Date(Date.now() + 7 * 86_400_000).toISOString().slice(0, 10));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const isOpen = isActiveEnquiry(enquiry.status);
@@ -75,7 +77,7 @@ function FollowUpForm({
     setSaving(true);
     setError(null);
     try {
-      await postJson(`/api/enquiries/${enquiry.id}/follow-ups`, { comment });
+      await postJson(`/api/enquiries/${enquiry.id}/follow-ups`, { comment, next_date: nextDate });
       onSaved();
     } catch (err) {
       setError(err instanceof Error ? err.message : "An error occurred");
@@ -106,7 +108,7 @@ function FollowUpForm({
         <form onSubmit={submit} className="space-y-3">
           {enquiry.follow_up_due && (
             <p className="rounded-lg border border-warning/30 bg-warning-soft px-3 py-2 text-xs font-medium text-warning-foreground">
-              This enquiry has been open for over 30 days. Logging a follow-up completes the follow-up task.
+              This enquiry has been open for over 30 days. Logging a follow-up moves its follow-up task to the next date; the task completes when the enquiry becomes an order.
             </p>
           )}
           {error && <p role="alert" className="rounded-md bg-danger-soft px-3 py-2 text-xs font-medium text-danger-foreground">{error}</p>}
@@ -121,6 +123,18 @@ function FollowUpForm({
               onChange={(e) => setComment(e.target.value)}
               placeholder="e.g. Called the client — waiting on their final volume, will confirm next week."
               className={textareaClass}
+            />
+          </label>
+          <label htmlFor="follow-up-next" className="block text-sm font-medium text-foreground/85 sm:w-56">
+            <span className="mb-1 block">Next follow-up</span>
+            <input
+              id="follow-up-next"
+              type="date"
+              required
+              min={new Date().toISOString().slice(0, 10)}
+              value={nextDate}
+              onChange={(e) => setNextDate(e.target.value)}
+              className="h-10 w-full rounded-control border border-input bg-card px-3 text-sm text-foreground outline-none focus:border-ring focus:ring-3 focus:ring-ring/15"
             />
           </label>
           <div className="flex justify-end">

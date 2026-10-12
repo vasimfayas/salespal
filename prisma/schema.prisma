@@ -158,46 +158,50 @@ model ManagerSalesman {
 }
 
 model Client {
-  id                           Int              @id @default(autoincrement())
+  id                           Int                 @id @default(autoincrement())
   name                         String
   contact_person_name          String
   contact_no                   String
   location_coordinates         String?
   mail_id                      String?
-  cr_no                        String?          @unique
-  cr_expiry_date               DateTime?        @db.Date
+  cr_no                        String?             @unique
+  cr_expiry_date               DateTime?           @db.Date
   contact_person_designation   String?
   assigned_salesman_id         Int
   org_id                       Int
   notes                        String?
   status                       String
+  /// When the client entered its current status (aging / "stuck" monitoring).
+  status_changed_at            DateTime            @default(now())
   /// standard | premium (see types/client.ts clientCategories). More categories can be added there.
-  category                     String           @default("standard")
+  category                     String              @default("standard")
   /// Department name when a company is handled per department ("Logistics", "Procurement").
   /// Each department is its own client row with its own salesman, contact, enquiries and orders.
   department                   String?
   /// The company's main client row this department belongs to (null on main rows).
   /// Department rows leave cr_no empty and show the parent's.
   parent_client_id             Int?
-  checklist_kyc_verified       Boolean          @default(false)
-  checklist_agreement_signed   Boolean          @default(false)
-  checklist_rate_card_approved Boolean          @default(false)
-  checklist_integration_setup  Boolean          @default(false)
-  checklist_dispatch_confirmed Boolean          @default(false)
-  checklist_billing_verified   Boolean          @default(false)
-  checklist_portal_created     Boolean          @default(false)
-  checklist_first_shipment     Boolean          @default(false)
-  created_at                   DateTime         @default(now())
-  assignedSalesman             User             @relation("AssignedClients", fields: [assigned_salesman_id], references: [id])
-  organization                 Organization     @relation(fields: [org_id], references: [id])
-  parent                       Client?          @relation("ClientDepartments", fields: [parent_client_id], references: [id])
-  departments                  Client[]         @relation("ClientDepartments")
+  checklist_kyc_verified       Boolean             @default(false)
+  checklist_agreement_signed   Boolean             @default(false)
+  checklist_rate_card_approved Boolean             @default(false)
+  checklist_integration_setup  Boolean             @default(false)
+  checklist_dispatch_confirmed Boolean             @default(false)
+  checklist_billing_verified   Boolean             @default(false)
+  checklist_portal_created     Boolean             @default(false)
+  checklist_first_shipment     Boolean             @default(false)
+  created_at                   DateTime            @default(now())
+  assignedSalesman             User                @relation("AssignedClients", fields: [assigned_salesman_id], references: [id])
+  organization                 Organization        @relation(fields: [org_id], references: [id])
+  parent                       Client?             @relation("ClientDepartments", fields: [parent_client_id], references: [id])
+  departments                  Client[]            @relation("ClientDepartments")
   logs                         ClientLog[]
+  statusEvents                 ClientStatusEvent[]
   clientTasks                  ClientTask[]
   tasks                        Task[]
   orders                       Order[]
   enquiries                    Enquiry[]
   documents                    ClientDocument[]
+  contacts                     ClientContact[]
 
   @@index([assigned_salesman_id])
   @@index([org_id])
@@ -454,6 +458,8 @@ model Enquiry {
   client_signature_path String?
   /// Required when status is "lost".
   cancel_reason         String?
+  /// Why it was lost: high_rate | late_quote | dispute | credit_terms | other (types/enquiry.ts). cancel_reason holds "Label — remark".
+  lost_reason           String?
   cancelled_at          DateTime?
   cancelled_by_id       Int?
   /// When the next automatic follow-up task is due. Null = enquiry_date + 30 days.
@@ -569,4 +575,46 @@ model EnquiryAgentRequest {
   @@index([enquiry_id])
   @@index([agent_id])
   @@map("enquiry_agent_requests")
+}
+
+/// One row per client status change — the source for pipeline metrics. Written only by applyClientStatus
+/// (lib/client-status-flow.ts), the client create route and the dormant sweep.
+model ClientStatusEvent {
+  id          Int      @id @default(autoincrement())
+  client_id   Int
+  /// Null on the creation event.
+  from_status String?
+  to_status   String
+  /// The client's salesman at the time: who the change is credited to.
+  owner_id    Int
+  /// Who made the change; null for automatic changes (dormant sweep).
+  actor_id    Int?
+  /// The client's company at the time.
+  org_id      Int
+  /// manual | lead_outcome | enquiry | order | dormant_sweep | create
+  source      String
+  created_at  DateTime @default(now())
+  client      Client   @relation(fields: [client_id], references: [id], onDelete: Cascade)
+
+  @@index([owner_id, created_at])
+  @@index([org_id, created_at])
+  @@index([to_status, created_at])
+  @@index([client_id, created_at])
+  @@map("client_status_events")
+}
+
+/// Extra contact people at a client (the main contact stays on the client: contact_person_name, contact_no …).
+model ClientContact {
+  id            Int      @id @default(autoincrement())
+  client_id     Int
+  name          String
+  designation   String?
+  phone         String?
+  email         String?
+  created_by_id Int
+  created_at    DateTime @default(now())
+  client        Client   @relation(fields: [client_id], references: [id], onDelete: Cascade)
+
+  @@index([client_id])
+  @@map("client_contacts")
 }

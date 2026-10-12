@@ -66,7 +66,7 @@ export default async function ManagerDashboardPage({
 
   const orgName = orgs.map((o) => o.name).join(" & ") || "Your Organization";
   const salesmanCount = salesmen.length;
-  const subtitle = `${orgName} · ${salesmanCount} salesman${salesmanCount !== 1 ? "en" : ""}`;
+  const subtitle = `${orgName} · ${salesmanCount} ${salesmanCount === 1 ? "salesman" : "salesmen"}`;
 
   return (
     <>

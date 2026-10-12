@@ -2,12 +2,16 @@ import type { Prisma } from "@prisma/client";
 import { revalidateTag } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { ACTIVE_ENQUIRY_STATUSES, enquiryRef } from "@/types/enquiry";
+import { REVISION_TASK_CATEGORY } from "@/types/task";
 
 /** An enquiry still open this many days after it was raised (or last followed up) gets a follow-up task. */
 export const FOLLOW_UP_AFTER_DAYS = 30;
 
 const DAY_MS = 24 * 60 * 60 * 1000;
-const OPEN_FOLLOW_UP_TASK = { status: { in: ["pending", "in_process"] } };
+const OPEN_TASK = { status: { in: ["pending", "in_process"] } };
+// An enquiry's tasks: the automatic follow-up (no category) and the order-revision task.
+const TASK_KIND = { follow_up: { category: null }, revision: { category: REVISION_TASK_CATEGORY }, all: {} } as const;
+const OPEN_FOLLOW_UP_TASK = { ...OPEN_TASK, ...TASK_KIND.follow_up };
 
 function todayUtc() {
   const now = new Date();
@@ -73,22 +77,40 @@ export async function ensureEnquiryFollowUpTasks(userId: number) {
 }
 
 /**
- * Closes the enquiry's outstanding follow-up tasks — done (follow-up logged, moved on, confirmed) or
- * unsuccessful (lost) — and records what happened in each task's history.
+ * Closes the enquiry's outstanding tasks — done (confirmed into an order; the revision task also when the offer is
+ * revised) or unsuccessful (lost) — and records what happened in each task's history.
  */
 export async function closeFollowUpTasks(
   tx: Prisma.TransactionClient,
   enquiryId: number,
   status: "achieved" | "unsuccessful",
   detail: { action: string; note: string; by: number },
+  kind: keyof typeof TASK_KIND = "all",
 ) {
-  const open = await tx.task.findMany({ where: { enquiry_id: enquiryId, ...OPEN_FOLLOW_UP_TASK }, select: { id: true } });
+  const open = await tx.task.findMany({ where: { enquiry_id: enquiryId, ...OPEN_TASK, ...TASK_KIND[kind] }, select: { id: true } });
   if (open.length === 0) return;
   const now = new Date();
   await tx.task.updateMany({ where: { id: { in: open.map((t) => t.id) } }, data: { status, closed_at: now } });
   await tx.taskUpdate.createMany({
     data: open.map((t) => ({ task_id: t.id, action: detail.action, note: detail.note, created_by_id: detail.by, created_at: now })),
   });
+}
+
+/** Notes progress (a stage move) on the enquiry's open follow-up task without closing it: it stays open until the order. */
+export async function noteFollowUpTasks(tx: Prisma.TransactionClient, enquiryId: number, detail: { action: string; note: string; by: number }) {
+  const open = await tx.task.findMany({ where: { enquiry_id: enquiryId, ...OPEN_FOLLOW_UP_TASK }, select: { id: true } });
+  if (open.length) await tx.taskUpdate.createMany({ data: open.map((t) => ({ task_id: t.id, action: detail.action, note: detail.note, created_by_id: detail.by })) });
+}
+
+/** A follow-up comment moves the enquiry's open follow-up task to the next follow-up date. */
+export async function extendFollowUpTasks(tx: Prisma.TransactionClient, enquiryId: number, dueDate: Date, detail: { note: string; by: number }) {
+  const open = await tx.task.findMany({ where: { enquiry_id: enquiryId, ...OPEN_FOLLOW_UP_TASK }, select: { id: true, due_date: true } });
+  for (const t of open) {
+    await tx.task.update({ where: { id: t.id }, data: { due_date: dueDate } });
+    await tx.taskUpdate.create({
+      data: { task_id: t.id, action: "enquiry_follow_up", note: detail.note, prev_due_date: t.due_date, new_due_date: dueDate, created_by_id: detail.by },
+    });
+  }
 }
 
 export function revalidateTaskViews() {

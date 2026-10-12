@@ -1,7 +1,7 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { clientStatusCounts } from "@/lib/clients-list";
-import { enquiryStatuses, type EnquiryStatus } from "@/types/enquiry";
+import { enquiryStatuses, isLostReason, lostReasonLabels, type EnquiryStatus } from "@/types/enquiry";
 
 /**
  * Monthly performance report for one salesman (read-only; feeds the PDF).
@@ -109,7 +109,8 @@ export async function getSalesmanMonthlyReport(salesmanId: number, monthKey: str
     prisma.enquiry.count({ where: { created_by_id: salesmanId, status: "lost", cancelled_at: { gte: pStart, lt: start } } }),
 
     prisma.$queryRaw<{ reason: string; count: Num; value: Num }[]>(Prisma.sql`
-      SELECT COALESCE(NULLIF(TRIM(e.cancel_reason), ''), 'No reason given') AS reason, COUNT(*)::int AS count,
+      -- Grouped by the picked reason; enquiries lost before reasons were picked from a list are "Not categorised".
+      SELECT COALESCE(e.lost_reason, '') AS reason, COUNT(*)::int AS count,
              COALESCE(SUM(e.provisional_cost + e.provisional_profit), 0)::float8 AS value
       FROM enquiries e
       WHERE e.created_by_id = ${salesmanId} AND e.status = 'lost' AND e.cancelled_at >= ${S} AND e.cancelled_at < ${E}
@@ -259,7 +260,7 @@ export async function getSalesmanMonthlyReport(salesmanId: number, monthKey: str
       count: lostRows.length,
       prev: lostPrev,
       value: lostRows.reduce((a, r) => a + n(r.value), 0),
-      reasons: reasonRows.map((r) => ({ reason: r.reason, count: n(r.count), value: n(r.value) })),
+      reasons: reasonRows.map((r) => ({ reason: isLostReason(r.reason) ? lostReasonLabels[r.reason] : "Not categorised", count: n(r.count), value: n(r.value) })),
       items: lostRows.map((r) => ({ id: r.id, prefix: r.prefix, client: r.client, from: r.from, to: r.to, mode: r.mode, value: r.value === null ? null : n(r.value), reason: r.reason, lostAt: r.lost_at, by: r.by })),
     },
     orders,

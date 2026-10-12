@@ -152,6 +152,8 @@ export function RateCard({
             <Edit3 size={13} />
             <span>Edit</span>
           </button>
+          {onDelete && (
+          <>
           <div style={{ width: "1px", background: "var(--ds-border-subtle)" }} />
           <button
             type="button"
@@ -167,6 +169,8 @@ export function RateCard({
             )}
             <span>Delete</span>
           </button>
+          </>
+          )}
         </div>
       )}
     </div>

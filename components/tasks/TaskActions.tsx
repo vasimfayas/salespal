@@ -34,7 +34,7 @@ const OUTCOME_TONE: Record<string, string> = {
 
 /** True for tasks whose status is driven by an outcome (no free status dropdown). */
 export function isGuidedTask(task: ActionTask) {
-  return task.kind === "lead_follow_up" || (task.kind === "enquiry_follow_up" && !!task.enquiry);
+  return task.kind === "lead_follow_up" || task.kind === "order_revision" || (task.kind === "enquiry_follow_up" && !!task.enquiry);
 }
 
 /** Read-only status pill for guided tasks. */
@@ -57,6 +57,7 @@ export function TaskStatusPill({ task }: { task: ActionTask }) {
 export function TaskActions({ task, enquiriesPath }: { task: ActionTask; enquiriesPath: string }) {
   const [outcome, setOutcome] = useState<LeadOutcome | null>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [followUpOpen, setFollowUpOpen] = useState(false);
   const open = isOpenTask(task.status);
   const canHaveHistory = !task.isClientTask;
 
@@ -75,11 +76,22 @@ export function TaskActions({ task, enquiriesPath }: { task: ActionTask; enquiri
           </Button>
         </>
       )}
+      {/* Enquiry / order / client follow-ups: log a comment and move the due date. */}
+      {open && !task.isClientTask && (task.kind === "order_follow_up" || task.kind === "client_follow_up") && (
+        <Button size="sm" onClick={() => setFollowUpOpen(true)}>
+          <MessageSquareText /> Follow up
+        </Button>
+      )}
+      {task.kind === "order_revision" && open && task.enquiry && (
+        <Link href={`${enquiriesPath}?view=${task.enquiry.id}`} className={buttonVariants({ size: "sm" })} title="Revise the offer, or re-confirm it, to complete this task">
+          <ExternalLink /> Revise offer
+        </Link>
+      )}
       {task.kind === "enquiry_follow_up" && open && task.enquiry && isActiveEnquiry(task.enquiry.status) && (
         <>
-          <Link href={`${enquiriesPath}?followUp=${task.enquiry.id}`} className={buttonVariants({ size: "sm" })}>
+          <Button size="sm" onClick={() => setFollowUpOpen(true)}>
             <MessageSquareText /> Follow up
-          </Link>
+          </Button>
           <Link href={`${enquiriesPath}?view=${task.enquiry.id}`} className={buttonVariants({ size: "sm", variant: "secondary" })} title="Move to the next stage or close it with a reason">
             <ExternalLink /> Open enquiry
           </Link>
@@ -95,6 +107,7 @@ export function TaskActions({ task, enquiriesPath }: { task: ActionTask; enquiri
         <LeadOutcomeDialog task={task} clientId={task.clientId} outcome={outcome} onClose={() => setOutcome(null)} />
       )}
       {historyOpen && <TaskHistoryDialog task={task} onClose={() => setHistoryOpen(false)} />}
+      {followUpOpen && <FollowUpDialog task={task} onClose={() => setFollowUpOpen(false)} />}
     </div>
   );
 }
@@ -206,6 +219,62 @@ function LeadOutcomeDialog({ task, clientId, outcome, onClose }: { task: ActionT
             {outcome === "contacted" && !saving && <CheckCircle2 />}
             {copy.cta}
           </Button>
+        </ModalFooter>
+      </form>
+    </Modal>
+  );
+}
+
+/* ───────────────────────── Follow-up dialog ───────────────────────── */
+
+/** Follow up an enquiry / order / client follow-up task: a comment and the next follow-up date (the task moves to it). */
+function FollowUpDialog({ task, onClose }: { task: ActionTask; onClose: () => void }) {
+  const router = useRouter();
+  const [comment, setComment] = useState("");
+  const [dueDate, setDueDate] = useState(todayPlus(7));
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const enquiry = task.kind === "enquiry_follow_up" ? task.enquiry : null;
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    setSaving(true);
+    setError(null);
+    try {
+      const res = enquiry
+        ? await fetch(`/api/enquiries/${enquiry.id}/follow-ups`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ comment, next_date: dueDate }) })
+        : await fetch(`/api/tasks/${task.id}/follow-up`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ comment, due_date: dueDate }) });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "Couldn't save the follow-up");
+      toast.success(`Followed up · next on ${formatDate(dueDate)}`);
+      onClose();
+      router.refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Couldn't save the follow-up");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Modal open onClose={onClose}>
+      <form onSubmit={submit}>
+        <ModalHeader
+          title="Follow up"
+          description={enquiry ? "Logged on the enquiry. The task stays open until the enquiry becomes an order." : "The task moves to the next follow-up date."}
+          onClose={onClose}
+          icon={<MessageSquareText />}
+        />
+        {error && <p role="alert" className="mb-4 rounded-control bg-danger-soft px-3 py-2 text-sm font-medium text-danger-foreground">{error}</p>}
+        <div className="space-y-4">
+          <Textarea id="fu-comment" label="Comment" required autoFocus rows={3} maxLength={2000} value={comment} onChange={(e) => setComment(e.target.value)} placeholder="e.g. Called the client — waiting on their final volume" />
+          <div className="sm:w-56">
+            <Input id="fu-due" label="Next follow-up" type="date" required min={todayPlus(0)} value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
+          </div>
+        </div>
+        <ModalFooter>
+          <Button type="button" variant="secondary" onClick={onClose}>Cancel</Button>
+          <Button type="submit" loading={saving}>Save follow-up</Button>
         </ModalFooter>
       </form>
     </Modal>
