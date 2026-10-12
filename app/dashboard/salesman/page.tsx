@@ -7,7 +7,7 @@ import { Skeleton } from "@/components/ui/Skeleton";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { SectionCard } from "@/components/dashboard/SectionCard";
 import { StatCard, type StatCardTheme } from "@/components/dashboard/StatCard";
-import { UserCheck, Phone, Sparkles, XCircle, ListChecks, Package, UserPlus, Plus, Send, Users, TrendingUp, TrendingDown } from "lucide-react";
+import { UserCheck, Phone, Sparkles, XCircle, ListChecks, Package, UserPlus, Plus, Send, Users, TrendingUp, TrendingDown, PiggyBank } from "lucide-react";
 import { EMPTY_PERFORMANCE, getPerformance, monthPeriod } from "@/lib/performance";
 import { MonthlyActivityChart } from "@/components/dashboard/MonthlyActivityChart";
 import { OrderMonthlyChart } from "@/components/orders/OrderMonthlyChart";
@@ -278,36 +278,58 @@ async function FollowUpsSection({ userId }: { userId: number }) {
   );
 }
 
-/** This month's orders, order value and new clients vs last month — what salesman performance is measured on. */
+/** invoice_date is a date column: compare as plain local calendar days. */
+const day = (d: Date) => Prisma.sql`${`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`}::date`;
+
+/**
+ * Actual profit accounts entered on the salesman's orders invoiced in each range (by invoice date, as on the
+ * owner's Accounts page and the reports), leaving out cancelled and sent-back orders.
+ */
+async function actualProfit(userId: number, current: { from: Date; to: Date }, previous: { from: Date; to: Date }) {
+  const [row] = await prisma.$queryRaw<{ current: number; previous: number }[]>(Prisma.sql`
+    SELECT COALESCE(SUM(e.actual_profit) FILTER (WHERE o.invoice_date >= ${day(current.from)}), 0)::float8 AS current,
+           COALESCE(SUM(e.actual_profit) FILTER (WHERE o.invoice_date <= ${day(previous.to)}), 0)::float8 AS previous
+    FROM orders o JOIN enquiries e ON e.id = o.enquiry_id
+    WHERE o.created_by_id = ${userId} AND o.status NOT IN ('cancelled', 'revision_requested') AND e.actual_profit IS NOT NULL
+      AND o.invoice_date >= ${day(previous.from)} AND o.invoice_date <= ${day(current.to)}
+      AND (o.invoice_date >= ${day(current.from)} OR o.invoice_date <= ${day(previous.to)})`);
+  return row ?? { current: 0, previous: 0 };
+}
+
+/** This month's orders, new clients and actual profit vs last month — what salesman performance is measured on. */
 async function PerformanceCardsSection({ userId }: { userId: number }) {
   // Month so far vs the same days of last month.
   const month = monthPeriod(0);
   const current = { from: month.from, to: new Date() };
-  const [now, prev] = await Promise.all([getPerformance([userId], current), getPerformance([userId], likeForLike(current, monthPeriod(-1).from, month.from))]);
+  const previous = likeForLike(current, monthPeriod(-1).from, month.from);
+  const [now, prev, profit] = await Promise.all([getPerformance([userId], current), getPerformance([userId], previous), actualProfit(userId, current, previous)]);
   const cur = now.get(userId) ?? EMPTY_PERFORMANCE;
   const last = prev.get(userId) ?? EMPTY_PERFORMANCE;
   const change = (a: number, b: number) => (b > 0 ? Math.round(((a - b) / b) * 100) : a > 0 ? 100 : 0);
   const cards = [
-    { label: "Orders", value: cur.orders, prev: last.orders, pct: change(cur.orders, last.orders), icon: Package, theme: { bg: "bg-info" } },
-    { label: "New clients", value: cur.newClients, prev: last.newClients, pct: change(cur.newClients, last.newClients), icon: UserPlus, theme: { bg: "bg-success" } },
+    { label: "Orders", value: cur.orders, prev: last.orders, pct: change(cur.orders, last.orders), icon: Package, theme: { bg: "bg-info" }, money: false },
+    { label: "New clients", value: cur.newClients, prev: last.newClients, pct: change(cur.newClients, last.newClients), icon: UserPlus, theme: { bg: "bg-success" }, money: false },
+    { label: "Actual profit", value: profit.current, prev: profit.previous, pct: change(profit.current, profit.previous), icon: PiggyBank, theme: { bg: "bg-primary" }, money: true },
   ];
   return (
-    <div className="grid grid-cols-2 gap-4">
+    <div className="grid grid-cols-2 gap-4 lg:grid-cols-3">
       {cards.map((c) => (
-        <StatCard
-          key={c.label}
-          icon={c.icon}
-          label={`${c.label} · this month`}
-          value={c.value}
-          badgeLabel={`${c.pct > 0 ? "+" : ""}${c.pct}%`}
-          badgeDirection={c.pct > 0 ? "up" : c.pct < 0 ? "down" : "flat"}
-          caption={
-            <>
-              Same days last month: <span className="font-semibold text-foreground">{c.prev}</span>
-            </>
-          }
-          theme={c.theme}
-        />
+        <div key={c.label} className={cn(c.money && "col-span-2 lg:col-span-1")}>
+          <StatCard
+            icon={c.icon}
+            label={`${c.label} · this month`}
+            value={c.money ? formatAmount(c.value) : c.value}
+            badgeLabel={`${c.pct > 0 ? "+" : ""}${c.pct}%`}
+            badgeDirection={c.pct > 0 ? "up" : c.pct < 0 ? "down" : "flat"}
+            caption={
+              <>
+                Same days last month: <span className="font-semibold text-foreground">{c.money ? formatAmount(c.prev) : c.prev}</span>
+                {c.money && <span className="block">By invoice date, from the figures accounts enter.</span>}
+              </>
+            }
+            theme={c.theme}
+          />
+        </div>
       ))}
     </div>
   );
@@ -400,7 +422,7 @@ export default async function SalesmanDashboardPage() {
         <FollowUpsSection userId={userId} />
       </Suspense>
 
-      {/* ─── 3. Orders and new clients vs last month ─── */}
+      {/* ─── 3. Orders, new clients and actual profit vs last month ─── */}
       <Suspense fallback={<KpiCardsSkeleton />}>
         <PerformanceCardsSection userId={userId} />
       </Suspense>
