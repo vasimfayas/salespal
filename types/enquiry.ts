@@ -228,6 +228,12 @@ export type EnquiryListItem = {
   payment_mode: string;
   credit_days: number | null;
   clearance: boolean;
+  /** "Requires manager approval" switch. */
+  needs_approval: boolean;
+  /** Confirming needs a manager's approval (the switch, or credit for a client without an approved credit agreement). */
+  approval_required: boolean;
+  /** Latest quote's approval: pending | approved | rejected; null = not asked. */
+  approval_status: string | null;
   /** Dangerous goods, with UN number(s) like "UN1203, UN1950". */
   is_dg: boolean;
   un_number: string | null;

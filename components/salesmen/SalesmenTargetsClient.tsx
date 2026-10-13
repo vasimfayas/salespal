@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { History, Target, Users, X } from "lucide-react";
+import { History, Search, Target, Users, X } from "lucide-react";
 import { Modal } from "@/components/ui/Modal";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
@@ -80,7 +80,7 @@ const periodLabel = (t: SalesmanTargetView) =>
 const currentMonth = () => new Date().toISOString().slice(0, 7);
 
 export function SalesmenTargetsClient({
-  salesmen,
+  salesmen: allSalesmen,
   canAssign,
   performance,
   salesmanHref,
@@ -136,13 +136,88 @@ export function SalesmenTargetsClient({
     }
   }
 
-  if (salesmen.length === 0) {
+  const [query, setQuery] = useState("");
+  const q = query.trim().toLowerCase();
+  const salesmen = q ? allSalesmen.filter((s) => s.name.toLowerCase().includes(q) || s.email.toLowerCase().includes(q)) : allSalesmen;
+
+  if (allSalesmen.length === 0) {
     return <EmptyState icon={Users} title="No salesmen yet" message="Salesmen on your team will appear here." />;
   }
 
   return (
     <>
-      <div className="overflow-x-auto rounded-card border border-border bg-card shadow-card">
+      <div className="relative mb-3 max-w-sm">
+        <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" aria-hidden />
+        <input
+          type="search"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Search salesman"
+          aria-label="Search salesman"
+          className="h-10 w-full rounded-control border border-border bg-card pl-9 pr-3 text-sm outline-none focus:border-primary"
+        />
+      </div>
+      {salesmen.length === 0 && <p className="rounded-card border border-border bg-card p-6 text-center text-sm text-muted-foreground">No salesman matches “{query}”.</p>}
+      <ul className="space-y-3 md:hidden">
+        {salesmen.map((row) => (
+          <li key={row.id} className="space-y-3 rounded-card border border-border bg-card p-4 shadow-card">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                {salesmanHref ? (
+                  <Link href={salesmanHref(row.id)} className="block truncate font-semibold text-foreground hover:text-primary">{row.name}</Link>
+                ) : (
+                  <span className="block truncate font-semibold text-foreground">{row.name}</span>
+                )}
+                <span className="block truncate text-xs text-muted-foreground">{row.email}</span>
+              </div>
+              <span className="shrink-0 text-xs text-muted-foreground">{row.clientCount} clients</span>
+            </div>
+            <dl className="grid grid-cols-2 gap-3 text-sm">
+              {performance && (
+                <div>
+                  <dt className="text-xs text-muted-foreground">This month</dt>
+                  <dd className="font-semibold tabular-nums text-foreground">{formatAmount(performance[row.id]?.value ?? 0)}</dd>
+                  <dd className="text-[11px] text-muted-foreground">
+                    {performance[row.id]?.orders ?? 0} orders · {performance[row.id]?.newClients ?? 0} new
+                  </dd>
+                </div>
+              )}
+              <div>
+                <dt className="text-xs text-muted-foreground">Completed profit</dt>
+                <dd className={cn("font-semibold tabular-nums", row.completedProfit.profit < 0 ? "text-danger-foreground" : "text-success-foreground")}>
+                  {formatAmount(row.completedProfit.profit)}
+                </dd>
+                <dd className="text-[11px] text-muted-foreground">{row.completedProfit.count} completed</dd>
+              </div>
+            </dl>
+            {row.current ? (
+              <div className="space-y-2 rounded-control bg-subtle p-3">
+                <div className="flex items-center justify-between gap-2 text-sm">
+                  <span className="font-semibold text-foreground">Target {formatAmount(row.current.amount)}</span>
+                  <StateBadge state={row.current.state} />
+                </div>
+                <ProgressBar target={row.current} />
+                <p className="text-[11px] text-muted-foreground">{periodLabel(row.current)} · {period(row.current)}</p>
+              </div>
+            ) : (
+              <p className="text-xs italic text-muted-foreground">No active target</p>
+            )}
+            <div className="flex flex-wrap gap-2">
+              {canAssign && (
+                <button onClick={() => openAssign(row)} className={buttonVariants({ size: "sm" })}>
+                  <Target size={13} /> <span>Set target</span>
+                </button>
+              )}
+              <button onClick={() => setHistoryFor(row)} className={buttonVariants({ variant: "secondary", size: "sm" })}>
+                <History size={13} /> <span>History</span>
+              </button>
+              {renderActions?.(row)}
+            </div>
+          </li>
+        ))}
+      </ul>
+
+      <div className="hidden overflow-x-auto rounded-card border border-border bg-card shadow-card md:block">
         <table className="w-full min-w-[980px] text-left text-sm">
           <thead className="border-b border-border text-muted-foreground text-[13px]">
             <tr>

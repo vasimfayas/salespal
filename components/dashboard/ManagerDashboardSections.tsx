@@ -24,6 +24,7 @@ import {
   RefreshCw,
   Check,
   X,
+  PiggyBank,
 } from "lucide-react";
 
 /* ─── Utility: relative time ─── */
@@ -146,12 +147,15 @@ export async function ManagerKpiCardsRow({
 
   const valueChangePct =
     prevValue.value > 0 ? Math.round(((teamValue.value - prevValue.value) / prevValue.value) * 100) : teamValue.value > 0 ? 100 : 0;
+  const profitChangePct =
+    prevValue.profit > 0 ? Math.round(((teamValue.profit - prevValue.profit) / prevValue.profit) * 100) : teamValue.profit > 0 ? 100 : 0;
   const overdueCount = k.overdueTotal;
   const more = (total: number, shown: number) => (total > shown ? ` (showing ${shown} of ${total})` : "");
 
   const cards: {
     label: string;
     value: number | string;
+    unit?: string;
     badgeLabel: string;
     direction: "up" | "down" | "flat";
     Icon: typeof UserCheck;
@@ -199,6 +203,7 @@ export async function ManagerKpiCardsRow({
     },
     {
       label: "Team Order Value",
+      unit: "QAR",
       value: formatAmount(teamValue.value),
       badgeLabel: `${valueChangePct > 0 ? "+" : ""}${valueChangePct}% vs ${period === "last_month" ? "month before" : "same days last month"}`,
       direction: valueChangePct > 0 ? "up" : valueChangePct < 0 ? "down" : "flat",
@@ -211,6 +216,27 @@ export async function ManagerKpiCardsRow({
         meta: formatAmount(s.perf.value),
         href: `/dashboard/manager/team/${s.id}`,
       })),
+      emptyMessage: "No salesmen on your team yet.",
+      viewAllHref: "/dashboard/manager/team",
+      viewAllLabel: "Go to team",
+    },
+    {
+      label: "Provisional Profit",
+      unit: "QAR",
+      value: formatAmount(teamValue.profit),
+      badgeLabel: `${profitChangePct > 0 ? "+" : ""}${profitChangePct}% vs ${period === "last_month" ? "month before" : "same days last month"}`,
+      direction: profitChangePct > 0 ? "up" : profitChangePct < 0 ? "down" : "flat",
+      Icon: PiggyBank,
+      bg: "bg-primary",
+      items: [...sortedSalesmen]
+        .sort((a, b) => b.perf.profit - a.perf.profit)
+        .map((s) => ({
+          id: s.id,
+          primary: s.name,
+          secondary: `${s.perf.orders} order${s.perf.orders === 1 ? "" : "s"}`,
+          meta: `${formatAmount(s.perf.profit)} QAR`,
+          href: `/dashboard/manager/team/${s.id}`,
+        })),
       emptyMessage: "No salesmen on your team yet.",
       viewAllHref: "/dashboard/manager/team",
       viewAllLabel: "Go to team",
@@ -237,7 +263,7 @@ export async function ManagerKpiCardsRow({
   ];
 
   return (
-    <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
+    <div className="grid gap-4 grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
       {cards.map((card) => (
         <StatCardWithDetails
           key={card.label}
@@ -252,6 +278,7 @@ export async function ManagerKpiCardsRow({
             icon={card.Icon}
             label={card.label}
             value={card.value}
+            unit={card.unit}
             badgeLabel={card.badgeLabel}
             badgeDirection={card.direction}
             goodWhen={card.goodWhen}

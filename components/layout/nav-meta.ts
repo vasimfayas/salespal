@@ -3,6 +3,7 @@ import {
   Ban,
   BarChart3,
   Building2,
+  ClipboardCheck,
   ClipboardList,
   Globe,
   Landmark,
@@ -37,6 +38,7 @@ const ICONS: Record<string, LucideIcon> = {
   "Shipping Rates": Ship,
   Agents: Globe,
   Accounts: Landmark,
+  Approvals: ClipboardCheck,
 };
 
 const GROUPS: Record<string, string> = {
@@ -56,6 +58,7 @@ const GROUPS: Record<string, string> = {
   Users: "Administration",
   Reports: "Reports",
   Accounts: "Reports",
+  Approvals: "Operations",
 };
 
 export type NavItem = { label: string; href: string; icon: LucideIcon };

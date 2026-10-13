@@ -6,12 +6,13 @@ import { VOID_ORDER_STATUSES } from "@/types/order";
  * Salesman performance — what a salesman brings in during a period:
  *   orders      orders they created (cancelled / sent-back-for-revision excluded)
  *   value       total amount of those orders
+ *   profit      their provisional profit (actual profit is accounted separately, by invoice date)
  *   newClients  their clients whose FIRST (non-void) order falls in the period
  * Leaderboards rank by value, then orders. Tasks are tracked separately as work activity.
  */
-export type Performance = { orders: number; value: number; newClients: number };
+export type Performance = { orders: number; value: number; newClients: number; profit: number };
 
-export const EMPTY_PERFORMANCE: Performance = { orders: 0, value: 0, newClients: 0 };
+export const EMPTY_PERFORMANCE: Performance = { orders: 0, value: 0, newClients: 0, profit: 0 };
 
 export type Period = { from: Date; to: Date };
 
@@ -34,10 +35,11 @@ export async function getPerformance(salesmanIds: number[], { from, to }: Period
   const voided = Prisma.join([...VOID_ORDER_STATUSES]);
   const inOrg = orgId ? Prisma.sql`AND o.org_id = ${orgId}` : Prisma.empty;
 
-  const rows = await prisma.$queryRaw<{ id: number; orders: number; value: number; new_clients: number }[]>(Prisma.sql`
+  const rows = await prisma.$queryRaw<{ id: number; orders: number; value: number; profit: number; new_clients: number }[]>(Prisma.sql`
     WITH placed AS (
-      SELECT o.created_by_id AS id, COUNT(*)::int AS orders, COALESCE(SUM(o.amount), 0)::float8 AS value
-      FROM orders o JOIN clients c ON c.id = o.client_id
+      SELECT o.created_by_id AS id, COUNT(*)::int AS orders, COALESCE(SUM(o.amount), 0)::float8 AS value,
+             COALESCE(SUM(e.provisional_profit), 0)::float8 AS profit
+      FROM orders o JOIN clients c ON c.id = o.client_id LEFT JOIN enquiries e ON e.id = o.enquiry_id
       WHERE o.created_by_id IN (${ids}) AND o.status NOT IN (${voided}) AND o.created_at >= ${from} AND o.created_at < ${to} ${inOrg}
       GROUP BY o.created_by_id
     ),
@@ -50,12 +52,12 @@ export async function getPerformance(salesmanIds: number[], { from, to }: Period
     fresh AS (
       SELECT id, COUNT(*)::int AS new_clients FROM firsts WHERE first_order >= ${from} AND first_order < ${to} GROUP BY id
     )
-    SELECT s.id, COALESCE(p.orders, 0) AS orders, COALESCE(p.value, 0) AS value, COALESCE(f.new_clients, 0) AS new_clients
+    SELECT s.id, COALESCE(p.orders, 0) AS orders, COALESCE(p.value, 0) AS value, COALESCE(p.profit, 0) AS profit, COALESCE(f.new_clients, 0) AS new_clients
     FROM unnest(ARRAY[${ids}]::int[]) AS s(id)
     LEFT JOIN placed p ON p.id = s.id
     LEFT JOIN fresh f ON f.id = s.id`);
 
-  for (const r of rows) result.set(r.id, { orders: Number(r.orders), value: Number(r.value), newClients: Number(r.new_clients) });
+  for (const r of rows) result.set(r.id, { orders: Number(r.orders), value: Number(r.value), profit: Number(r.profit), newClients: Number(r.new_clients) });
   return result;
 }
 
@@ -65,6 +67,7 @@ export function sumPerformance(items: Iterable<Performance>): Performance {
   for (const p of items) {
     total.orders += p.orders;
     total.value += p.value;
+    total.profit += p.profit;
     total.newClients += p.newClients;
   }
   return total;

@@ -14,6 +14,7 @@ import { orderStatusLabel } from "@/types/order";
 import { cargoTotals, fromKg, dimensionUnitLabels, isDimensionUnit, lineCbm, volumetricRuleLabels, DEFAULT_DIMENSION_UNIT } from "@/lib/freight";
 
 import { PremiumBadge } from "@/components/clients/ClientCategory";
+import { ApprovalChip } from "@/components/enquiries/ApprovalChip";
 function Field({ label, children, className }: { label: string; children: React.ReactNode; className?: string }) {
   return (
     <div className={cn("min-w-0", className)}>
@@ -79,6 +80,7 @@ export function EnquiryDetailSheet({
               <div className="flex flex-wrap items-center gap-2">
                 <span className="font-mono text-sm font-semibold text-foreground">{e.ref}</span>
                 <StatusBadge status={e.status} />
+                <ApprovalChip enquiry={e} className="mt-0" />
               </div>
               <div>
                 <p className="flex flex-wrap items-center gap-2 text-lg font-semibold leading-snug text-foreground">

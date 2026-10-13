@@ -50,6 +50,7 @@ export async function POST(request: NextRequest) {
         client_id: clientId,
         org_id: orgId,
         ...enquiryDetailsData(details.data),
+        needs_approval: body.needs_approval === true,
         provisional_cost: cost,
         provisional_profit: profit,
         status: hasQuote ? "quoted" : "inquiry_received",

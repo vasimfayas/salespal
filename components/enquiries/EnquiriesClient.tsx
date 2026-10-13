@@ -35,6 +35,7 @@ import {
 } from "@/types/enquiry";
 
 import { PremiumBadge } from "@/components/clients/ClientCategory";
+import { ApprovalChip } from "@/components/enquiries/ApprovalChip";
 /** Anything short of Confirmed can still be corrected, except a form the client is still filling in. */
 const canEditEnquiry = (e: EnquiryListItem) => e.status !== "confirmed" && e.status !== "sent_to_client";
 
@@ -287,6 +288,7 @@ export function EnquiriesClient({
                             Active {daysOpen(e.enquiry_date)}d{e.follow_up_due ? " · follow-up due" : ""}
                           </span>
                         )}
+                        <ApprovalChip enquiry={e} className="block w-fit" />
                       </td>
                       <td className="px-4 py-3 align-top">
                         <span className="line-clamp-2 font-medium text-foreground">
@@ -333,7 +335,9 @@ export function EnquiriesClient({
                       <td className="px-4 py-3 text-right align-top" onClick={(ev) => ev.stopPropagation()}>
                         <div className="flex items-center justify-end gap-1">
                           {canFollowUp && rowActions(e.status).length > 0 && !e.follow_up_due && (
-                            <EnquiryStageActions enquiry={e} only={rowActions(e.status)} onDone={flash} />
+                            <div className="flex flex-col-reverse items-end gap-1">
+                              <EnquiryStageActions enquiry={e} only={rowActions(e.status)} onDone={flash} />
+                            </div>
                           )}
                           {!canFollowUp && stageOnly && <EnquiryStageActions enquiry={e} only={stageOnly} onDone={flash} />}
                           {canFollowUp && isActiveEnquiry(e.status) && e.follow_up_due && (
@@ -367,11 +371,11 @@ export function EnquiriesClient({
           {/* Cards below lg */}
           <ul className="grid gap-2.5 sm:grid-cols-2 lg:hidden">
             {visible.map((e) => (
-              <li key={e.id}>
+              <li key={e.id} className="min-w-0">
                 <button
                   type="button"
                   onClick={() => setDetailId(e.id)}
-                  className="w-full cursor-pointer rounded-card border border-border bg-card p-4 text-left shadow-card transition-colors active:bg-subtle"
+                  className="w-full min-w-0 cursor-pointer rounded-card border border-border bg-card p-4 text-left shadow-card transition-colors active:bg-subtle"
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
@@ -381,7 +385,9 @@ export function EnquiriesClient({
                         <PremiumBadge category={e.client_category} compact />
                       </p>
                     </div>
-                    <StatusBadge status={e.status} />
+                    <div className="shrink-0">
+                      <StatusBadge status={e.status} />
+                    </div>
                   </div>
                   {e.status === "sent_to_client" ? (
                     <p className="mt-2">
@@ -397,7 +403,8 @@ export function EnquiriesClient({
                       <span className="truncate">{e.to}</span>
                     </p>
                   )}
-                  {shipmentSpec(e) && <p className="mt-0.5 text-xs tabular-nums text-muted-foreground">{shipmentSpec(e)}</p>}
+                  {shipmentSpec(e) && <p className="mt-0.5 break-words text-xs tabular-nums text-muted-foreground">{shipmentSpec(e)}</p>}
+                  <ApprovalChip enquiry={e} className="block w-fit" />
                   <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
                     <span>{formatDate(e.enquiry_date)}</span>
                     {isActiveEnquiry(e.status) && (

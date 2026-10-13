@@ -25,6 +25,7 @@ export function StatCard({
   icon: Icon,
   label,
   value,
+  unit,
   badgeLabel,
   badgeDirection,
   caption,
@@ -34,6 +35,8 @@ export function StatCard({
   icon: LucideIcon;
   label: string;
   value: number | string;
+  /** Small suffix after the figure, e.g. "QAR". */
+  unit?: string;
   /** Text shown in the pill, e.g. "+12%" or "3 pending". Omit to hide the pill. */
   badgeLabel?: string;
   badgeDirection?: "up" | "down" | "flat";
@@ -55,17 +58,18 @@ export function StatCard({
       </div>
 
       <div className="mt-4 flex flex-wrap items-end justify-between gap-2">
-        <p className="min-w-0 break-words text-xl font-semibold leading-none tracking-tight text-foreground tabular-nums @[11rem]:text-2xl @[15rem]:text-[28px]">
-          {typeof value === "number" ? value.toLocaleString() : value}
+        <p className="min-w-0 text-xl font-semibold leading-none tracking-tight text-foreground tabular-nums @[11rem]:text-[22px] @[15rem]:text-[28px]">
+          <span className="whitespace-nowrap">{typeof value === "number" ? value.toLocaleString() : value}</span>
+          {unit && <span className="ml-1 whitespace-nowrap text-xs font-medium tracking-normal text-muted-foreground">{unit}</span>}
         </p>
         {badgeLabel && (
           <span
             className={cn(
-              "inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-medium tabular-nums",
+              "inline-flex min-w-0 max-w-full items-center gap-1 rounded-full px-2 py-0.5 text-[11px] leading-tight font-medium tabular-nums",
               tone[!badgeDirection || badgeDirection === "flat" ? "flat" : badgeDirection === goodWhen ? "good" : "bad"],
             )}
           >
-            <TrendIcon size={11} strokeWidth={2.5} aria-hidden />
+            <TrendIcon size={11} strokeWidth={2.5} className="shrink-0" aria-hidden />
             {badgeLabel}
           </span>
         )}

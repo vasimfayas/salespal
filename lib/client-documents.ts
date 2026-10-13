@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { clientScopeWhere, type ScopedToken } from "@/lib/scoping";
-import type { ClientDocumentItem } from "@/types/client";
+import { isKycDocType, type ClientDocumentItem } from "@/types/client";
 import { isOwnerRole } from "@/lib/roles";
 
 /**
@@ -35,6 +35,7 @@ export function canDeleteClientDocument(user: { id: number; role_id: number }, d
 export function serializeClientDocument(doc: {
   id: number;
   description: string;
+  doc_type: string | null;
   expiry_date: Date | null;
   file_name: string;
   mime_type: string;
@@ -46,6 +47,7 @@ export function serializeClientDocument(doc: {
   return {
     id: doc.id,
     description: doc.description,
+    doc_type: isKycDocType(doc.doc_type) ? doc.doc_type : null,
     expiry_date: doc.expiry_date ? doc.expiry_date.toISOString().slice(0, 10) : null,
     file_name: doc.file_name,
     mime_type: doc.mime_type,

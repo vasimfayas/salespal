@@ -2,14 +2,14 @@
 
 import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { AlertTriangle, Download, Eye, FileText, Paperclip, Pencil, Plus, Trash2, X } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Download, Eye, FileText, Paperclip, Pencil, Plus, ShieldAlert, Trash2, X } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/Button";
 import { Dialog, DialogBody, DialogContent, DialogFooter } from "@/components/ui/dialog";
 import { SimpleTooltip } from "@/components/ui/tooltip";
 import { DocumentExpiryBadge } from "@/components/companies/DocumentExpiryBadge";
 import { cn, formatDate } from "@/lib/utils";
 import { COMPANY_DOCUMENT_ACCEPT, COMPANY_DOCUMENT_MAX_BYTES, documentExpiryState, formatFileSize } from "@/types/company";
-import type { ClientDocumentItem } from "@/types/client";
+import { KYC_DOC_TYPES, kycStatus, type ClientDocumentItem, type KycDocType } from "@/types/client";
 import { isOwnerRole } from "@/lib/roles";
 
 const MAX_FILES = 10;
@@ -18,7 +18,7 @@ const fileUrl = (clientId: number, docId: number, download = false) => `/api/cli
 const inputClass =
   "h-10 w-full rounded-control border border-input bg-background px-3 text-sm text-foreground outline-none transition placeholder:text-muted-foreground focus:border-primary focus:ring-3 focus:ring-primary/15";
 
-type DialogState = { mode: "add" } | { mode: "edit"; doc: ClientDocumentItem } | null;
+type DialogState = { mode: "add"; docType?: KycDocType } | { mode: "edit"; doc: ClientDocumentItem } | null;
 
 /** Attachments on a client: description, optional expiry, any number of files. */
 export function ClientDocumentsCard({
@@ -37,6 +37,7 @@ export function ClientDocumentsCard({
   const canEdit = isOwnerRole(currentUser.role_id) || [2, 3].includes(currentUser.role_id);
   const canDelete = (doc: ClientDocumentItem) => isOwnerRole(currentUser.role_id) || currentUser.role_id === 2 || doc.uploaded_by_id === currentUser.id;
   const attention = documents.filter((d) => ["expired", "expiring"].includes(documentExpiryState(d.expiry_date))).length;
+  const kyc = kycStatus(documents);
 
   function remove(doc: ClientDocumentItem) {
     if (!confirm(`Delete "${doc.description}" (${doc.file_name})? The file is removed permanently.`)) return;
@@ -69,6 +70,35 @@ export function ClientDocumentsCard({
         )}
       </div>
 
+      {/* KYC: CR, computer card and signatory ID, each with a valid expiry */}
+      <div className={cn("mb-4 rounded-control border p-3", kyc.ok ? "border-success/30 bg-success-soft/40" : "border-danger/30 bg-danger-soft/40")}>
+        <p className={cn("flex items-center gap-1.5 text-sm font-semibold", kyc.ok ? "text-success-foreground" : "text-danger-foreground")}>
+          {kyc.ok ? <CheckCircle2 size={15} aria-hidden /> : <ShieldAlert size={15} aria-hidden />}
+          {kyc.ok ? "KYC up to date" : "KYC not updated"}
+        </p>
+        <ul className="mt-2 flex flex-wrap gap-1.5">
+          {Object.entries(KYC_DOC_TYPES).map(([type, label]) => {
+            const issue = kyc.missing.includes(label) ? "missing" : kyc.expired.includes(label) ? "expired" : null;
+            return (
+              <li key={type}>
+                <button
+                  type="button"
+                  disabled={!canEdit || !issue}
+                  onClick={() => setDialog({ mode: "add", docType: type as KycDocType })}
+                  className={cn(
+                    "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium enabled:cursor-pointer enabled:hover:underline",
+                    issue ? "border-danger/30 bg-card text-danger-foreground" : "border-success/30 bg-card text-success-foreground",
+                  )}
+                  title={issue && canEdit ? `Upload the ${label}` : undefined}
+                >
+                  {label}: {issue ?? "valid"}
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      </div>
+
       {documents.length === 0 ? (
         <div className="flex flex-col items-center gap-2 rounded-control border border-dashed border-border px-4 py-8 text-center">
           <span className="flex size-10 items-center justify-center rounded-full bg-muted text-muted-foreground">
@@ -94,6 +124,7 @@ export function ClientDocumentsCard({
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-1.5">
                     <p className="text-sm font-medium text-foreground">{doc.description}</p>
+                    {doc.doc_type && <span className="rounded-full bg-primary-soft px-1.5 py-px text-[10px] font-semibold text-primary-soft-foreground">KYC</span>}
                     <DocumentExpiryBadge expiryDate={doc.expiry_date} />
                   </div>
                   <a href={fileUrl(clientId, doc.id)} target="_blank" rel="noopener" className="block truncate text-xs text-primary hover:underline">
@@ -148,7 +179,7 @@ export function ClientDocumentsCard({
       )}
 
       <DocumentDialog
-        key={dialog ? (dialog.mode === "edit" ? `edit-${dialog.doc.id}` : "add") : "closed"}
+        key={dialog ? (dialog.mode === "edit" ? `edit-${dialog.doc.id}` : `add-${dialog.docType ?? ""}`) : "closed"}
         state={dialog}
         clientId={clientId}
         onClose={() => setDialog(null)}
@@ -163,7 +194,9 @@ export function ClientDocumentsCard({
 
 function DocumentDialog({ state, clientId, onClose, onSaved }: { state: DialogState; clientId: number; onClose: () => void; onSaved: () => void }) {
   const editing = state?.mode === "edit" ? state.doc : null;
-  const [description, setDescription] = useState(editing?.description ?? "");
+  const initialType = editing ? editing.doc_type : state?.mode === "add" ? (state.docType ?? null) : null;
+  const [docType, setDocType] = useState<KycDocType | "">(initialType ?? "");
+  const [description, setDescription] = useState(editing?.description ?? (initialType ? KYC_DOC_TYPES[initialType] : ""));
   const [expiry, setExpiry] = useState(editing?.expiry_date ?? "");
   const [files, setFiles] = useState<File[]>([]);
   const [saving, setSaving] = useState(false);
@@ -193,6 +226,7 @@ function DocumentDialog({ state, clientId, onClose, onSaved }: { state: DialogSt
     setError(null);
     const form = new FormData();
     form.set("description", description);
+    form.set("doc_type", docType);
     form.set("expiry_date", expiry);
     for (const f of files) form.append("file", f);
     try {
@@ -218,12 +252,32 @@ function DocumentDialog({ state, clientId, onClose, onSaved }: { state: DialogSt
             <DialogBody className="space-y-4">
               {error && <p role="alert" className="rounded-control bg-danger-soft px-3 py-2 text-sm text-danger-foreground">{error}</p>}
               <label className="block text-sm font-medium text-foreground">
+                <span className="mb-1 block">Type</span>
+                <select
+                  value={docType}
+                  onChange={(e) => {
+                    const next = e.target.value as KycDocType | "";
+                    // Name a KYC document after its type unless something was already typed.
+                    if (next && (!description || Object.values(KYC_DOC_TYPES).includes(description as never))) setDescription(KYC_DOC_TYPES[next]);
+                    setDocType(next);
+                  }}
+                  className={inputClass}
+                >
+                  <option value="">Other document</option>
+                  {Object.entries(KYC_DOC_TYPES).map(([type, label]) => (
+                    <option key={type} value={type}>
+                      KYC · {label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="block text-sm font-medium text-foreground">
                 <span className="mb-1 block">Description</span>
                 <input required maxLength={200} value={description} onChange={(e) => setDescription(e.target.value)} placeholder="e.g. Signed service agreement" className={inputClass} />
               </label>
               <label className="block text-sm font-medium text-foreground">
-                <span className="mb-1 block">Expiry date <span className="font-normal text-muted-foreground">(optional)</span></span>
-                <input type="date" value={expiry} onChange={(e) => setExpiry(e.target.value)} className={inputClass} />
+                <span className="mb-1 block">Expiry date {!docType && <span className="font-normal text-muted-foreground">(optional)</span>}</span>
+                <input type="date" required={!!docType} value={expiry} onChange={(e) => setExpiry(e.target.value)} className={inputClass} />
               </label>
 
               <div>

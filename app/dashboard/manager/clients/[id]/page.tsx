@@ -13,6 +13,7 @@ import { ClientDocumentsCard } from "@/components/clients/ClientDocumentsCard";
 import { ClientContactsCard } from "@/components/clients/ClientContactsCard";
 import { getClientContacts } from "@/lib/client-contacts";
 import { documentClientIds, getClientDocuments } from "@/lib/client-documents";
+import { CreditAgreementCard } from "@/components/approvals/CreditAgreementCard";
 
 type SearchParams = Promise<{ o_page?: string; e_page?: string }>;
 
@@ -109,11 +110,14 @@ async function ClientDetailContent({
         />
       }
       documents={
-        <ClientDocumentsCard
-          clientId={clientId}
-          documents={await getClientDocuments(documentClientIds(client))}
-          currentUser={{ id: Number(session.user.id), role_id: session.user.role_id }}
-        />
+        <div className="space-y-6">
+          <ClientDocumentsCard
+            clientId={clientId}
+            documents={await getClientDocuments(documentClientIds(client))}
+            currentUser={{ id: Number(session.user.id), role_id: session.user.role_id }}
+          />
+          <CreditAgreementCard clientId={clientId} user={{ id: Number(session.user.id), role_id: session.user.role_id }} />
+        </div>
       }
       history={
         <Suspense fallback={<ClientHistorySkeleton />}>

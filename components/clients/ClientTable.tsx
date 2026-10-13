@@ -13,7 +13,11 @@ import { buttonVariants } from "@/components/ui/Button";
 import { clientCategories, clientCategoryLabels } from "@/types/client";
 import { PremiumToggle } from "@/components/clients/ClientCategory";
 import { DepartmentTag } from "@/components/clients/DepartmentTag";
+import { ClientReach } from "@/components/clients/ClientReach";
+import { KycBadge } from "@/components/clients/KycBadge";
 type Client = {
+  /** False when KYC documents are missing or expired. */
+  kyc_ok?: boolean;
   id: number;
   name: string;
   contact_person_name: string;
@@ -114,9 +118,9 @@ export function ClientTable({
         </div>
 
         {/* Filters Selectors Row */}
-        <div className="flex flex-wrap items-end gap-4 border-t border-border/70 pt-3.5">
+        <div className="grid grid-cols-2 items-end gap-3 border-t border-border/70 pt-3.5 sm:flex sm:flex-wrap sm:gap-4">
           {/* Company Filter */}
-          <div className="flex flex-col gap-1.5 min-w-[150px]">
+          <div className="flex min-w-0 flex-col gap-1.5 sm:min-w-[140px]">
             <label className="text-xs font-semibold text-muted-foreground flex items-center gap-1">
               <Building size={11} /> Company
             </label>
@@ -136,7 +140,7 @@ export function ClientTable({
 
           {/* Manager Filter */}
           {managers.length > 0 && (
-            <div className="flex flex-col gap-1.5 min-w-[150px]">
+            <div className="flex min-w-0 flex-col gap-1.5 sm:min-w-[140px]">
               <label className="text-xs font-semibold text-muted-foreground flex items-center gap-1">
                 <User size={11} /> Manager
               </label>
@@ -156,7 +160,7 @@ export function ClientTable({
           )}
 
           {/* Status Filter */}
-          <div className="flex flex-col gap-1.5 min-w-[140px]">
+          <div className="flex min-w-0 flex-col gap-1.5 sm:min-w-[140px]">
             <label className="text-xs font-semibold text-muted-foreground">
               Status
             </label>
@@ -173,7 +177,7 @@ export function ClientTable({
           </div>
 
           {/* Category Filter */}
-          <div className="flex flex-col gap-1.5 min-w-[140px]">
+          <div className="flex min-w-0 flex-col gap-1.5 sm:min-w-[140px]">
             <label className="text-xs font-semibold text-muted-foreground" htmlFor="category-filter">
               Category
             </label>
@@ -191,7 +195,7 @@ export function ClientTable({
           </div>
 
           {/* Date Filter Range */}
-          <div className="flex flex-col gap-1.5 min-w-[140px]">
+          <div className="flex min-w-0 flex-col gap-1.5 sm:min-w-[140px]">
             <label className="text-xs font-semibold text-muted-foreground flex items-center gap-1">
               <Calendar size={11} /> Date Added
             </label>
@@ -211,7 +215,7 @@ export function ClientTable({
 
           {/* Custom Date Input */}
           {dateFilterRange === "custom" && (
-            <div className="flex flex-col gap-1.5 min-w-[140px] animate-page-in">
+            <div className="flex min-w-0 flex-col gap-1.5 sm:min-w-[140px] animate-page-in">
               <label className="text-xs font-semibold text-muted-foreground">
                 Select Calendar Date
               </label>
@@ -247,7 +251,7 @@ export function ClientTable({
               <tr>
                 <th className="w-10 px-2 py-3"></th>
                 <th className="px-4 py-3">Client</th>
-                <th className="px-4 py-3">Contact</th>
+                <th className="hidden px-4 py-3 sm:table-cell">Contact</th>
                 <th className="px-4 py-3 hidden md:table-cell">Company</th>
                 <th className="px-4 py-3 hidden md:table-cell">Salesman</th>
                 <th className="px-4 py-3 hidden sm:table-cell">CR No</th>
@@ -288,13 +292,16 @@ export function ClientTable({
                           </span>
                         </span>
                         <DepartmentTag department={client.department} className="mt-1 flex w-fit" />
+                        <span className="mt-1 block text-xs font-medium text-muted-foreground sm:hidden">{formatPhoneNumber(client.contact_no)}</span>
+                        <KycBadge ok={client.kyc_ok} className="mt-1 flex" />
+                        <ClientReach client={client} />
                         {client.contact_person_name && (
                           <span className="block text-[10px] text-muted-foreground/80 font-medium mt-0.5">
                             Attn: {client.contact_person_name}
                           </span>
                         )}
                       </td>
-                      <td className="px-4 py-3 font-semibold text-foreground">
+                      <td className="hidden px-4 py-3 font-semibold text-foreground sm:table-cell">
                         {formatPhoneNumber(client.contact_no)}
                         {client.mail_id && (
                           <span className="block text-[10px] text-muted-foreground/80 font-medium mt-0.5 truncate max-w-[180px]">

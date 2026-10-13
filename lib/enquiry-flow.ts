@@ -12,6 +12,7 @@ import type { OrderStatus } from "@/types/order";
 
 import { num } from "@/lib/decimal";
 import { SUPER_ADMIN_ROLE } from "@/lib/roles";
+import { enquiryNeedsApproval, submitApproval } from "@/lib/approvals";
 /**
  * Enquiry → order workflow.
  *
@@ -121,11 +122,21 @@ export async function applyEnquiryAction(
       include: {
         order: { select: { id: true } },
         client: {
-          select: { id: true, status: true, assigned_salesman_id: true, contact_person_name: true, contact_no: true, contact_person_designation: true },
+          select: { id: true, status: true, assigned_salesman_id: true, contact_person_name: true, contact_no: true, contact_person_designation: true, credit_approved: true },
         },
       },
     });
     const from = enquiry.status as EnquiryStatus;
+    const needsApproval = enquiryNeedsApproval(enquiry, enquiry.client);
+    const askApproval = (cost: number, profit: number) =>
+      submitApproval(tx, {
+        type: "enquiry",
+        org_id: enquiry.org_id,
+        client_id: enquiry.client_id,
+        enquiry_id: enquiry.id,
+        requested_by_id: actor.id,
+        data: { cost, profit, payment_mode: enquiry.payment_mode, credit_days: enquiry.credit_days, mode: enquiry.mode, from: enquiry.from, to: enquiry.to },
+      });
     if (!FROM[action].includes(from)) {
       throw new FlowError(`An enquiry that is ${from.replace(/_/g, " ")} can't be ${ACTION_VERB[action]}`);
     }
@@ -140,8 +151,10 @@ export async function applyEnquiryAction(
       // Moving the enquiry on restarts the 30-day clock; its follow-up task stays open until the order is created.
       await tx.enquiry.update({
         where: { id: enquiry.id },
-        data: { status: to, provisional_cost: cost, provisional_profit: profit, next_follow_up_at: nextFollowUpDate() },
+        // A quote that needs approval goes to the manager; confirming waits for it.
+        data: { status: to, provisional_cost: cost, provisional_profit: profit, next_follow_up_at: nextFollowUpDate(), approval_status: needsApproval ? "pending" : null },
       });
+      if (needsApproval) await askApproval(cost, profit);
       // A requote keeps the previous figures in the history (prev_cost / prev_profit).
       await logEvent(tx, { ...base, action: action === "quote" ? "quoted" : "requoted", to_status: to, prev_cost: prevCost, prev_profit: prevProfit, cost, profit });
       await noteFollowUpTasks(tx, enquiry.id, { action: "enquiry_stage", note: action === "quote" ? "Quoted" : "Requoted", by: actor.id });
@@ -165,6 +178,14 @@ export async function applyEnquiryAction(
     if (enquiry.order) throw new FlowError("This enquiry already has an active order");
     if (prevCost === null || prevProfit === null) throw new FlowError("Quote a cost and profit before confirming");
     if (enquiry.client.status === "blacklisted") throw new FlowError(BLACKLISTED_ERROR, 403);
+    if (needsApproval && enquiry.approval_status !== "approved") {
+      if (enquiry.approval_status === "pending") throw new FlowError("This quote is waiting for manager approval");
+      if (enquiry.approval_status === "rejected") throw new FlowError("The manager rejected this quote. Requote it to ask again.");
+      // Quoted before approval applied (or the switch was turned on later): ask now instead of blocking for good.
+      await tx.enquiry.update({ where: { id: enquiry.id }, data: { approval_status: "pending" } });
+      await askApproval(prevCost, prevProfit);
+      return { status: from, orderId: null, approvalRequested: true };
+    }
     const missing = missingContactFields(enquiry.client);
     if (missing.length) throw new FlowError(`Add the client's contact details first (${contactRequiredMessage(missing)})`, 422, { code: "CONTACT_REQUIRED", missing });
 

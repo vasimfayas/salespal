@@ -29,7 +29,11 @@ import { PremiumBadge } from "@/components/clients/ClientCategory";
 import { DepartmentTag } from "@/components/clients/DepartmentTag";
 import { CrNumberField, type CrMatch } from "@/components/clients/CrNumberField";
 import { ExtraContactsFields, filledContacts, type ExtraContactInput } from "@/components/clients/ExtraContactsFields";
+import { ClientReach } from "@/components/clients/ClientReach";
+import { KycBadge } from "@/components/clients/KycBadge";
 type Client = {
+  /** False when KYC documents are missing or expired. */
+  kyc_ok?: boolean;
   id: number;
   name: string;
   contact_person_name: string;
@@ -438,6 +442,8 @@ export function SalesmanClientsList({ initialClients, total, page, pageSize, com
                         </Link>
                         <PremiumBadge category={client.category} compact className="ml-1.5 align-[-2px]" />
                         <DepartmentTag department={client.department} className="mt-1 flex w-fit" />
+                        <KycBadge ok={client.kyc_ok} className="mt-1 flex" />
+                        <ClientReach client={client} />
                       </td>
                       <td className="px-4 py-3 font-semibold text-foreground">
                         {formatPhoneNumber(client.contact_no)}

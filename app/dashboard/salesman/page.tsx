@@ -319,6 +319,7 @@ async function PerformanceCardsSection({ userId }: { userId: number }) {
             icon={c.icon}
             label={`${c.label} · this month`}
             value={c.money ? formatAmount(c.value) : c.value}
+            unit={c.money ? "QAR" : undefined}
             badgeLabel={`${c.pct > 0 ? "+" : ""}${c.pct}%`}
             badgeDirection={c.pct > 0 ? "up" : c.pct < 0 ? "down" : "flat"}
             caption={

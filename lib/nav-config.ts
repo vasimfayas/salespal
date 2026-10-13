@@ -20,6 +20,7 @@ export const navConfig: Record<number, NavLink[]> = {
     { label: "Blacklist", href: "/dashboard/admin/clients?status=blacklisted" },
     { label: "Enquiries", href: "/dashboard/admin/enquiries" },
     { label: "Agents", href: "/dashboard/admin/agents" },
+    { label: "Approvals", href: "/dashboard/admin/approvals" },
     { label: "Accounts", href: "/dashboard/admin/accounts" },
     { label: "Reports", href: "/dashboard/admin/reports" },
   ],
@@ -34,6 +35,7 @@ export const navConfig: Record<number, NavLink[]> = {
     { label: "Orders", href: "/dashboard/manager/orders" },
     { label: "Shipping Rates", href: "/dashboard/manager/shipping-rates" },
     { label: "Agents", href: "/dashboard/manager/agents" },
+    { label: "Approvals", href: "/dashboard/manager/approvals" },
     { label: "Reports", href: "/dashboard/manager/reports" },
   ],
   3: [
@@ -52,6 +54,7 @@ export const navConfig: Record<number, NavLink[]> = {
     { label: "Orders", href: "/dashboard/accountant/orders" },
     { label: "Shipping Rates", href: "/dashboard/accountant/shipping-rates" },
     { label: "Agents", href: "/dashboard/accountant/agents" },
+    { label: "Approvals", href: "/dashboard/accountant/approvals" },
   ],
   5: [
     { label: "Enquiries", href: "/dashboard/operations/enquiries" },

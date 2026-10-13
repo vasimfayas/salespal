@@ -30,7 +30,11 @@ import { PremiumToggle } from "@/components/clients/ClientCategory";
 import { DepartmentTag } from "@/components/clients/DepartmentTag";
 import { CrNumberField, type CrMatch } from "@/components/clients/CrNumberField";
 import { ExtraContactsFields, filledContacts, type ExtraContactInput } from "@/components/clients/ExtraContactsFields";
+import { ClientReach } from "@/components/clients/ClientReach";
+import { KycBadge } from "@/components/clients/KycBadge";
 type Client = {
+  /** False when KYC documents are missing or expired. */
+  kyc_ok?: boolean;
   id: number;
   name: string;
   contact_person_name: string;
@@ -362,9 +366,9 @@ export function ManagerClientsList({
         </div>
 
         {/* Filters Selectors Row */}
-        <div className="flex flex-wrap items-end gap-4 border-t border-border/70 pt-3.5">
+        <div className="grid grid-cols-2 items-end gap-3 border-t border-border/70 pt-3.5 sm:flex sm:flex-wrap sm:gap-4">
           {/* Salesman Filter */}
-          <div className="flex flex-col gap-1.5 min-w-[140px]">
+          <div className="flex min-w-0 flex-col gap-1.5 sm:min-w-[140px]">
             <label
               className="text-xs font-semibold text-muted-foreground"
               htmlFor="salesman-filter"
@@ -387,7 +391,7 @@ export function ManagerClientsList({
           </div>
 
           {/* Status Filter */}
-          <div className="flex flex-col gap-1.5 min-w-[140px]">
+          <div className="flex min-w-0 flex-col gap-1.5 sm:min-w-[140px]">
             <label
               className="text-xs font-semibold text-muted-foreground"
               htmlFor="status-filter"
@@ -408,7 +412,7 @@ export function ManagerClientsList({
           </div>
 
           {/* Category Filter */}
-          <div className="flex flex-col gap-1.5 min-w-[140px]">
+          <div className="flex min-w-0 flex-col gap-1.5 sm:min-w-[140px]">
             <label className="text-xs font-semibold text-muted-foreground" htmlFor="category-filter">
               Category
             </label>
@@ -426,7 +430,7 @@ export function ManagerClientsList({
           </div>
 
           {/* Date Filter Range */}
-          <div className="flex flex-col gap-1.5 min-w-[140px]">
+          <div className="flex min-w-0 flex-col gap-1.5 sm:min-w-[140px]">
             <label
               className="text-xs font-semibold text-muted-foreground"
               htmlFor="date-filter"
@@ -450,7 +454,7 @@ export function ManagerClientsList({
 
           {/* Custom Date Input */}
           {dateFilterRange === "custom" && (
-            <div className="flex flex-col gap-1.5 min-w-[140px] animate-page-in">
+            <div className="flex min-w-0 flex-col gap-1.5 sm:min-w-[140px] animate-page-in">
               <label
                 className="text-xs font-semibold text-muted-foreground"
                 htmlFor="custom-date"
@@ -550,7 +554,7 @@ export function ManagerClientsList({
                 </th>
                 <th className="w-10 px-2 py-3 sm:hidden"></th>
                 <th className="px-4 py-3">Client</th>
-                <th className="px-4 py-3">Contact</th>
+                <th className="hidden px-4 py-3 sm:table-cell">Contact</th>
                 <th className="px-4 py-3 hidden md:table-cell">CR No</th>
                 <th className="px-4 py-3 hidden lg:table-cell">CR Expiry</th>
                 <th className="px-4 py-3 hidden md:table-cell">Company</th>
@@ -616,8 +620,11 @@ export function ManagerClientsList({
                           <PremiumToggle clientId={client.id} clientName={client.name} category={client.category} />
                         </span>
                         <DepartmentTag department={client.department} className="mt-1 flex w-fit" />
+                        <span className="mt-1 block text-xs font-medium text-muted-foreground sm:hidden">{formatPhoneNumber(client.contact_no)}</span>
+                        <KycBadge ok={client.kyc_ok} className="mt-1 flex" />
+                        <ClientReach client={client} />
                       </td>
-                      <td className="px-4 py-3 font-semibold text-foreground">
+                      <td className="hidden px-4 py-3 font-semibold text-foreground sm:table-cell">
                         {formatPhoneNumber(client.contact_no)}
                       </td>
                       <td className="px-4 py-3 text-foreground/85 hidden md:table-cell font-medium">

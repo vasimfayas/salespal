@@ -33,6 +33,7 @@ model Organization {
   operations       OperationsOrg[]
   documents        CompanyDocument[]
   clients          Client[]
+  approvalRequests ApprovalRequest[]
   enquiries        Enquiry[]
   orders           Order[]
 
@@ -72,6 +73,8 @@ model User {
   taskUpdates              TaskUpdate[]          @relation("TaskUpdateBy")
   uploadedClientDocuments  ClientDocument[]      @relation("ClientDocumentUploadedBy")
   agentRequestsSent        EnquiryAgentRequest[] @relation("EnquiryAgentRequestSentBy")
+  approvalRequests         ApprovalRequest[]     @relation("ApprovalRequestedBy")
+  approvalActions          ApprovalAction[]      @relation("ApprovalActionBy")
 
   @@map("users")
 }
@@ -119,6 +122,8 @@ model ClientDocument {
   id             Int       @id @default(autoincrement())
   client_id      Int
   description    String
+  /// KYC document: cr | computer_card | signatory_id (types/client.ts); null = any other paperwork.
+  doc_type       String?
   expiry_date    DateTime? @db.Date
   file_name      String
   file_path      String
@@ -203,6 +208,10 @@ model Client {
   checklist_billing_verified   Boolean             @default(false)
   checklist_portal_created     Boolean             @default(false)
   checklist_first_shipment     Boolean             @default(false)
+  /// Set when a Credit Agreement is fully approved (accounts → manager → owner); credit enquiries then skip manager approval.
+  credit_approved              Boolean             @default(false)
+  credit_days_approved         Int?
+  credit_approved_at           DateTime?
   created_at                   DateTime            @default(now())
   assignedSalesman             User                @relation("AssignedClients", fields: [assigned_salesman_id], references: [id])
   organization                 Organization        @relation(fields: [org_id], references: [id])
@@ -215,6 +224,7 @@ model Client {
   orders                       Order[]
   enquiries                    Enquiry[]
   documents                    ClientDocument[]
+  approvalRequests             ApprovalRequest[]
   contacts                     ClientContact[]
 
   @@index([assigned_salesman_id])
@@ -478,6 +488,10 @@ model Enquiry {
   cancelled_by_id       Int?
   /// When the next automatic follow-up task is due. Null = enquiry_date + 30 days.
   next_follow_up_at     DateTime?             @db.Date
+  /// "Requires manager approval" switch on the enquiry (credit enquiries for clients without approved credit need it anyway).
+  needs_approval        Boolean               @default(false)
+  /// Outcome of the latest quote's approval: pending | approved | rejected. Null = no approval asked.
+  approval_status       String?
   created_by_id         Int
   created_at            DateTime              @default(now())
   updated_at            DateTime              @updatedAt
@@ -498,6 +512,7 @@ model Enquiry {
   @@index([created_by_id, status])
   @@index([enquiry_date, id])
   @@map("enquiries")
+  approvalRequests      ApprovalRequest[]
 }
 
 /// Comment logged by the salesman each time they follow up on an open enquiry.
@@ -636,4 +651,54 @@ model ClientContact {
 
   @@index([client_id])
   @@map("client_contacts")
+}
+
+/// One item going through an approval flow (lib/approvals.ts defines the steps per type).
+/// Decided requests and their log are removed 6 months after the decision (api/cron/cleanup-tasks);
+/// the outcome stays on the client (credit_*) or enquiry (approval_status).
+model ApprovalRequest {
+  id              Int              @id @default(autoincrement())
+  /// credit_agreement | enquiry
+  type            String
+  org_id          Int
+  client_id       Int
+  enquiry_id      Int?
+  requested_by_id Int
+  /// pending | approved | rejected | cancelled
+  status          String           @default("pending")
+  /// Index of the step waiting for a decision (see the type's steps in lib/approvals.ts).
+  current_step    Int              @default(0)
+  /// The form (credit agreement) or a snapshot of the quote (enquiry).
+  data            Json
+  created_at      DateTime         @default(now())
+  decided_at      DateTime?
+  organization    Organization     @relation(fields: [org_id], references: [id])
+  client          Client           @relation(fields: [client_id], references: [id], onDelete: Cascade)
+  enquiry         Enquiry?         @relation(fields: [enquiry_id], references: [id], onDelete: Cascade)
+  requestedBy     User             @relation("ApprovalRequestedBy", fields: [requested_by_id], references: [id])
+  actions         ApprovalAction[]
+
+  @@index([status, current_step])
+  @@index([client_id])
+  @@index([enquiry_id])
+  @@index([decided_at])
+  @@map("approval_requests")
+}
+
+/// The approval log: every submit / approve / reject / cancel with who and when.
+model ApprovalAction {
+  id          Int             @id @default(autoincrement())
+  request_id  Int
+  /// The step it applies to (-1 = submitted).
+  step        Int
+  /// submitted | approved | rejected | cancelled
+  action      String
+  comment     String?
+  actor_id    Int
+  created_at  DateTime        @default(now())
+  request     ApprovalRequest @relation(fields: [request_id], references: [id], onDelete: Cascade)
+  actor       User            @relation("ApprovalActionBy", fields: [actor_id], references: [id])
+
+  @@index([request_id])
+  @@map("approval_actions")
 }

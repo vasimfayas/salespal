@@ -57,6 +57,7 @@ export const emptyEnquiryForm = () => ({
   incoterm: "",
   payment_mode: "cash",
   credit_days: "",
+  needs_approval: false,
   clearance: false,
   is_dg: false,
   un_number: "",
@@ -87,6 +88,7 @@ export const enquiryFormFrom = (e: EnquiryListItem): EnquiryFormState => ({
   incoterm: e.incoterm ?? "",
   payment_mode: e.payment_mode,
   credit_days: e.credit_days ? String(e.credit_days) : "",
+  needs_approval: e.needs_approval,
   clearance: e.clearance,
   is_dg: e.is_dg,
   un_number: e.un_number ?? "",
@@ -476,6 +478,19 @@ export function EnquiryForm({
             stackable={form.stackable}
             onStackableChange={(stackable) => patch({ stackable })}
           />
+        </Section>
+
+        {/* Manager approval of the quote before it can be confirmed */}
+        <Section title="Approval" hint="Credit enquiries for clients without an approved credit agreement always need it.">
+          <div className={cn("rounded-control border p-3 transition-colors", form.needs_approval ? "border-primary/40 bg-primary-soft/40" : "border-border")}>
+            <Switch
+              id="enq-needs-approval"
+              label="Requires manager approval"
+              description="The quote goes to the manager's approval queue; it can be confirmed once approved."
+              checked={form.needs_approval}
+              onChange={(needs_approval) => patch({ needs_approval })}
+            />
+          </div>
         </Section>
 
         {/* 6 · Handling */}

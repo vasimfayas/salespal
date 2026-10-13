@@ -11,6 +11,7 @@ import {
   getClientDocuments,
   serializeClientDocument,
 } from "@/lib/client-documents";
+import { isKycDocType } from "@/types/client";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -42,6 +43,10 @@ export async function POST(request: NextRequest, context: Params) {
   if (!description) return NextResponse.json({ error: "Description is required" }, { status: 400 });
   const expiry = expiryRaw ? parseDateOnly(expiryRaw) : null;
   if (expiryRaw && !expiry) return NextResponse.json({ error: "Invalid expiry date" }, { status: 400 });
+  const docTypeRaw = String(form.get("doc_type") ?? "").trim();
+  if (docTypeRaw && !isKycDocType(docTypeRaw)) return NextResponse.json({ error: "Invalid document type" }, { status: 400 });
+  const docType = docTypeRaw || null;
+  if (docType && !expiry) return NextResponse.json({ error: "KYC documents need an expiry date" }, { status: 400 });
   if (files.length === 0) return NextResponse.json({ error: "Attach at least one file" }, { status: 400 });
   if (files.length > MAX_CLIENT_DOCUMENTS_PER_UPLOAD) {
     return NextResponse.json({ error: `Upload up to ${MAX_CLIENT_DOCUMENTS_PER_UPLOAD} files at a time` }, { status: 400 });
@@ -57,7 +62,7 @@ export async function POST(request: NextRequest, context: Params) {
     const docs = await prisma.$transaction(
       stored.map((s) =>
         prisma.clientDocument.create({
-          data: { client_id: client.documentOwnerId, description: description.slice(0, 200), expiry_date: expiry, uploaded_by_id: getTokenUserId(token), ...s },
+          data: { client_id: client.documentOwnerId, description: description.slice(0, 200), doc_type: docType, expiry_date: expiry, uploaded_by_id: getTokenUserId(token), ...s },
           include: { uploadedBy: { select: { name: true } } },
         }),
       ),

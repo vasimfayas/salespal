@@ -12,6 +12,7 @@ import { enquiryRef, enquiryStatuses, parseEnquiryRef, type EnquiryListItem, typ
 import { DEFAULT_DIMENSION_UNIT, readPackages } from "@/lib/freight";
 import { intParam, literal, pageParam, paging, param, PAGE_SIZE, type Paged, type SearchParams } from "@/lib/list-params";
 import { isOwnerRole } from "@/lib/roles";
+import { enquiryNeedsApproval } from "@/lib/approvals";
 
 /** Salesmen: own. Managers: own + their salesmen's. Accountants / operations: their assigned companies'. Owner: all. */
 export async function enquiryScopeWhere(token: ScopedToken): Promise<Prisma.EnquiryWhereInput> {
@@ -28,7 +29,7 @@ export async function enquiryScopeWhere(token: ScopedToken): Promise<Prisma.Enqu
 }
 
 const enquiryListInclude = {
-  client: { select: { name: true, department: true, category: true } },
+  client: { select: { name: true, department: true, category: true, credit_approved: true } },
   organization: { select: { id: true, name: true, prefix: true, export_office_no: true, logo_path: true } },
   createdBy: { select: { name: true } },
   order: { select: { id: true, job_no: true, status: true } },
@@ -61,6 +62,9 @@ function toListItem(e: EnquiryWithList): EnquiryListItem {
     payment_mode: e.payment_mode,
     credit_days: e.credit_days,
     clearance: e.clearance,
+    needs_approval: e.needs_approval,
+    approval_required: enquiryNeedsApproval(e, e.client),
+    approval_status: e.approval_status,
     is_dg: e.is_dg,
     un_number: e.un_number,
     packages: readPackages(e.packages),

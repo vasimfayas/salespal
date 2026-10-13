@@ -18,7 +18,8 @@ export const authOptions: NextAuthOptions = {
         if (!credentials?.email || !credentials.password) return null;
 
         const user = await prisma.user.findUnique({
-          where: { email: credentials.email.toLowerCase() },
+          // Same normalising as when users are created (pasted / autofilled emails often carry spaces).
+          where: { email: credentials.email.trim().toLowerCase() },
           include: { managerOrgs: true, salesmanManager: true },
         });
         if (!user) return null;

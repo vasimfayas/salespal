@@ -1,12 +1,14 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { revalidateTaskViews } from "@/lib/enquiry-follow-ups";
+import { APPROVAL_KEEP_MONTHS } from "@/lib/approvals";
 
 /** Closed tasks are kept this long, then removed. Their outcomes stay in the client history (client_logs). */
 const KEEP_MONTHS = 6;
 
 /**
- * Daily housekeeping: deletes tasks closed (achieved / unsuccessful) more than KEEP_MONTHS ago.
+ * Daily housekeeping: deletes tasks closed (achieved / unsuccessful) more than KEEP_MONTHS ago, and approval
+ * requests decided more than APPROVAL_KEEP_MONTHS ago with their log (the outcome stays on the client / enquiry).
  * Tasks closed before closed_at existed fall back to their due date. Task history rows cascade.
  *
  * Disabled unless CRON_SECRET is set. Call from the server's cron, e.g. daily at 03:00:
@@ -26,5 +28,10 @@ export async function POST(request: NextRequest) {
     },
   });
   if (count) revalidateTaskViews();
-  return NextResponse.json({ deleted: count, cutoff: cutoff.toISOString() });
+
+  const approvalCutoff = new Date();
+  approvalCutoff.setUTCMonth(approvalCutoff.getUTCMonth() - APPROVAL_KEEP_MONTHS);
+  const approvals = await prisma.approvalRequest.deleteMany({ where: { status: { not: "pending" }, decided_at: { lt: approvalCutoff } } });
+
+  return NextResponse.json({ deleted: count, approvals_deleted: approvals.count, cutoff: cutoff.toISOString() });
 }

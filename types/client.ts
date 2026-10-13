@@ -57,9 +57,31 @@ export type ClientLogItem = {
 };
 
 /** A file attached to a client (description + optional expiry). */
+/** The KYC documents every client needs, each with an expiry date. */
+export const KYC_DOC_TYPES = { cr: "CR", computer_card: "Computer card", signatory_id: "Authorised signatory ID" } as const;
+export type KycDocType = keyof typeof KYC_DOC_TYPES;
+export const isKycDocType = (v: unknown): v is KycDocType => typeof v === "string" && v in KYC_DOC_TYPES;
+
+/**
+ * KYC is up to date when each KYC document type has at least one document whose expiry is today or later.
+ * `missing` / `expired` list the labels of what's wrong.
+ */
+export function kycStatus(docs: { doc_type: string | null; expiry_date: string | null }[], today = new Date().toISOString().slice(0, 10)) {
+  const missing: string[] = [];
+  const expired: string[] = [];
+  for (const [type, label] of Object.entries(KYC_DOC_TYPES)) {
+    const ofType = docs.filter((d) => d.doc_type === type);
+    if (ofType.length === 0) missing.push(label);
+    else if (!ofType.some((d) => d.expiry_date && d.expiry_date >= today)) expired.push(label);
+  }
+  return { ok: missing.length === 0 && expired.length === 0, missing, expired };
+}
+
 export type ClientDocumentItem = {
   id: number;
   description: string;
+  /** KYC document type, or null for other paperwork. */
+  doc_type: KycDocType | null;
   expiry_date: string | null; // YYYY-MM-DD
   file_name: string;
   mime_type: string;

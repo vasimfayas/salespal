@@ -1,5 +1,6 @@
 "use client";
 
+import { cn } from "@/lib/utils";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { CheckCircle2, RefreshCw, Send, Tag, XCircle } from "lucide-react";
@@ -16,7 +17,7 @@ async function stage(id: number, body: Record<string, unknown>) {
   const res = await fetch(`/api/enquiries/${id}/stage`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.error || "Failed to update enquiry");
-  return data as { status: string; orderId: number | null; reopened?: boolean };
+  return data as { status: string; orderId: number | null; reopened?: boolean; approvalRequested?: boolean };
 }
 
 /** The order a re-confirmation will reopen: the latest order event was a revision request (events are newest first). */
@@ -61,7 +62,7 @@ const META: Record<Action, { label: string; icon: typeof Tag }> = {
   send_agent: { label: "Send to agent", icon: Send },
   quote: { label: "Quote", icon: Tag },
   requote: { label: "Requote", icon: RefreshCw },
-  confirm: { label: "Confirm & create order", icon: CheckCircle2 },
+  confirm: { label: "Order", icon: CheckCircle2 },
   lose: { label: "Mark lost", icon: XCircle },
 };
 
@@ -85,7 +86,9 @@ export function EnquiryStageActions({
 }) {
   const router = useRouter();
   const [open, setOpen] = useState<Action | null>(null);
-  const actions = availableActions(enquiry.status).filter((a) => !only || only.includes(a));
+  // Confirming waits for a manager's approval of the quote (pending), or a requote after a rejection.
+  const blocked = enquiry.approval_required && (enquiry.approval_status === "pending" || enquiry.approval_status === "rejected");
+  const actions = availableActions(enquiry.status).filter((a) => (!only || only.includes(a)) && !(a === "confirm" && blocked));
   if (actions.length === 0) return null;
 
   function start(action: Action) {
@@ -103,7 +106,11 @@ export function EnquiryStageActions({
             key={action}
             size={size}
             variant={lose ? "ghost" : action === "confirm" || (only && action !== "send_agent") ? "primary" : "secondary"}
-            className={lose ? "text-danger-foreground hover:bg-danger-soft hover:text-danger-foreground" : undefined}
+            className={cn(
+              lose && "text-danger-foreground hover:bg-danger-soft hover:text-danger-foreground",
+              action === "confirm" && "bg-success text-white hover:bg-success/90 dark:text-foreground",
+              (action === "quote" || action === "requote") && "bg-warning text-white hover:bg-warning/90 dark:text-foreground",
+            )}
             onClick={(e) => {
               e.stopPropagation();
               start(action);
@@ -285,7 +292,11 @@ function ConfirmDialog({ enquiry, open, onClose, onSaved }: { enquiry: EnquiryLi
                 setError(null);
                 try {
                   const res = await stage(enquiry.id, { action: "confirm" });
-                  onSaved(`${enquiry.ref} confirmed · order ${orderNo(res.orderId)} ${res.reopened ? "reopened" : "created"}`);
+                  onSaved(
+                    res.approvalRequested
+                      ? `${enquiry.ref} needs manager approval first — sent to the manager's queue`
+                      : `${enquiry.ref} confirmed · order ${orderNo(res.orderId)} ${res.reopened ? "reopened" : "created"}`,
+                  );
                 } catch (err) {
                   setError(err instanceof Error ? err.message : "Failed to confirm");
                 } finally {

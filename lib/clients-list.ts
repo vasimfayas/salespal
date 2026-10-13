@@ -1,6 +1,7 @@
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { dateRange, intParam, literal, pageParam, paging, param, PAGE_SIZE, type Paged, type SearchParams } from "@/lib/list-params";
+import { kycStatus } from "@/types/client";
 
 /** Client columns shown in client tables (no heavy relations). */
 export const clientListSelect = {
@@ -21,8 +22,10 @@ export const clientListSelect = {
   contact_person_designation: true,
   department: true,
   parent_client_id: true,
-  // Department rows show their company's CR.
-  parent: { select: { cr_no: true, cr_expiry_date: true } },
+  // Department rows show their company's CR — and use its KYC documents, which live on the company row.
+  parent: { select: { cr_no: true, cr_expiry_date: true, documents: { where: { doc_type: { not: null } }, select: { doc_type: true, expiry_date: true } } } },
+  documents: { where: { doc_type: { not: null } }, select: { doc_type: true, expiry_date: true } },
+  contacts: { select: { name: true, phone: true, email: true }, take: 20 },
   organization: { select: { name: true } },
   assignedSalesman: { select: { name: true } },
 } satisfies Prisma.ClientSelect;
@@ -66,14 +69,26 @@ export function clientFilterWhere(params: SearchParams): Prisma.ClientWhereInput
   return and.length ? { AND: and } : {};
 }
 
-export async function getClientsPage(scope: Prisma.ClientWhereInput, params: SearchParams): Promise<Paged<ClientListRow>> {
+/** A list row: the client plus whether its KYC documents are complete and in date (the documents themselves are dropped). */
+export type ClientListItem = Omit<ClientListRow, "documents" | "parent"> & {
+  parent: { cr_no: string | null; cr_expiry_date: Date | null } | null;
+  kyc_ok: boolean;
+};
+
+function toListItem(row: ClientListRow): ClientListItem {
+  const { documents, ...client } = withCompanyCr(row);
+  const kycDocs = [...documents, ...(row.parent?.documents ?? [])].map((d) => ({ doc_type: d.doc_type, expiry_date: d.expiry_date?.toISOString().slice(0, 10) ?? null }));
+  return { ...client, parent: row.parent && { cr_no: row.parent.cr_no, cr_expiry_date: row.parent.cr_expiry_date }, kyc_ok: kycStatus(kycDocs).ok };
+}
+
+export async function getClientsPage(scope: Prisma.ClientWhereInput, params: SearchParams): Promise<Paged<ClientListItem>> {
   const page = pageParam(params);
   const where: Prisma.ClientWhereInput = { AND: [scope, clientFilterWhere(params)] };
   const [rows, total] = await Promise.all([
     prisma.client.findMany({ where, select: clientListSelect, orderBy: { id: "desc" }, ...paging(page) }),
     prisma.client.count({ where }),
   ]);
-  return { rows: rows.map(withCompanyCr), total, page, pageSize: PAGE_SIZE };
+  return { rows: rows.map(toListItem), total, page, pageSize: PAGE_SIZE };
 }
 
 /** { status: count } computed in the database — use instead of loading clients just to count them. */
