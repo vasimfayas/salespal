@@ -80,6 +80,8 @@ export type CompanyProfile = {
   email: string | null;
   prefix: string | null;
   export_office_no: string | null;
+  customs_code: string | null;
+  import_office_no: string | null;
   logo_url: string | null;
   documents: CompanyDocumentItem[];
 };
@@ -97,6 +99,8 @@ export async function getCompanyProfiles(orgIds: number[]): Promise<CompanyProfi
       email: true,
       prefix: true,
       export_office_no: true,
+      customs_code: true,
+      import_office_no: true,
       logo_path: true,
       documents: { include: { uploadedBy: { select: { name: true } } }, orderBy: [{ label: "asc" }, { id: "asc" }] },
     },

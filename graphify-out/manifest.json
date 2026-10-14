@@ -426,10 +426,10 @@
     "semantic_hash": "c162b9ed8eabf0cf370a7f6e2742dd86"
   },
   "app/dashboard/admin/companies/CompaniesClient.tsx": {
-    "mtime": 1791812509.387906,
-    "seen": 1791876939.6302762,
-    "ast_hash": "1e880eab7241657574adb74ed8882c14",
-    "semantic_hash": "1e880eab7241657574adb74ed8882c14"
+    "mtime": 1791967159.7308872,
+    "seen": 1791967186.711798,
+    "ast_hash": "eeaaca469d747410d16679c4d8bfa018",
+    "semantic_hash": ""
   },
   "app/dashboard/admin/companies/loading.tsx": {
     "mtime": 1791358194.2685914,
@@ -558,9 +558,9 @@
     "semantic_hash": "f8936a36fd1b5330462783ba55795959"
   },
   "app/dashboard/manager/clients/ManagerClientsList.tsx": {
-    "mtime": 1791888003.7007587,
-    "seen": 1791888347.6598258,
-    "ast_hash": "b03d9da67f1cd81441e5a72bf5875fc4",
+    "mtime": 1791891454.7415833,
+    "seen": 1791967186.712367,
+    "ast_hash": "419d04c943fd0e8380043275da2c40b5",
     "semantic_hash": ""
   },
   "app/dashboard/manager/clients/[id]/loading.tsx": {
@@ -738,9 +738,9 @@
     "semantic_hash": "a558b47eba03ccf3e3f065df26dddf61"
   },
   "app/dashboard/salesman/clients/SalesmanClientsList.tsx": {
-    "mtime": 1791888003.7014208,
-    "seen": 1791888347.6605089,
-    "ast_hash": "7a747f69b6553c993be08659a3e1b956",
+    "mtime": 1791891454.7420018,
+    "seen": 1791967186.713129,
+    "ast_hash": "2948d9bf0bf35a89ac9e08d136764bd0",
     "semantic_hash": ""
   },
   "app/dashboard/salesman/clients/[id]/ClientOverview.tsx": {
@@ -840,10 +840,10 @@
     "semantic_hash": "99e45e376c2d10da754df54d2e6089d6"
   },
   "app/dashboard/salesman/page.tsx": {
-    "mtime": 1791814575.3445723,
-    "seen": 1791876939.6303182,
-    "ast_hash": "468060272ec4bd5ab6bf483d38c7a650",
-    "semantic_hash": "468060272ec4bd5ab6bf483d38c7a650"
+    "mtime": 1791890949.8880715,
+    "seen": 1791967186.7135649,
+    "ast_hash": "963f6d89fff030f95e944545c6935e39",
+    "semantic_hash": ""
   },
   "app/dashboard/salesman/tasks/loading.tsx": {
     "mtime": 1791358194.290615,
@@ -972,9 +972,9 @@
     "semantic_hash": "1119658fcc88a16e1b4bf3dcfd625939"
   },
   "components/clients/ClientTable.tsx": {
-    "mtime": 1791888003.7019582,
-    "seen": 1791888347.661338,
-    "ast_hash": "514cb16c7ee5bf301bdcbdc745f14b1b",
+    "mtime": 1791891454.7412848,
+    "seen": 1791967186.714159,
+    "ast_hash": "caf3f22c6708d6c3832c5c69d184f332",
     "semantic_hash": ""
   },
   "components/clients/CompanySelect.tsx": {
@@ -1032,16 +1032,16 @@
     "semantic_hash": "f3cc21feff4027bc3bae4473b0563986"
   },
   "components/companies/CompanyFormModal.tsx": {
-    "mtime": 1791616964.100537,
-    "seen": 1791876939.630343,
-    "ast_hash": "5b32f25107dfd812e66317f0c8554ea6",
-    "semantic_hash": "5b32f25107dfd812e66317f0c8554ea6"
+    "mtime": 1791967159.728759,
+    "seen": 1791967186.714386,
+    "ast_hash": "25044e9eb237d199088aef6535430aa5",
+    "semantic_hash": ""
   },
   "components/companies/CompanyInfoCard.tsx": {
-    "mtime": 1791637139.2558346,
-    "seen": 1791876939.630343,
-    "ast_hash": "ed88494350a9d7dbd99a99f40a77045c",
-    "semantic_hash": "ed88494350a9d7dbd99a99f40a77045c"
+    "mtime": 1791967159.729781,
+    "seen": 1791967186.714387,
+    "ast_hash": "7a80407f1312ca2da8e938d7f30340e1",
+    "semantic_hash": ""
   },
   "components/companies/CompanyLogo.tsx": {
     "mtime": 1791637122.578224,
@@ -1080,10 +1080,10 @@
     "semantic_hash": "9e8cc878b957ba19048c24af430472fa"
   },
   "components/dashboard/ManagerDashboardSections.tsx": {
-    "mtime": 1791797136.7574582,
-    "seen": 1791876939.630347,
-    "ast_hash": "c3e4ec4672c2e842378bb87eec4d84c6",
-    "semantic_hash": "c3e4ec4672c2e842378bb87eec4d84c6"
+    "mtime": 1791890983.833679,
+    "seen": 1791967186.7145228,
+    "ast_hash": "7353a9f83687314f9a8b3c1d9fa7115b",
+    "semantic_hash": ""
   },
   "components/dashboard/MantineChartsProvider.tsx": {
     "mtime": 1791793570.6608963,
@@ -1122,10 +1122,10 @@
     "semantic_hash": "53641b8f673b5ea6604a2df4a4a6d570"
   },
   "components/dashboard/StatCard.tsx": {
-    "mtime": 1791797021.889039,
-    "seen": 1791876939.6303518,
-    "ast_hash": "eae4b30a200756c9108a94510b0f0c61",
-    "semantic_hash": "eae4b30a200756c9108a94510b0f0c61"
+    "mtime": 1791891058.305573,
+    "seen": 1791967186.714659,
+    "ast_hash": "693bb71eaa975f368bf73382d04c5be0",
+    "semantic_hash": ""
   },
   "components/dashboard/StatCardWithDetails.tsx": {
     "mtime": 1791358194.3090706,
@@ -1170,9 +1170,9 @@
     "semantic_hash": "503bbb00b137967225c4b87025e2a298"
   },
   "components/enquiries/EnquiriesClient.tsx": {
-    "mtime": 1791887880.3769634,
-    "seen": 1791888347.6620328,
-    "ast_hash": "8a6046346817b0aa5f7c2a2a0b39b6cd",
+    "mtime": 1791890758.4656603,
+    "seen": 1791967186.714859,
+    "ast_hash": "1fb92b215a832b925eecb18179cf8348",
     "semantic_hash": ""
   },
   "components/enquiries/EnquiryDetailSheet.tsx": {
@@ -1206,9 +1206,9 @@
     "semantic_hash": "9728efb953bef2abd4ad1dd3504fd6e4"
   },
   "components/enquiries/EnquiryStageActions.tsx": {
-    "mtime": 1791887869.65584,
-    "seen": 1791888347.662097,
-    "ast_hash": "aff6da001c5288e510a88893763d2058",
+    "mtime": 1791890683.286793,
+    "seen": 1791967186.7149749,
+    "ast_hash": "c31eb82e13d67538b3a9995f07494901",
     "semantic_hash": ""
   },
   "components/enquiries/LocationPicker.tsx": {
@@ -1368,10 +1368,10 @@
     "semantic_hash": "00a33bfd607954cae2a2fd3b506277bb"
   },
   "components/salesmen/SalesmenTargetsClient.tsx": {
-    "mtime": 1791793632.2645426,
-    "seen": 1791876939.6303759,
-    "ast_hash": "ee3bf55440aea9fa5feeb7844c5c9b74",
-    "semantic_hash": "ee3bf55440aea9fa5feeb7844c5c9b74"
+    "mtime": 1791891183.93967,
+    "seen": 1791967186.715557,
+    "ast_hash": "352a3d929e0eb0e264091d41e2ca1c20",
+    "semantic_hash": ""
   },
   "components/shared/KpiTile.tsx": {
     "mtime": 1791358194.3317568,
@@ -1638,10 +1638,10 @@
     "semantic_hash": "359c3d127e82c83d248505c68d9812cc"
   },
   "lib/actions/company-actions.ts": {
-    "mtime": 1791813603.8213751,
-    "seen": 1791876939.630404,
-    "ast_hash": "da0dd417f22b619c87bc6dce16c6dd6b",
-    "semantic_hash": "da0dd417f22b619c87bc6dce16c6dd6b"
+    "mtime": 1791967159.727865,
+    "seen": 1791967186.716527,
+    "ast_hash": "c00ed6f627d26358550eedb60e70599f",
+    "semantic_hash": ""
   },
   "lib/actions/manager-actions.ts": {
     "mtime": 1791812790.0555336,
@@ -1722,16 +1722,16 @@
     "semantic_hash": "eb35211b918eafa31a69cdd79e169d23"
   },
   "lib/clients-list.ts": {
-    "mtime": 1791888003.7000384,
-    "seen": 1791888347.663797,
-    "ast_hash": "8882c68f839df11396976141ce36a5fb",
+    "mtime": 1791891449.1512733,
+    "seen": 1791967186.71681,
+    "ast_hash": "7ef69b4106fb9a053be5baf6108a76f6",
     "semantic_hash": ""
   },
   "lib/company-documents.ts": {
-    "mtime": 1791812790.0528965,
-    "seen": 1791876939.630413,
-    "ast_hash": "86ab8f0a1887d81ef87e6753f0a399a1",
-    "semantic_hash": "86ab8f0a1887d81ef87e6753f0a399a1"
+    "mtime": 1791967159.7292855,
+    "seen": 1791967186.716811,
+    "ast_hash": "a22c8add17ae8911c5e64633ed4661dc",
+    "semantic_hash": ""
   },
   "lib/company-report.ts": {
     "mtime": 1791811414.044888,
@@ -1866,10 +1866,10 @@
     "semantic_hash": "f674799d27e8c7b0e3d7410b70063a03"
   },
   "lib/performance.ts": {
-    "mtime": 1791636949.4025214,
-    "seen": 1791876939.630427,
-    "ast_hash": "a0ec065fab5adab2d46d90794e252cae",
-    "semantic_hash": "a0ec065fab5adab2d46d90794e252cae"
+    "mtime": 1791890949.8870652,
+    "seen": 1791967186.717248,
+    "ast_hash": "6bff2ab923f1b998f9121959d0c6da40",
+    "semantic_hash": ""
   },
   "lib/pipeline-metrics.ts": {
     "mtime": 1791797011.1770082,
@@ -2106,9 +2106,9 @@
     "semantic_hash": ""
   },
   "components/enquiries/ApprovalChip.tsx": {
-    "mtime": 1791887880.3572633,
-    "seen": 1791888347.661991,
-    "ast_hash": "ab8fd462ca2e86fde1802fb568e1be84",
+    "mtime": 1791890398.7707727,
+    "seen": 1791967186.714802,
+    "ast_hash": "ff881c139e6773f162b703b818cf4304",
     "semantic_hash": ""
   },
   "lib/actions/approval-actions.ts": {
@@ -2217,6 +2217,12 @@
     "mtime": 1790786252.2322903,
     "seen": 1791888347.664709,
     "ast_hash": "a2760511c65806022ad20adf74370ff3",
+    "semantic_hash": ""
+  },
+  "components/clients/ClientReach.tsx": {
+    "mtime": 1791891449.1316354,
+    "seen": 1791967186.714112,
+    "ast_hash": "a96cb294226c26fe2d1f7aeae51b28c6",
     "semantic_hash": ""
   }
 }

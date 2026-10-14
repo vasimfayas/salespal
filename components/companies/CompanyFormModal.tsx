@@ -15,6 +15,8 @@ export type CompanyFormValues = {
   email: string | null;
   prefix: string | null;
   export_office_no: string | null;
+  customs_code?: string | null;
+  import_office_no?: string | null;
 };
 
 const fieldClass =
@@ -59,6 +61,8 @@ function CompanyForm({
   const [email, setEmail] = useState(company?.email ?? "");
   const [prefix, setPrefix] = useState(company?.prefix ?? "");
   const [exportOfficeNo, setExportOfficeNo] = useState(company?.export_office_no ?? "");
+  const [customsCode, setCustomsCode] = useState(company?.customs_code ?? "");
+  const [importOfficeNo, setImportOfficeNo] = useState(company?.import_office_no ?? "");
   const [error, setError] = useState("");
   const isEdit = Boolean(company?.id);
 
@@ -71,7 +75,7 @@ function CompanyForm({
     setError("");
 
     startTransition(async () => {
-      const values = { name, address, phone, email, prefix, export_office_no: exportOfficeNo };
+      const values = { name, address, phone, email, prefix, export_office_no: exportOfficeNo, customs_code: customsCode, import_office_no: importOfficeNo };
       const res = isEdit ? await updateCompanyAction(company!.id!, values) : await createCompanyAction(values);
       if (!res.success) {
         setError(res.error ?? "Something went wrong.");
@@ -152,6 +156,32 @@ function CompanyForm({
                 placeholder="Export office number"
                 value={exportOfficeNo}
                 onChange={(e) => setExportOfficeNo(e.target.value)}
+                className={fieldClass}
+              />
+            </div>
+            <div>
+              <label htmlFor="company-import-office" className={labelClass}>
+                Import Office No. (Optional)
+              </label>
+              <input
+                id="company-import-office"
+                type="text"
+                placeholder="Import office number"
+                value={importOfficeNo}
+                onChange={(e) => setImportOfficeNo(e.target.value)}
+                className={fieldClass}
+              />
+            </div>
+            <div>
+              <label htmlFor="company-customs-code" className={labelClass}>
+                Customs Code (Optional)
+              </label>
+              <input
+                id="company-customs-code"
+                type="text"
+                placeholder="Customs code"
+                value={customsCode}
+                onChange={(e) => setCustomsCode(e.target.value)}
                 className={fieldClass}
               />
             </div>

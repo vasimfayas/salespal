@@ -25,6 +25,10 @@ model Organization {
   prefix           String?           @unique
   /// Export office (registration) number.
   export_office_no String?
+  /// Customs code.
+  customs_code     String?
+  /// Import office (registration) number.
+  import_office_no String?
   /// Company logo (PNG / JPG) under uploads/companies/<id>/logo/; shown in the app and on enquiry PDFs.
   logo_path        String?
   created_at       DateTime          @default(now())

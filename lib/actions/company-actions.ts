@@ -109,6 +109,8 @@ export type CompanyInput = {
   /** Used in enquiry IDs (SPA → SPA-ENQ-00012). */
   prefix?: string;
   export_office_no?: string;
+  customs_code?: string;
+  import_office_no?: string;
 };
 
 function cleanCompanyInput(data: CompanyInput) {
@@ -119,6 +121,8 @@ function cleanCompanyInput(data: CompanyInput) {
     email: data.email?.trim().toLowerCase() || null,
     prefix: data.prefix?.trim().toUpperCase() || null,
     export_office_no: data.export_office_no?.trim() || null,
+    customs_code: data.customs_code?.trim() || null,
+    import_office_no: data.import_office_no?.trim() || null,
   };
 }
 

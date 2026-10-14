@@ -37,6 +37,18 @@ export function CompanyInfoCard({ company }: { company: CompanyProfile }) {
                   <dd className="font-mono font-semibold text-foreground">{company.export_office_no}</dd>
                 </>
               )}
+              {company.import_office_no && (
+                <>
+                  <dt className="ml-2 font-semibold text-muted-foreground/80">Import Office No.</dt>
+                  <dd className="font-mono font-semibold text-foreground">{company.import_office_no}</dd>
+                </>
+              )}
+              {company.customs_code && (
+                <>
+                  <dt className="ml-2 font-semibold text-muted-foreground/80">Customs Code</dt>
+                  <dd className="font-mono font-semibold text-foreground">{company.customs_code}</dd>
+                </>
+              )}
             </dl>
             {(company.address || company.phone || company.email) && (
               <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">

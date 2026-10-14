@@ -47,6 +47,8 @@ interface Org {
   email: string | null;
   prefix: string | null;
   export_office_no: string | null;
+  customs_code: string | null;
+  import_office_no: string | null;
   logo_path: string | null;
   /** Client counts by status, and the total, for this company. */
   clientStatusCounts: Record<string, number>;
@@ -486,7 +488,9 @@ export function CompaniesClient({
                               phone: company.phone,
                               email: company.email,
                               prefix: company.prefix,
-                              export_office_no: company.export_office_no
+                              export_office_no: company.export_office_no,
+                              customs_code: company.customs_code,
+                              import_office_no: company.import_office_no
                             }
                           })
                         }
@@ -506,7 +510,7 @@ export function CompaniesClient({
                         <Trash2 size={15} />
                       </button>
                     </div>
-                    {(company.address || company.phone || company.email || company.export_office_no) && (
+                    {(company.address || company.phone || company.email || company.export_office_no || company.import_office_no || company.customs_code) && (
                       <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
                         {company.address && (
                           <span className="inline-flex items-center gap-1"><MapPin size={12} aria-hidden /> {company.address}</span>
@@ -519,6 +523,12 @@ export function CompaniesClient({
                         )}
                         {company.export_office_no && (
                           <span className="inline-flex items-center gap-1"><Building size={12} aria-hidden /> Export office no. {company.export_office_no}</span>
+                        )}
+                        {company.import_office_no && (
+                          <span className="inline-flex items-center gap-1"><Building size={12} aria-hidden /> Import office no. {company.import_office_no}</span>
+                        )}
+                        {company.customs_code && (
+                          <span className="inline-flex items-center gap-1"><Building size={12} aria-hidden /> Customs code {company.customs_code}</span>
                         )}
                       </div>
                     )}
