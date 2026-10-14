@@ -188,7 +188,7 @@ export function ShippingRateTable({ initialRates, editable = false, canDelete = 
   }, [rates, searchQuery, modeFilter, containerFilter, carrierFilter, currencyFilter]);
 
   // One page at a time — the full list stays in memory for filtering and best-price detection.
-  const PAGE = 25;
+  const [PAGE, setPAGE] = useState(20);
   const [page, setPage] = useState(1);
   const [filterKey, setFilterKey] = useState("");
   const currentFilterKey = [searchQuery, modeFilter, containerFilter, carrierFilter, currencyFilter].join("|");
@@ -713,6 +713,7 @@ export function ShippingRateTable({ initialRates, editable = false, canDelete = 
             ═══════════════════════════════════════════ */}
         {filteredRates.length > 0 ? (
           <>
+            <Pagination page={currentPage} pageSize={PAGE} total={filteredRates.length} noun="rates" onPage={setPage} onSize={(n) => { setPAGE(n); setPage(1); }} />
             {/* ── MOBILE: Rate Cards ── */}
             <div className="md:hidden space-y-2.5">
               {visibleRates.map((rate) => {
@@ -858,7 +859,7 @@ export function ShippingRateTable({ initialRates, editable = false, canDelete = 
               </table>
               </div>
             </div>
-            <Pagination page={currentPage} pageSize={PAGE} total={filteredRates.length} noun="rates" onPage={setPage} />
+            <Pagination page={currentPage} pageSize={PAGE} total={filteredRates.length} noun="rates" onPage={setPage} onSize={(n) => { setPAGE(n); setPage(1); }} />
           </>
         ) : (
           /* Empty state */

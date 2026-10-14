@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { allowAttempt, clientIp } from "@/lib/rate-limit";
 import { revalidateEnquiryPages } from "@/lib/enquiries";
 import { agentLinkExpired } from "@/lib/enquiry-agent";
 
@@ -9,6 +10,8 @@ import { agentLinkExpired } from "@/lib/enquiry-agent";
  */
 export async function POST(req: Request, context: { params: Promise<{ token: string }> }) {
   const { token } = await context.params;
+  // Public endpoint: 20 tries per IP every 10 minutes.
+  if (!allowAttempt(`agent-quote:${clientIp(req.headers)}`, 20, 10 * 60_000)) return NextResponse.json({ error: "Too many requests. Try again later." }, { status: 429 });
   const request = await prisma.enquiryAgentRequest.findUnique({
     where: { token },
     select: { id: true, enquiry_id: true, sent_at: true, replied_at: true, sent_by_id: true, agent: { select: { name: true } }, enquiry: { select: { status: true } } },

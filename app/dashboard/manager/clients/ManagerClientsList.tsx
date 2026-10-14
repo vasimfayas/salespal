@@ -539,6 +539,7 @@ export function ManagerClientsList({
       {/* Table Section */}
       {filteredClients.length > 0 ? (
         <div className={cn("space-y-1 transition-opacity", isNavigating && "opacity-60")} aria-busy={isNavigating}>
+        <Pagination page={page} pageSize={pageSize} total={total} pending={isNavigating} noun="clients" onPage={(p) => set({ page: p })} onSize={(n) => set({ size: n })} />
         <div className="overflow-x-auto rounded-card border border-border bg-card shadow-card">
           <table className="w-full text-left text-sm">
             <thead className="border-border border-b text-muted-foreground text-[13px]">
@@ -780,7 +781,7 @@ export function ManagerClientsList({
             </tbody>
           </table>
         </div>
-        <Pagination page={page} pageSize={pageSize} total={total} pending={isNavigating} noun="clients" onPage={(p) => set({ page: p })} />
+        <Pagination page={page} pageSize={pageSize} total={total} pending={isNavigating} noun="clients" onPage={(p) => set({ page: p })} onSize={(n) => set({ size: n })} />
         </div>
       ) : (
         /* Empty State */

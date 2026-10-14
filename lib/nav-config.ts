@@ -25,9 +25,11 @@ export const navConfig: Record<number, NavLink[]> = {
     { label: "Reports", href: "/dashboard/admin/reports" },
   ],
   2: [
-    { label: "Overview", href: "/dashboard/manager" },
+    { label: "Team Overview", href: "/dashboard/manager" },
+    { label: "My Overview", href: "/dashboard/manager/my-overview" },
     { label: "Team", href: "/dashboard/manager/team" },
     { label: "Tasks", href: "/dashboard/manager/tasks" },
+    { label: "My Clients", href: "/dashboard/manager/my-clients" },
     { label: "Clients", href: "/dashboard/manager/clients" },
     { label: "Premium Clients", href: "/dashboard/manager/clients?category=premium" },
     { label: "Blacklist", href: "/dashboard/manager/clients?status=blacklisted" },

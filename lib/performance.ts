@@ -77,3 +77,21 @@ export function sumPerformance(items: Iterable<Performance>): Performance {
 export function byPerformance<T extends { perf: Performance }>(a: T, b: T) {
   return b.perf.value - a.perf.value || b.perf.orders - a.perf.orders || b.perf.newClients - a.perf.newClients;
 }
+
+/** invoice_date is a date column: compare as plain local calendar days. */
+const day = (d: Date) => Prisma.sql`${`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`}::date`;
+
+/**
+ * Actual profit accounts entered on the salesman's orders invoiced in each range (by invoice date, as on the
+ * owner's Accounts page and the reports), leaving out cancelled and sent-back orders.
+ */
+export async function actualProfit(userId: number, current: { from: Date; to: Date }, previous: { from: Date; to: Date }) {
+  const [row] = await prisma.$queryRaw<{ current: number; previous: number }[]>(Prisma.sql`
+    SELECT COALESCE(SUM(e.actual_profit) FILTER (WHERE o.invoice_date >= ${day(current.from)}), 0)::float8 AS current,
+           COALESCE(SUM(e.actual_profit) FILTER (WHERE o.invoice_date <= ${day(previous.to)}), 0)::float8 AS previous
+    FROM orders o JOIN enquiries e ON e.id = o.enquiry_id
+    WHERE o.created_by_id = ${userId} AND o.status NOT IN ('cancelled', 'revision_requested') AND e.actual_profit IS NOT NULL
+      AND o.invoice_date >= ${day(previous.from)} AND o.invoice_date <= ${day(current.to)}
+      AND (o.invoice_date >= ${day(current.from)} OR o.invoice_date <= ${day(previous.to)})`);
+  return row ?? { current: 0, previous: 0 };
+}

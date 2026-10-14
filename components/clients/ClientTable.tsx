@@ -245,6 +245,7 @@ export function ClientTable({
       {/* Table Section */}
       {filteredClients.length > 0 ? (
         <div className={cn("space-y-1 transition-opacity", isPending && "opacity-60")} aria-busy={isPending}>
+        <Pagination page={page} pageSize={pageSize} total={total} pending={isPending} noun="clients" onPage={(p) => set({ page: p })} onSize={(n) => set({ size: n })} />
         <div className="overflow-x-auto rounded-card border border-border bg-card shadow-card">
           <table className="w-full text-left text-sm">
             <thead className="border-border border-b text-muted-foreground text-[13px]">
@@ -412,7 +413,7 @@ export function ClientTable({
             </tbody>
           </table>
         </div>
-        <Pagination page={page} pageSize={pageSize} total={total} pending={isPending} noun="clients" onPage={(p) => set({ page: p })} />
+        <Pagination page={page} pageSize={pageSize} total={total} pending={isPending} noun="clients" onPage={(p) => set({ page: p })} onSize={(n) => set({ size: n })} />
         </div>
       ) : (
         /* Empty State */

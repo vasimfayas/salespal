@@ -1,6 +1,6 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { intParam, pageParam, param, PAGE_SIZE, type Paged, type SearchParams } from "@/lib/list-params";
+import { intParam, pageParam, param, sizeParam, type Paged, type SearchParams } from "@/lib/list-params";
 import type { TaskKind } from "@/types/task";
 
 /** General tasks and client tasks, merged into one list (same shape the task lists already use). */
@@ -140,6 +140,7 @@ export type TasksPage = Paged<UnifiedTaskRow> & {
 /** One page of tasks, pending first, then by due date — sorted and paged in SQL across both task tables. */
 export async function getTasksPage(scope: Scope, params: SearchParams): Promise<TasksPage> {
   const page = pageParam(params);
+  const pageSize = sizeParam(params);
   const union = unionSql(scope);
   const userId = "userId" in scope ? scope.userId : -1;
   const baseParts = filterParts(params);
@@ -155,7 +156,7 @@ export async function getTasksPage(scope: Scope, params: SearchParams): Promise<
       SELECT * FROM (${union}) x ${where}
       ORDER BY CASE x.status WHEN 'pending' THEN 0 WHEN 'in_process' THEN 1 WHEN 'achieved' THEN 2 WHEN 'unsuccessful' THEN 3 ELSE 99 END,
                x.due_date, x.is_client_task, x.id
-      LIMIT ${PAGE_SIZE} OFFSET ${(page - 1) * PAGE_SIZE}`),
+      LIMIT ${pageSize} OFFSET ${(page - 1) * pageSize}`),
     prisma.$queryRaw<{ total: number; mine: number; assigned: number }[]>(Prisma.sql`
       SELECT COUNT(*)::int AS total,
              COUNT(*) FILTER (WHERE x.created_by_id = ${userId})::int AS mine,
@@ -185,7 +186,7 @@ export async function getTasksPage(scope: Scope, params: SearchParams): Promise<
     })),
     total: Number(totals[0].total),
     page,
-    pageSize: PAGE_SIZE,
+    pageSize,
     createdByMe: Number(totals[0].mine),
     assignedToMe: Number(totals[0].assigned),
     viewCounts: Object.fromEntries(taskViews.map((v) => [v, Number(views[0][v])])) as Record<TaskView, number>,

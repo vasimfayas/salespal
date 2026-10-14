@@ -111,6 +111,7 @@ export type CompanyInput = {
   export_office_no?: string;
   customs_code?: string;
   import_office_no?: string;
+  note?: string;
 };
 
 function cleanCompanyInput(data: CompanyInput) {
@@ -123,6 +124,7 @@ function cleanCompanyInput(data: CompanyInput) {
     export_office_no: data.export_office_no?.trim() || null,
     customs_code: data.customs_code?.trim() || null,
     import_office_no: data.import_office_no?.trim() || null,
+    note: data.note?.trim() || null,
   };
 }
 

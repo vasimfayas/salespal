@@ -17,6 +17,7 @@ export type CompanyFormValues = {
   export_office_no: string | null;
   customs_code?: string | null;
   import_office_no?: string | null;
+  note?: string | null;
 };
 
 const fieldClass =
@@ -63,6 +64,7 @@ function CompanyForm({
   const [exportOfficeNo, setExportOfficeNo] = useState(company?.export_office_no ?? "");
   const [customsCode, setCustomsCode] = useState(company?.customs_code ?? "");
   const [importOfficeNo, setImportOfficeNo] = useState(company?.import_office_no ?? "");
+  const [note, setNote] = useState(company?.note ?? "");
   const [error, setError] = useState("");
   const isEdit = Boolean(company?.id);
 
@@ -75,7 +77,7 @@ function CompanyForm({
     setError("");
 
     startTransition(async () => {
-      const values = { name, address, phone, email, prefix, export_office_no: exportOfficeNo, customs_code: customsCode, import_office_no: importOfficeNo };
+      const values = { name, address, phone, email, prefix, export_office_no: exportOfficeNo, customs_code: customsCode, import_office_no: importOfficeNo, note };
       const res = isEdit ? await updateCompanyAction(company!.id!, values) : await createCompanyAction(values);
       if (!res.success) {
         setError(res.error ?? "Something went wrong.");
@@ -198,6 +200,20 @@ function CompanyForm({
               value={address}
               onChange={(e) => setAddress(e.target.value)}
               className="w-full rounded-control border border-input bg-card px-3 text-sm text-foreground shadow-xs outline-none transition-[border-color,box-shadow] duration-150 placeholder:text-muted-foreground/70 hover:border-border-strong focus:border-ring focus:ring-3 focus:ring-ring/15 disabled:cursor-not-allowed disabled:bg-muted disabled:opacity-70 w-full py-2.5"
+            />
+          </div>
+
+          <div>
+            <label htmlFor="company-note" className={labelClass}>
+              Note (Optional)
+            </label>
+            <textarea
+              id="company-note"
+              rows={2}
+              maxLength={1000}
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              className="w-full rounded-control border border-input bg-card px-3 text-sm text-foreground shadow-xs outline-none transition-[border-color,box-shadow] duration-150 placeholder:text-muted-foreground/70 hover:border-border-strong focus:border-ring focus:ring-3 focus:ring-ring/15 py-2.5"
             />
           </div>
 

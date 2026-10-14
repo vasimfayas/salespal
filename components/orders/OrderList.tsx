@@ -203,6 +203,7 @@ export function OrderList({ data, role, detailBasePath }: OrderListProps) {
 
       {/* Table */}
       <div className={cn("space-y-1 transition-opacity", isNavigating && "opacity-60")} aria-busy={isNavigating}>
+      <Pagination page={data.page} pageSize={data.pageSize} total={data.total} pending={isNavigating} noun="orders" onPage={(p) => set({ page: p })} onSize={(n) => set({ size: n })} />
       <div className="hidden overflow-x-auto rounded-card border border-border bg-card shadow-card lg:block">
         <table className="w-full min-w-[1150px] text-left text-sm">
           <thead className="border-b border-border text-muted-foreground text-[13px]">
@@ -394,7 +395,7 @@ export function OrderList({ data, role, detailBasePath }: OrderListProps) {
         </ul>
       )}
 
-      <Pagination page={data.page} pageSize={data.pageSize} total={data.total} pending={isNavigating} noun="orders" onPage={(p) => set({ page: p })} />
+      <Pagination page={data.page} pageSize={data.pageSize} total={data.total} pending={isNavigating} noun="orders" onPage={(p) => set({ page: p })} onSize={(n) => set({ size: n })} />
       </div>
 
       {/* Add payment */}

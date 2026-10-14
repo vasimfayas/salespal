@@ -54,7 +54,7 @@ export async function clientScopeWhere(token: ScopedToken): Promise<Prisma.Clien
   const userId = getTokenUserId(token);
   if (isOwnerRole(token.role_id)) return {};
   if (token.role_id === 2) {
-    const orgIds = token.org_ids?.length ? token.org_ids : await getManagerOrgIds(userId);
+    const orgIds = await getManagerOrgIds(userId);
     return { org_id: { in: orgIds } };
   }
   if (token.role_id === 3) return { assigned_salesman_id: userId };
@@ -67,7 +67,7 @@ export async function orderScopeWhere(token: ScopedToken): Promise<Prisma.OrderW
   // Accountants and managers see the orders of their companies (an order's company is its enquiry's).
   if (token.role_id === 4) return { org_id: { in: await getAccountantOrgIds(userId) } };
   if (token.role_id === 2) {
-    const orgIds = token.org_ids?.length ? token.org_ids : await getManagerOrgIds(userId);
+    const orgIds = await getManagerOrgIds(userId);
     return { org_id: { in: orgIds } };
   }
   if (token.role_id === 3) return { created_by_id: userId };
@@ -80,7 +80,7 @@ export type OrderStatsScope = { role_id: number; userId: number; orgIds: number[
 export async function orderStatsScope(token: ScopedToken): Promise<OrderStatsScope> {
   const userId = getTokenUserId(token);
   if (token.role_id === 2) {
-    const orgIds = token.org_ids?.length ? token.org_ids : await getManagerOrgIds(userId);
+    const orgIds = await getManagerOrgIds(userId);
     return { role_id: 2, userId, orgIds };
   }
   return { role_id: token.role_id ?? 0, userId, orgIds: [] };

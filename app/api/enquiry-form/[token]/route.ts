@@ -1,6 +1,7 @@
 import path from "node:path";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { allowAttempt, clientIp } from "@/lib/rate-limit";
 import { revalidateEnquiryPages } from "@/lib/enquiries";
 import { enquiryDetailsData, parseEnquiryDetails } from "@/lib/enquiry-fields";
 import { clientFormExpired } from "@/lib/enquiry-client-form";
@@ -16,6 +17,8 @@ const MAX_SIGNATURE_BYTES = 300 * 1024;
  */
 export async function POST(req: Request, context: { params: Promise<{ token: string }> }) {
   const { token } = await context.params;
+  // Public endpoint: 20 tries per IP every 10 minutes.
+  if (!allowAttempt(`enquiry-form:${clientIp(req.headers)}`, 20, 10 * 60_000)) return NextResponse.json({ error: "Too many requests. Try again later." }, { status: 429 });
   const enquiry = await prisma.enquiry.findUnique({
     where: { client_form_token: token },
     select: { id: true, status: true, enquiry_date: true, payment_mode: true, credit_days: true, client_form_sent_at: true, created_by_id: true },

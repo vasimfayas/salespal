@@ -1,6 +1,6 @@
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { dateRange, intParam, literal, pageParam, paging, param, PAGE_SIZE, type Paged, type SearchParams } from "@/lib/list-params";
+import { dateRange, intParam, literal, pageParam, paging, param, sizeParam, type Paged, type SearchParams } from "@/lib/list-params";
 import { kycStatus } from "@/types/client";
 
 /** Client columns shown in client tables (no heavy relations). */
@@ -83,12 +83,13 @@ function toListItem(row: ClientListRow): ClientListItem {
 
 export async function getClientsPage(scope: Prisma.ClientWhereInput, params: SearchParams): Promise<Paged<ClientListItem>> {
   const page = pageParam(params);
+  const pageSize = sizeParam(params);
   const where: Prisma.ClientWhereInput = { AND: [scope, clientFilterWhere(params)] };
   const [rows, total] = await Promise.all([
-    prisma.client.findMany({ where, select: clientListSelect, orderBy: { id: "desc" }, ...paging(page) }),
+    prisma.client.findMany({ where, select: clientListSelect, orderBy: { id: "desc" }, ...paging(page, pageSize) }),
     prisma.client.count({ where }),
   ]);
-  return { rows: rows.map(toListItem), total, page, pageSize: PAGE_SIZE };
+  return { rows: rows.map(toListItem), total, page, pageSize };
 }
 
 /** { status: count } computed in the database — use instead of loading clients just to count them. */

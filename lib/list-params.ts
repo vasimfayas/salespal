@@ -1,6 +1,8 @@
 /** Shared helpers for server-paginated, URL-driven list pages. */
 
-export const PAGE_SIZE = 50;
+export const PAGE_SIZE = 20;
+export const PAGE_SIZES = [20, 50] as const;
+
 
 export type SearchParams = Record<string, string | string[] | undefined>;
 
@@ -17,6 +19,12 @@ export function intParam(params: SearchParams, key: string): number | undefined 
 
 export function pageParam(params: SearchParams) {
   return intParam(params, "page") ?? 1;
+}
+
+/** Rows per page: 20 by default, 50 when the "size" param asks for it. */
+export function sizeParam(params: SearchParams) {
+  const size = intParam(params, "size");
+  return PAGE_SIZES.find((s) => s === size) ?? PAGE_SIZE;
 }
 
 export function paging(page: number, pageSize = PAGE_SIZE) {

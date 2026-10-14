@@ -10,7 +10,7 @@ import { BLACKLISTED_ERROR, statusAfterEnquiry } from "@/lib/client-status-flow"
 import { CONTACT_FIELD_LABELS, missingContactFields } from "@/lib/client-contact";
 import { enquiryRef, enquiryStatuses, parseEnquiryRef, type EnquiryListItem, type EnquiryStatus } from "@/types/enquiry";
 import { DEFAULT_DIMENSION_UNIT, readPackages } from "@/lib/freight";
-import { intParam, literal, pageParam, paging, param, PAGE_SIZE, type Paged, type SearchParams } from "@/lib/list-params";
+import { intParam, literal, pageParam, paging, param, sizeParam, type Paged, type SearchParams } from "@/lib/list-params";
 import { isOwnerRole } from "@/lib/roles";
 import { enquiryNeedsApproval } from "@/lib/approvals";
 
@@ -149,6 +149,7 @@ export type EnquiryPage = Paged<EnquiryListItem> & {
 
 export async function getEnquiriesPage(token: ScopedToken, params: SearchParams): Promise<EnquiryPage> {
   const page = pageParam(params);
+  const pageSize = sizeParam(params);
   const status = param(params, "status");
   const scope = await enquiryScopeWhere(token);
   const searched: Prisma.EnquiryWhereInput = { AND: [scope, enquirySearchWhere(param(params, "q"))] };
@@ -156,7 +157,7 @@ export async function getEnquiriesPage(token: ScopedToken, params: SearchParams)
   const focusId = intParam(params, "followUp") ?? intParam(params, "view");
 
   const [rows, total, grouped, followUpsDue, focus] = await Promise.all([
-    prisma.enquiry.findMany({ where, include: enquiryListInclude, orderBy: [{ enquiry_date: "desc" }, { id: "desc" }], ...paging(page) }),
+    prisma.enquiry.findMany({ where, include: enquiryListInclude, orderBy: [{ enquiry_date: "desc" }, { id: "desc" }], ...paging(page, pageSize) }),
     prisma.enquiry.count({ where }),
     prisma.enquiry.groupBy({ by: ["status"], where: searched, _count: { _all: true } }),
     prisma.enquiry.count({ where: { AND: [scope, { followUpTasks: { some: { status: { in: ["pending", "in_process"] } } } }] } }),
@@ -169,7 +170,7 @@ export async function getEnquiriesPage(token: ScopedToken, params: SearchParams)
     counts.all += g._count._all;
   }
 
-  return { rows: rows.map(toListItem), total, page, pageSize: PAGE_SIZE, counts, followUpsDue, focus: focus ? toListItem(focus) : null };
+  return { rows: rows.map(toListItem), total, page, pageSize, counts, followUpsDue, focus: focus ? toListItem(focus) : null };
 }
 
 export function revalidateEnquiryPages() {

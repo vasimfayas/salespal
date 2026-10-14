@@ -15,8 +15,10 @@ import {
   Star,
   Target,
   UserCheck,
+  UserRound,
   Users,
   UsersRound,
+  UserRoundCheck,
 } from "lucide-react";
 import { navConfig, roleHome } from "@/lib/nav-config";
 
@@ -24,9 +26,12 @@ import { navConfig, roleHome } from "@/lib/nav-config";
 const ICONS: Record<string, LucideIcon> = {
   Dashboard: LayoutDashboard,
   Overview: LayoutGrid,
+  "Team Overview": UsersRound,
+  "My Overview": UserRound,
   Companies: Building2,
   Users: Users,
   Clients: UserCheck,
+  "My Clients": UserRoundCheck,
   "Premium Clients": Star,
   Blacklist: Ban,
   Reports: BarChart3,
@@ -44,10 +49,13 @@ const ICONS: Record<string, LucideIcon> = {
 const GROUPS: Record<string, string> = {
   Dashboard: "Overview",
   Overview: "Overview",
+  "Team Overview": "Overview",
+  "My Overview": "Overview",
   Team: "Team",
   Salesmen: "Team",
   Tasks: "Team",
   Clients: "Sales",
+  "My Clients": "Sales",
   "Premium Clients": "Sales",
   Blacklist: "Sales",
   Enquiries: "Sales",

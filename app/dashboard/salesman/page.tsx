@@ -8,7 +8,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { SectionCard } from "@/components/dashboard/SectionCard";
 import { StatCard, type StatCardTheme } from "@/components/dashboard/StatCard";
 import { UserCheck, Phone, Sparkles, XCircle, ListChecks, Package, UserPlus, Plus, Send, Users, TrendingUp, TrendingDown, PiggyBank } from "lucide-react";
-import { EMPTY_PERFORMANCE, getPerformance, monthPeriod } from "@/lib/performance";
+import { EMPTY_PERFORMANCE, actualProfit, getPerformance, monthPeriod } from "@/lib/performance";
 import { MonthlyActivityChart } from "@/components/dashboard/MonthlyActivityChart";
 import { OrderMonthlyChart } from "@/components/orders/OrderMonthlyChart";
 import { Avatar } from "@/components/ui/avatar";
@@ -276,24 +276,6 @@ async function FollowUpsSection({ userId }: { userId: number }) {
       )}
     </SectionCard>
   );
-}
-
-/** invoice_date is a date column: compare as plain local calendar days. */
-const day = (d: Date) => Prisma.sql`${`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`}::date`;
-
-/**
- * Actual profit accounts entered on the salesman's orders invoiced in each range (by invoice date, as on the
- * owner's Accounts page and the reports), leaving out cancelled and sent-back orders.
- */
-async function actualProfit(userId: number, current: { from: Date; to: Date }, previous: { from: Date; to: Date }) {
-  const [row] = await prisma.$queryRaw<{ current: number; previous: number }[]>(Prisma.sql`
-    SELECT COALESCE(SUM(e.actual_profit) FILTER (WHERE o.invoice_date >= ${day(current.from)}), 0)::float8 AS current,
-           COALESCE(SUM(e.actual_profit) FILTER (WHERE o.invoice_date <= ${day(previous.to)}), 0)::float8 AS previous
-    FROM orders o JOIN enquiries e ON e.id = o.enquiry_id
-    WHERE o.created_by_id = ${userId} AND o.status NOT IN ('cancelled', 'revision_requested') AND e.actual_profit IS NOT NULL
-      AND o.invoice_date >= ${day(previous.from)} AND o.invoice_date <= ${day(current.to)}
-      AND (o.invoice_date >= ${day(current.from)} OR o.invoice_date <= ${day(previous.to)})`);
-  return row ?? { current: 0, previous: 0 };
 }
 
 /** This month's orders, new clients and actual profit vs last month — what salesman performance is measured on. */

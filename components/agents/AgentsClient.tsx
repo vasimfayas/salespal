@@ -2,13 +2,15 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Globe, Lock, LockOpen, Mail, Pencil, Phone, Plus, Trash2, UserRound, Users } from "lucide-react";
+import { Download, Globe, Lock, LockOpen, Mail, Pencil, Phone, Plus, Trash2, Upload, UserRound, Users, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Input } from "@/components/ui/Input";
 import { Modal, ModalFooter, ModalHeader } from "@/components/ui/Modal";
 import { labelClass } from "@/components/ui/field-styles";
+import { AGENT_COLUMNS, BulkImportAgentsModal } from "@/components/agents/BulkImportAgentsModal";
+import { downloadCsv } from "@/lib/csv";
 import { FREIGHT_LOCATIONS } from "@/lib/locations";
 import { cn, titleCase } from "@/lib/utils";
 import { orderModes } from "@/types/order";
@@ -18,14 +20,48 @@ export type AgentRow = {
   name: string;
   contact_person: string | null;
   email: string;
+  extra_emails: string[];
   phone: string | null;
+  extra_phones: string[];
   country: string | null;
+  network: string | null;
+  code: string | null;
   modes: string[];
   locked: boolean;
   requests: number;
 };
 
-const EMPTY = { name: "", contact_person: "", email: "", phone: "", country: "", modes: [] as string[] };
+const EMPTY = { name: "", contact_person: "", emails: [""], phones: [""], country: "", network: "", code: "", modes: [] as string[] };
+const toBody = (f: typeof EMPTY) => ({
+  ...f,
+  email: f.emails[0]?.trim() ?? "",
+  extra_emails: f.emails.slice(1),
+  phone: f.phones[0] ?? "",
+  extra_phones: f.phones.slice(1),
+});
+
+/** One input per value, with add / remove; the first value is the primary one. */
+function MultiInput({ label, type, values, onChange, hint, required }: { label: string; type: "email" | "tel"; values: string[]; onChange: (v: string[]) => void; hint?: string; required?: boolean }) {
+  return (
+    <div className="space-y-2">
+      {values.map((v, i) => (
+        <div key={i} className="flex items-end gap-2">
+          <div className="flex-1">
+            <Input label={i === 0 ? label : `${label} ${i + 1}`} type={type} required={required && i === 0} value={v} hint={i === 0 ? hint : undefined} onChange={(e) => onChange(values.map((x, j) => (j === i ? e.target.value : x)))} />
+          </div>
+          {values.length > 1 && (
+            <Button type="button" variant="ghost" size="icon-sm" aria-label={`Remove ${label.toLowerCase()} ${i + 1}`} onClick={() => onChange(values.filter((_, j) => j !== i))}>
+              <X />
+            </Button>
+          )}
+        </div>
+      ))}
+      <Button type="button" variant="ghost" size="sm" onClick={() => onChange([...values, ""])}>
+        <Plus /> Add another
+      </Button>
+    </div>
+  );
+}
 const COUNTRIES = [...new Set(FREIGHT_LOCATIONS.map((l) => l.country))].sort();
 
 /**
@@ -36,6 +72,7 @@ export function AgentsClient({ agents, canEdit = true }: { agents: AgentRow[]; c
   const router = useRouter();
   const [editing, setEditing] = useState<AgentRow | "new" | null>(null);
   const [form, setForm] = useState(EMPTY);
+  const [importing, setImporting] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -45,7 +82,16 @@ export function AgentsClient({ agents, canEdit = true }: { agents: AgentRow[]; c
     setForm(
       agent === "new"
         ? EMPTY
-        : { name: agent.name, contact_person: agent.contact_person ?? "", email: agent.email, phone: agent.phone ?? "", country: agent.country ?? "", modes: agent.modes },
+        : {
+            name: agent.name,
+            contact_person: agent.contact_person ?? "",
+            emails: [agent.email, ...agent.extra_emails],
+            phones: [agent.phone ?? "", ...agent.extra_phones],
+            country: agent.country ?? "",
+            network: agent.network ?? "",
+            code: agent.code ?? "",
+            modes: agent.modes,
+          },
     );
   }
 
@@ -57,7 +103,7 @@ export function AgentsClient({ agents, canEdit = true }: { agents: AgentRow[]; c
       const res = await fetch(editing === "new" ? "/api/agents" : `/api/agents/${(editing as AgentRow).id}`, {
         method: editing === "new" ? "POST" : "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
+        body: JSON.stringify(toBody(form)),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || "Couldn't save the agent");
@@ -69,6 +115,13 @@ export function AgentsClient({ agents, canEdit = true }: { agents: AgentRow[]; c
     } finally {
       setSaving(false);
     }
+  }
+
+  function exportAgents() {
+    downloadCsv("agents.csv", [
+      [...AGENT_COLUMNS],
+      ...agents.map((a) => [a.name, a.contact_person ?? "", [a.email, ...a.extra_emails].join("; "), [a.phone ?? "", ...a.extra_phones].filter(Boolean).join("; "), a.country ?? "", a.network ?? "", a.code ?? "", a.modes.join("; ")]),
+    ]);
   }
 
   async function toggleLock(agent: AgentRow) {
@@ -94,13 +147,24 @@ export function AgentsClient({ agents, canEdit = true }: { agents: AgentRow[]; c
 
   return (
     <div className="space-y-4">
-      {canEdit && (
-        <div className="flex justify-end">
-          <Button size="sm" onClick={() => open("new")}>
-            <Plus /> Add agent
+      <div className="flex flex-wrap justify-end gap-2">
+        {agents.length > 0 && (
+          <Button size="sm" variant="secondary" onClick={exportAgents}>
+            <Download /> Export
           </Button>
-        </div>
-      )}
+        )}
+        {canEdit && (
+          <>
+            <Button size="sm" variant="secondary" onClick={() => setImporting(true)}>
+              <Upload /> Import
+            </Button>
+            <Button size="sm" onClick={() => open("new")}>
+              <Plus /> Add agent
+            </Button>
+          </>
+        )}
+      </div>
+      <BulkImportAgentsModal open={importing} onClose={() => setImporting(false)} onImported={() => router.refresh()} />
 
       {agents.length === 0 ? (
         <EmptyState
@@ -156,11 +220,16 @@ export function AgentsClient({ agents, canEdit = true }: { agents: AgentRow[]; c
                   )}
                 </div>
               </div>
-              {(a.country || a.modes.length > 0) && (
+              {(a.country || a.network || a.code || a.modes.length > 0) && (
                 <div className="flex flex-wrap items-center gap-1.5 text-xs">
                   {a.country && (
                     <span className="inline-flex items-center gap-1 text-foreground">
                       <Globe size={13} className="text-muted-foreground" aria-label="Country" /> {a.country}
+                    </span>
+                  )}
+                  {(a.network || a.code) && (
+                    <span className="rounded-full bg-primary-soft px-2 py-0.5 font-medium text-primary-soft-foreground">
+                      {[a.network, a.code].filter(Boolean).join(" · ")}
                     </span>
                   )}
                   {a.modes.map((m) => (
@@ -176,14 +245,16 @@ export function AgentsClient({ agents, canEdit = true }: { agents: AgentRow[]; c
                     <UserRound size={14} className="shrink-0 text-muted-foreground" aria-label="Contact person" /> {a.contact_person}
                   </div>
                 )}
-                <a href={`mailto:${a.email}`} className="flex min-w-0 items-center gap-2 text-foreground hover:text-primary">
-                  <Mail size={14} className="shrink-0 text-muted-foreground" aria-label="Email" /> <span className="truncate">{a.email}</span>
-                </a>
-                {a.phone && (
-                  <a href={`tel:${a.phone}`} className="flex items-center gap-2 text-foreground hover:text-primary">
-                    <Phone size={14} className="shrink-0 text-muted-foreground" aria-label="Phone" /> {a.phone}
+                {[a.email, ...a.extra_emails].map((email) => (
+                  <a key={email} href={`mailto:${email}`} className="flex min-w-0 items-center gap-2 text-foreground hover:text-primary">
+                    <Mail size={14} className="shrink-0 text-muted-foreground" aria-label="Email" /> <span className="truncate">{email}</span>
                   </a>
-                )}
+                ))}
+                {[a.phone, ...a.extra_phones].filter((p): p is string => Boolean(p)).map((phone) => (
+                  <a key={phone} href={`tel:${phone}`} className="flex items-center gap-2 text-foreground hover:text-primary">
+                    <Phone size={14} className="shrink-0 text-muted-foreground" aria-label="Phone" /> {phone}
+                  </a>
+                ))}
               </dl>
             </li>
           ))}
@@ -198,23 +269,6 @@ export function AgentsClient({ agents, canEdit = true }: { agents: AgentRow[]; c
               {error}
             </p>
           )}
-          <Input label="Agent name" required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="e.g. Gulf Freight Partners" />
-          <Input label="Contact person (optional)" value={form.contact_person} onChange={(e) => setForm({ ...form, contact_person: e.target.value })} />
-          <Input label="Email" type="email" required value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} hint="Rate requests are sent here." />
-          <Input label="Phone (optional)" type="tel" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
-          <Input
-            label="Country (optional)"
-            list="agent-countries"
-            autoComplete="off"
-            value={form.country}
-            onChange={(e) => setForm({ ...form, country: e.target.value })}
-            placeholder="e.g. India"
-          />
-          <datalist id="agent-countries">
-            {COUNTRIES.map((c) => (
-              <option key={c} value={c} />
-            ))}
-          </datalist>
           <fieldset>
             <legend className={labelClass}>Modes</legend>
             <div className="flex flex-wrap gap-2">
@@ -240,6 +294,27 @@ export function AgentsClient({ agents, canEdit = true }: { agents: AgentRow[]; c
               })}
             </div>
           </fieldset>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Input label="Network (optional)" value={form.network} onChange={(e) => setForm({ ...form, network: e.target.value })} placeholder="e.g. WCA" />
+            <Input label="Code (optional)" value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value })} />
+          </div>
+          <Input label="Agent name" required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="e.g. Gulf Freight Partners" />
+          <Input label="Contact person (optional)" value={form.contact_person} onChange={(e) => setForm({ ...form, contact_person: e.target.value })} />
+          <MultiInput label="Email" type="email" required values={form.emails} onChange={(emails) => setForm({ ...form, emails })} hint="Rate requests are sent to all emails." />
+          <MultiInput label="Phone (optional)" type="tel" values={form.phones} onChange={(phones) => setForm({ ...form, phones })} />
+          <Input
+            label="Country (optional)"
+            list="agent-countries"
+            autoComplete="off"
+            value={form.country}
+            onChange={(e) => setForm({ ...form, country: e.target.value })}
+            placeholder="e.g. India"
+          />
+          <datalist id="agent-countries">
+            {COUNTRIES.map((c) => (
+              <option key={c} value={c} />
+            ))}
+          </datalist>
           <ModalFooter>
             <Button type="button" variant="secondary" onClick={() => setEditing(null)}>
               Cancel

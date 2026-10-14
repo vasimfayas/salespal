@@ -46,7 +46,7 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
   let emailed = false;
   let emailError: string | null = null;
   try {
-    emailed = await sendAgentRequestEmail({ to: agent.email, contactName: agent.contact_person, ref, enquiry, senderName: sender.name, url });
+    emailed = await sendAgentRequestEmail({ to: [agent.email, ...agent.extra_emails].join(", "), contactName: agent.contact_person, ref, enquiry, senderName: sender.name, url });
   } catch (err) {
     console.error("Agent rate request email failed:", err);
     emailError = "The email couldn't be sent. Share the link with the agent instead.";

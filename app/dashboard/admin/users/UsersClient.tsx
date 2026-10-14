@@ -16,7 +16,6 @@ import { cn } from "@/lib/utils";
 
 export type UserRow = { id: number; name: string; email: string; phone: string | null; role_id: number };
 
-const PAGE = 25;
 const EMPTY = { name: "", email: "", phone: "", role_id: 2, password: "" };
 const roleName = (id: number) => ROLES.find((r) => r.id === id)?.name ?? `Role ${id}`;
 const ROLE_TONE: Record<number, string> = {
@@ -34,6 +33,7 @@ export function UsersClient({ users, currentUserId, isSuper }: { users: UserRow[
   const [query, setQuery] = useState("");
   const [roleFilter, setRoleFilter] = useState("all");
   const [page, setPage] = useState(1);
+  const [PAGE, setPAGE] = useState(20);
   const [editing, setEditing] = useState<UserRow | "new" | null>(null);
   const [form, setForm] = useState(EMPTY);
   const [saving, setSaving] = useState(false);
@@ -130,6 +130,7 @@ export function UsersClient({ users, currentUserId, isSuper }: { users: UserRow[
         <EmptyState icon={Users} title={users.length ? "No users match" : "No users yet"} message={users.length ? "Try another search or role." : undefined} />
       ) : (
         <>
+          <Pagination page={current} pageSize={PAGE} total={filtered.length} noun="users" onPage={setPage} onSize={(n) => { setPAGE(n); setPage(1); }} />
           <div className="overflow-x-auto rounded-card border border-border bg-card shadow-card">
             <table className="w-full min-w-[640px] text-left text-sm">
               <thead className="border-b border-border bg-subtle text-xs font-medium text-muted-foreground">
@@ -183,7 +184,7 @@ export function UsersClient({ users, currentUserId, isSuper }: { users: UserRow[
               </tbody>
             </table>
           </div>
-          <Pagination page={current} pageSize={PAGE} total={filtered.length} noun="users" onPage={setPage} />
+          <Pagination page={current} pageSize={PAGE} total={filtered.length} noun="users" onPage={setPage} onSize={(n) => { setPAGE(n); setPage(1); }} />
         </>
       )}
 

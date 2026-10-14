@@ -71,7 +71,7 @@ export default async function ManagerDashboardPage({
   return (
     <>
       <PageHeader
-        title="My Team Dashboard"
+        title="Team Overview"
         subtitle={subtitle}
         action={<PeriodSelector current={period} />}
       />

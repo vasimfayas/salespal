@@ -49,6 +49,7 @@ interface Org {
   export_office_no: string | null;
   customs_code: string | null;
   import_office_no: string | null;
+  note: string | null;
   logo_path: string | null;
   /** Client counts by status, and the total, for this company. */
   clientStatusCounts: Record<string, number>;
@@ -490,7 +491,8 @@ export function CompaniesClient({
                               prefix: company.prefix,
                               export_office_no: company.export_office_no,
                               customs_code: company.customs_code,
-                              import_office_no: company.import_office_no
+                              import_office_no: company.import_office_no,
+                              note: company.note
                             }
                           })
                         }
@@ -510,7 +512,7 @@ export function CompaniesClient({
                         <Trash2 size={15} />
                       </button>
                     </div>
-                    {(company.address || company.phone || company.email || company.export_office_no || company.import_office_no || company.customs_code) && (
+                    {(company.address || company.phone || company.email || company.export_office_no || company.import_office_no || company.customs_code || company.note) && (
                       <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
                         {company.address && (
                           <span className="inline-flex items-center gap-1"><MapPin size={12} aria-hidden /> {company.address}</span>
@@ -530,6 +532,7 @@ export function CompaniesClient({
                         {company.customs_code && (
                           <span className="inline-flex items-center gap-1"><Building size={12} aria-hidden /> Customs code {company.customs_code}</span>
                         )}
+                        {company.note && <span className="basis-full whitespace-pre-line">{company.note}</span>}
                       </div>
                     )}
                   </div>

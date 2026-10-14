@@ -29,6 +29,7 @@ model Organization {
   customs_code     String?
   /// Import office (registration) number.
   import_office_no String?
+  note             String?
   /// Company logo (PNG / JPG) under uploads/companies/<id>/logo/; shown in the app and on enquiry PDFs.
   logo_path        String?
   created_at       DateTime          @default(now())
@@ -582,7 +583,13 @@ model Agent {
   contact_person String?
   email          String
   phone          String?
+  /// Further emails / phone numbers of the agent (the primary ones are `email` and `phone`).
+  extra_emails   String[]              @default([])
+  extra_phones   String[]              @default([])
   country        String?
+  /// Agent network (e.g. WCA, JCtrans) and the agent's code in it.
+  network        String?
+  code           String?
   /// Transport modes the agent handles: air | sea | land.
   modes          String[]              @default([])
   /// Locked agents can't be sent enquiries (owner, managers and accounts toggle it).

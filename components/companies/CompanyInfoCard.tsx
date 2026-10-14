@@ -63,6 +63,7 @@ export function CompanyInfoCard({ company }: { company: CompanyProfile }) {
                 )}
               </div>
             )}
+            {company.note && <p className="whitespace-pre-line text-xs text-muted-foreground">{company.note}</p>}
           </div>
         </div>
 

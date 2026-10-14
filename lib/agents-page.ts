@@ -5,7 +5,7 @@ import type { AgentRow } from "@/components/agents/AgentsClient";
 export async function getAgentRows(): Promise<AgentRow[]> {
   const agents = await prisma.agent.findMany({
     orderBy: { name: "asc" },
-    select: { id: true, name: true, contact_person: true, email: true, phone: true, country: true, modes: true, locked: true, _count: { select: { requests: true } } },
+    select: { id: true, name: true, contact_person: true, email: true, extra_emails: true, phone: true, extra_phones: true, country: true, network: true, code: true, modes: true, locked: true, _count: { select: { requests: true } } },
   });
   return agents.map(({ _count, ...a }) => ({ ...a, requests: _count.requests }));
 }

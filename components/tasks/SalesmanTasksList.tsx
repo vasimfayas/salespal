@@ -276,6 +276,7 @@ export function SalesmanTasksList({ data, currentUserId }: SalesmanTasksListProp
           </div>
         ) : (
           <>
+            <Pagination page={data.page} pageSize={data.pageSize} total={data.total} pending={isNavigating} noun="tasks" onPage={(p) => set({ page: p })} onSize={(n) => set({ size: n })} />
             <div className="hidden overflow-hidden rounded-card border border-border bg-card shadow-card md:block">
               <table className="w-full table-fixed text-left text-sm">
                 <thead className="border-b border-border text-muted-foreground text-[13px]">
@@ -347,7 +348,7 @@ export function SalesmanTasksList({ data, currentUserId }: SalesmanTasksListProp
             </ul>
           </>
         )}
-        <Pagination page={data.page} pageSize={data.pageSize} total={data.total} pending={isNavigating} noun="tasks" onPage={(p) => set({ page: p })} />
+        <Pagination page={data.page} pageSize={data.pageSize} total={data.total} pending={isNavigating} noun="tasks" onPage={(p) => set({ page: p })} onSize={(n) => set({ size: n })} />
       </div>
 
       {/* Add Task Modal */}

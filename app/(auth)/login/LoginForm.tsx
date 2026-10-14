@@ -25,7 +25,7 @@ export function LoginForm() {
 
     if (result?.error) {
       setLoading(false);
-      setError("Invalid email or password.");
+      setError(result.error.startsWith("Too many") ? result.error : "Invalid email or password.");
       return;
     }
 

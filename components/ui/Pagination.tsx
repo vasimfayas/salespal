@@ -11,6 +11,7 @@ export function Pagination({
   onPage,
   pending = false,
   noun = "results",
+  onSize,
 }: {
   page: number;
   pageSize: number;
@@ -18,6 +19,8 @@ export function Pagination({
   onPage: (page: number) => void;
   pending?: boolean;
   noun?: string;
+  /** Shows the 20 / 50 rows-per-page toggle; the caller resets to page 1. */
+  onSize?: (size: number) => void;
 }) {
   const pages = Math.max(1, Math.ceil(total / pageSize));
   if (total === 0) return null;
@@ -35,6 +38,24 @@ export function Pagination({
           <strong className="font-semibold text-foreground">{total.toLocaleString()}</strong> {noun}
         </span>
       </span>
+      <div className="flex flex-wrap items-center gap-3">
+        {onSize && (
+          <div role="group" aria-label="Rows per page" className="inline-flex items-center gap-1">
+            <span>Rows</span>
+            {[20, 50].map((n) => (
+              <button
+                key={n}
+                type="button"
+                aria-pressed={pageSize === n}
+                disabled={pending}
+                onClick={() => pageSize !== n && onSize(n)}
+                className={cn(btn, "px-2", pageSize === n && "border-primary bg-primary-soft text-primary-soft-foreground")}
+              >
+                {n}
+              </button>
+            ))}
+          </div>
+        )}
       {pages > 1 && (
         <div className="flex items-center gap-1.5">
           <button type="button" className={btn} disabled={page <= 1 || pending} onClick={() => onPage(page - 1)} aria-label="Previous page">
@@ -48,6 +69,7 @@ export function Pagination({
           </button>
         </div>
       )}
+      </div>
     </nav>
   );
 }

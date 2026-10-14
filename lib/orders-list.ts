@@ -2,7 +2,7 @@ import type { Prisma } from "@prisma/client";
 import { clientLabel } from "@/types/client";
 import { prisma } from "@/lib/prisma";
 import { orderPaymentsInclude, serializeOrder } from "@/lib/order-serialize";
-import { literal, pageParam, paging, param, PAGE_SIZE, type Paged, type SearchParams } from "@/lib/list-params";
+import { literal, pageParam, paging, param, sizeParam, type Paged, type SearchParams } from "@/lib/list-params";
 import { VOID_ORDER_STATUSES, orderStatuses } from "@/types/order";
 
 const orderListInclude = {
@@ -73,13 +73,14 @@ export type OrdersPage = Paged<OrderRow> & {
 
 export async function getOrdersPage(scope: Prisma.OrderWhereInput, params: SearchParams): Promise<OrdersPage> {
   const page = pageParam(params);
+  const pageSize = sizeParam(params);
   const where: Prisma.OrderWhereInput = { AND: [scope, orderFilterWhere(params)] };
   const [rows, total, sums] = await Promise.all([
-    prisma.order.findMany({ where, include: orderListInclude, orderBy: { created_at: "desc" }, ...paging(page) }),
+    prisma.order.findMany({ where, include: orderListInclude, orderBy: { created_at: "desc" }, ...paging(page, pageSize) }),
     prisma.order.count({ where }),
     prisma.order.aggregate({ where: { AND: [where, { status: { notIn: [...VOID_ORDER_STATUSES] } }] }, _sum: { amount: true, paid_total: true } }),
   ]);
   const amount = sums._sum.amount?.toNumber() ?? 0;
   const paid = sums._sum.paid_total?.toNumber() ?? 0;
-  return { rows: rows.map(toOrderRow), total, page, pageSize: PAGE_SIZE, totals: { amount, paid, balance: amount - paid } };
+  return { rows: rows.map(toOrderRow), total, page, pageSize, totals: { amount, paid, balance: amount - paid } };
 }
