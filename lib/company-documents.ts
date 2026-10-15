@@ -43,6 +43,12 @@ export async function storeUploadedFile(folder: string, file: File) {
   };
 }
 
+export async function writeStoredFile(relativePath: string, data: Uint8Array) {
+  const full = resolveStoredPath(relativePath);
+  await mkdir(path.dirname(full), { recursive: true });
+  await writeFile(full, data);
+}
+
 export function readDocumentFile(relativePath: string) {
   return readFile(resolveStoredPath(relativePath));
 }

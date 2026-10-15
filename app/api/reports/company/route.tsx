@@ -1,11 +1,7 @@
-import path from "node:path";
 import { NextResponse } from "next/server";
-import { renderToBuffer } from "@react-pdf/renderer";
 import { getSalesPalSession } from "@/lib/auth";
-import { getManagerOrgIds } from "@/lib/scoping";
-import { readDocumentFile } from "@/lib/company-documents";
-import { getCompanyReport, parseRange } from "@/lib/company-report";
-import { CompanyReportPdf, type PdfLogo } from "@/components/reports/CompanyReportPdf";
+import { parseRange } from "@/lib/company-report";
+import { buildCompanyReportPdf, canReportOn } from "@/lib/report-pdf";
 import { isOwnerRole } from "@/lib/roles";
 
 export const runtime = "nodejs";
@@ -22,22 +18,12 @@ export async function GET(request: Request) {
   const range = parseRange(params.get("from"), params.get("to"));
   if (!Number.isInteger(orgId) || orgId <= 0) return NextResponse.json({ error: "Pick a company" }, { status: 400 });
   if (!range) return NextResponse.json({ error: "Pick a valid date range (from must be on or before to)" }, { status: 400 });
-  if (role_id === 2 && !(await getManagerOrgIds(id)).includes(orgId)) return NextResponse.json({ error: "Company not found" }, { status: 404 });
 
-  const report = await getCompanyReport(orgId, range, { id, role_id });
-  if (!report) return NextResponse.json({ error: "Company not found" }, { status: 404 });
+  if (!(await canReportOn({ id, role_id }, orgId))) return NextResponse.json({ error: "Company not found" }, { status: 404 });
+  const built = await buildCompanyReportPdf(orgId, params.get("from")!, params.get("to")!, { id, role_id });
+  if (!built) return NextResponse.json({ error: "Company not found" }, { status: 404 });
 
-  let logo: PdfLogo = null;
-  if (report.org.logo_path) {
-    const ext = path.extname(report.org.logo_path).slice(1).toLowerCase();
-    // A missing logo file shouldn't stop the report; the company name is shown instead.
-    logo = await readDocumentFile(report.org.logo_path)
-      .then((data) => ({ data, format: ext === "png" ? ("png" as const) : ("jpg" as const) }))
-      .catch(() => null);
-  }
-
-  const pdf = await renderToBuffer(<CompanyReportPdf report={report} logo={logo} />);
-  const fileName = `${report.org.name} report ${params.get("from")} to ${params.get("to")}.pdf`.replace(/[\\/:*?"<>|]+/g, "-");
+  const { pdf, fileName } = built;
   return new NextResponse(new Uint8Array(pdf), {
     headers: {
       "Content-Type": "application/pdf",

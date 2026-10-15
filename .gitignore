@@ -51,4 +51,4 @@ next-env.d.ts
 #hostgator server only files
 app.js
 Passengerfile.json
-prisma/migrations_mysql_backup/
+prisma/migrations_mysql_backup/.worker/

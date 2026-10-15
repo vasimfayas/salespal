@@ -60,6 +60,7 @@ model User {
   managerSalesmen          ManagerSalesman[]     @relation("ManagerSalesmen")
   salesmanManager          ManagerSalesman[]     @relation("SalesmanManagers")
   assignedClients          Client[]              @relation("AssignedClients")
+  reportJobs               ReportJob[]           @relation("ReportJobBy")
   assignedTasks            Task[]                @relation("AssignedTasks")
   createdTasks             Task[]                @relation("CreatedTasks")
   clientLogs               ClientLog[]           @relation("LogAuthor")
@@ -712,4 +713,23 @@ model ApprovalAction {
 
   @@index([request_id])
   @@map("approval_actions")
+}
+
+/// Reports built in the background by the worker (npm run worker). The PDF lives under uploads/reports/.
+model ReportJob {
+  id            Int       @id @default(autoincrement())
+  type          String
+  params        Json
+  requested_by  Int
+  /// queued | running | done | failed
+  status        String    @default("queued")
+  file_path     String?
+  file_name     String?
+  error         String?
+  created_at    DateTime  @default(now())
+  finished_at   DateTime?
+  requestedBy   User      @relation("ReportJobBy", fields: [requested_by], references: [id], onDelete: Cascade)
+
+  @@index([requested_by, created_at])
+  @@map("report_jobs")
 }
