@@ -20,7 +20,7 @@ function Brand({ compact = false }: { compact?: boolean }) {
     >
       <span className="flex size-9 shrink-0 items-center justify-center rounded-[10px] bg-card p-1 shadow-xs ring-1 ring-border">
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/logo_collapsed.png" alt="SalesPal logo" className="size-full rounded object-contain" />
+        <img src="/logo.svg" alt="SalesPal logo" className="size-full rounded object-contain" />
       </span>
       {!compact && (
         <span className="whitespace-nowrap text-[17px] font-semibold tracking-tight text-foreground">

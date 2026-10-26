@@ -10,8 +10,8 @@ import { buttonVariants } from "@/components/ui/Button";
 import { cn } from "@/lib/utils";
 export function LoginForm() {
   const router = useRouter();
-  const [email, setEmail] = useState("owner@salespal.test");
-  const [password, setPassword] = useState("password123");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -49,7 +49,7 @@ export function LoginForm() {
         <h1 className="sr-only">SalesPal Login</h1>
         <div className="flex items-center gap-2 mb-2">
           <img
-            src="/logo_collapsed.png"
+            src="/logo.svg"
             alt="SalesPal Logo"
             className="h-8 w-8 object-contain rounded border border-border/80 shadow-sm"
           />
@@ -144,9 +144,6 @@ export function LoginForm() {
           <span className="font-semibold text-foreground cursor-help" title="System admin setup is required for new accounts.">
             Contact Admin
           </span>
-        </p>
-        <p className="text-[11px] text-muted-foreground/80">
-          Seed users use <code className="font-mono bg-subtle px-1 py-0.5 rounded border border-border text-muted-foreground">password123</code>
         </p>
       </div>
     </form>

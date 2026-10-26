@@ -392,3 +392,7 @@
     transition-duration: 0.01ms !important;
   }
 }
+
+/* App-like feel: no double-tap zoom, no iOS focus zoom, no pull-to-refresh bounce. */
+html { touch-action: manipulation; -webkit-text-size-adjust: 100%; overscroll-behavior-y: none; }
+@media (max-width: 768px) { input, select, textarea { font-size: 16px; } }
