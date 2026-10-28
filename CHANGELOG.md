@@ -2,6 +2,11 @@
 
 Newest first. Types: Added, Changed, Fixed. Tag each release `vX.Y.Z` (fix = patch, feature = minor, breaking = major).
 
+## 1.1.2 - 2026-10-28
+
+### Added
+- Owner and super admin can open a client from the clients table (new client detail page).
+
 ## 1.1.1 - 2026-10-28
 
 ### Changed

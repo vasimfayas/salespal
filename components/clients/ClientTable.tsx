@@ -2,6 +2,7 @@
 
 import { clientStatusLabels, clientStatuses } from "@/types/client";
 
+import Link from "next/link";
 import { useState, Fragment } from "react";
 import { Pagination } from "@/components/ui/Pagination";
 import { useDebouncedParam, useUrlFilters } from "@/hooks/useUrlFilters";
@@ -287,7 +288,9 @@ export function ClientTable({
                       </td>
                       <td className="px-4 py-3 font-semibold text-foreground">
                         <span className="inline-flex items-center gap-1">
-                          {client.name}
+                          <Link href={`/dashboard/admin/clients/${client.id}`} className="transition hover:text-primary">
+                            {client.name}
+                          </Link>
                           <span onClick={(e) => e.stopPropagation()}>
                             <PremiumToggle clientId={client.id} clientName={client.name} category={client.category} />
                           </span>

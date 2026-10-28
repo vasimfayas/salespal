@@ -1,0 +1,132 @@
+import { Suspense } from "react";
+import { getSalesPalSession } from "@/lib/auth";
+import { isOwnerRole } from "@/lib/roles";
+import { prisma } from "@/lib/prisma";
+import { withCompanyCr } from "@/lib/clients-list";
+import { ClientOverview } from "@/app/dashboard/salesman/clients/[id]/ClientOverview";
+import ClientOverviewLoading from "@/app/dashboard/salesman/clients/[id]/loading";
+import { redirect } from "next/navigation";
+import { getClientHistory } from "@/lib/client-history";
+import { ClientHistory } from "@/components/clients/ClientHistory";
+import { ClientHistorySkeleton } from "@/components/clients/ClientHistorySkeleton";
+import { ClientDocumentsCard } from "@/components/clients/ClientDocumentsCard";
+import { ClientContactsCard } from "@/components/clients/ClientContactsCard";
+import { getClientContacts } from "@/lib/client-contacts";
+import { documentClientIds, getClientDocuments } from "@/lib/client-documents";
+import { CreditAgreementCard } from "@/components/approvals/CreditAgreementCard";
+
+type SearchParams = Promise<{ o_page?: string; e_page?: string }>;
+
+export default async function AdminClientDetailPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: SearchParams;
+}) {
+  return (
+    <Suspense fallback={<ClientOverviewLoading />}>
+      <ClientDetailContent params={params} searchParams={searchParams} />
+    </Suspense>
+  );
+}
+
+async function ClientDetailContent({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: SearchParams;
+}) {
+  const { id } = await params;
+  const clientId = Number(id);
+
+  if (isNaN(clientId)) {
+    return (
+      <div className="p-8 text-center bg-card rounded-card shadow-card border border-border">
+        <h3 className="text-sm font-semibold text-danger-foreground">Invalid Client ID</h3>
+        <p className="mt-2 text-xs text-muted-foreground">
+          The client ID provided is not valid.
+        </p>
+      </div>
+    );
+  }
+
+  const session = await getSalesPalSession();
+  if (!session) redirect("/login");
+
+  if (!isOwnerRole(session.user.role_id)) redirect("/login");
+
+  const found = await prisma.client.findFirst({
+    // Owner and super admin see every client.
+    where: { id: clientId },
+    include: {
+      logs: {
+        include: { author: { select: { name: true } } },
+        orderBy: { created_at: "desc" },
+        take: 50,
+      },
+      organization: true,
+      assignedSalesman: { select: { name: true } },
+      parent: { select: { cr_no: true, cr_expiry_date: true } },
+    },
+  });
+  const client = found && withCompanyCr(found);
+
+  if (!client) {
+    return (
+      <div className="p-8 text-center bg-card rounded-card shadow-card border border-border">
+        <h3 className="text-sm font-semibold text-danger-foreground">
+          Client Not Found
+        </h3>
+        <p className="mt-2 text-xs text-muted-foreground">
+          This client does not exist or you do not have access to it.
+        </p>
+      </div>
+    );
+  }
+
+  const tasks = await prisma.clientTask.findMany({
+    where: { client_id: clientId },
+    include: {
+      assignedTo: { select: { name: true } },
+      createdBy: { select: { name: true } },
+    },
+    orderBy: { due_date: "asc" },
+  });
+
+  return (
+    <ClientOverview
+      client={client}
+      initialTasks={tasks}
+      backLink="/dashboard/admin/clients"
+      contacts={
+        <ClientContactsCard
+          clientId={clientId}
+          main={{ name: client.contact_person_name, designation: client.contact_person_designation, phone: client.contact_no, email: client.mail_id }}
+          contacts={await getClientContacts(clientId)}
+        />
+      }
+      documents={
+        <div className="space-y-6">
+          <ClientDocumentsCard
+            clientId={clientId}
+            documents={await getClientDocuments(documentClientIds(client))}
+            currentUser={{ id: Number(session.user.id), role_id: session.user.role_id }}
+          />
+          <CreditAgreementCard clientId={clientId} user={{ id: Number(session.user.id), role_id: session.user.role_id }} />
+        </div>
+      }
+      history={
+        <Suspense fallback={<ClientHistorySkeleton />}>
+          <HistorySection clientId={clientId} searchParams={searchParams} />
+        </Suspense>
+      }
+    />
+  );
+}
+
+async function HistorySection({ clientId, searchParams }: { clientId: number; searchParams: SearchParams }) {
+  const data = await getClientHistory(clientId, await searchParams);
+  return <ClientHistory data={data} role="admin" />;
+}
