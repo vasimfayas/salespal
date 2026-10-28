@@ -11,7 +11,7 @@ import { Modal } from "@/components/ui/Modal";
 import { Input } from "@/components/ui/Input";
 import { Toast } from "@/components/ui/Toast";
 import { cn } from "@/lib/utils";
-import type { TaskKind } from "@/types/task";
+import { taskActions, type TaskKind } from "@/types/task";
 import { TaskActions, TaskStatusPill, isGuidedTask } from "@/components/tasks/TaskActions";
 import { ClientChip, DueDate, KindBadge, StatusSelect, hasInlineActions } from "@/components/tasks/TaskRowParts";
 
@@ -24,7 +24,6 @@ type UnifiedTask = {
   assignedTo?: { name: string | null } | null;
   createdBy?: { name: string | null } | null;
   created_by_id?: number;
-  isClientTask: boolean;
   clientId?: number | null;
   clientName?: string | null;
   kind?: TaskKind;
@@ -172,7 +171,6 @@ export function ManagerTasksList({ data, salesmen }: ManagerTasksListProps) {
       if (data.task) {
         const newTask: UnifiedTask = {
           ...data.task,
-          isClientTask: isClientLinked,
           clientId: pickedClient ? selectedClientId : null,
           clientName: pickedClient?.name ?? null,
           kind: data.task.category ?? "general",
@@ -194,18 +192,12 @@ export function ManagerTasksList({ data, salesmen }: ManagerTasksListProps) {
   // Update status handler
   async function handleStatusChange(
     taskId: number,
-    newStatus: string,
-    isClientTask: boolean,
-    clientId?: number | null
+    newStatus: string
   ) {
     setUpdatingTaskId(taskId);
 
     try {
-      const url = isClientTask
-        ? `/api/clients/${clientId}/tasks/${taskId}`
-        : `/api/tasks/${taskId}`;
-
-      const res = await fetch(url, {
+      const res = await fetch(`/api/tasks/${taskId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: newStatus }),
@@ -218,7 +210,7 @@ export function ManagerTasksList({ data, salesmen }: ManagerTasksListProps) {
 
       triggerToast("Task status updated!");
       setLocalTasks((prev) =>
-        prev.map((t) => (t.id === taskId && t.isClientTask === isClientTask ? { ...t, status: newStatus } : t))
+        prev.map((t) => (t.id === taskId ? { ...t, status: newStatus } : t))
       );
       router.refresh();
     } catch (err: any) {
@@ -229,16 +221,12 @@ export function ManagerTasksList({ data, salesmen }: ManagerTasksListProps) {
   }
 
   // Delete task handler
-  async function handleDeleteTask(taskId: number, isClientTask: boolean, clientId?: number | null) {
+  async function handleDeleteTask(taskId: number) {
     if (!confirm("Are you sure you want to delete this task?")) return;
     setDeletingTaskId(taskId);
 
     try {
-      const url = isClientTask
-        ? `/api/clients/${clientId}/tasks/${taskId}`
-        : `/api/tasks/${taskId}`;
-
-      const res = await fetch(url, {
+      const res = await fetch(`/api/tasks/${taskId}`, {
         method: "DELETE",
       });
 
@@ -248,7 +236,7 @@ export function ManagerTasksList({ data, salesmen }: ManagerTasksListProps) {
       }
 
       triggerToast("Task deleted successfully");
-      setLocalTasks((prev) => prev.filter((t) => !(t.id === taskId && t.isClientTask === isClientTask)));
+      setLocalTasks((prev) => prev.filter((t) => t.id !== taskId));
       router.refresh();
     } catch (err: any) {
       triggerToast(err.message);
@@ -261,12 +249,12 @@ export function ManagerTasksList({ data, salesmen }: ManagerTasksListProps) {
     isGuidedTask(task) ? (
       <TaskStatusPill task={task} />
     ) : (
-      <StatusSelect task={task} updating={updatingTaskId === task.id} onChange={(status) => handleStatusChange(task.id, status, task.isClientTask, task.clientId)} />
+      <StatusSelect task={task} updating={updatingTaskId === task.id} onChange={(status) => handleStatusChange(task.id, status)} />
     );
 
   const deleteButton = (task: UnifiedTask) => (
     <button
-      onClick={() => handleDeleteTask(task.id, task.isClientTask, task.clientId)}
+      onClick={() => handleDeleteTask(task.id)}
       disabled={deletingTaskId === task.id}
       aria-label={`Delete task: ${task.description}`}
       title="Delete task"
@@ -404,7 +392,7 @@ export function ManagerTasksList({ data, salesmen }: ManagerTasksListProps) {
                 </thead>
                 <tbody className="divide-y divide-border">
                   {filteredTasks.map((task) => (
-                    <tr key={`${task.isClientTask ? "client" : "regular"}-${task.id}`} className="align-middle transition-colors hover:bg-subtle">
+                    <tr key={task.id} className="align-middle transition-colors hover:bg-subtle">
                       <td className="px-4 py-3">
                         <div className="flex flex-wrap items-center gap-1.5">
                           <KindBadge task={task} />
@@ -433,7 +421,7 @@ export function ManagerTasksList({ data, salesmen }: ManagerTasksListProps) {
 
             <ul className="divide-y divide-border overflow-hidden rounded-card border border-border bg-card shadow-card md:hidden">
               {filteredTasks.map((task) => (
-                <li key={`${task.isClientTask ? "client" : "regular"}-${task.id}`} className="space-y-2 p-4">
+                <li key={task.id} className="space-y-2 p-4">
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex min-w-0 flex-wrap items-center gap-1.5">
                       <KindBadge task={task} />
@@ -527,12 +515,11 @@ export function ManagerTasksList({ data, salesmen }: ManagerTasksListProps) {
                   onChange={(e) => setAddTaskForm({ ...addTaskForm, type: e.target.value })}
                   className="w-full rounded-control border border-input bg-card px-3 text-sm text-foreground shadow-xs outline-none transition-[border-color,box-shadow] duration-150 placeholder:text-muted-foreground/70 hover:border-border-strong focus:border-ring focus:ring-3 focus:ring-ring/15 disabled:cursor-not-allowed disabled:bg-muted disabled:opacity-70 h-10 cursor-pointer"
                 >
-                  <option value="Call">Call</option>
-                  <option value="Email">Email</option>
-                  <option value="Meeting">Meeting</option>
-                  <option value="Presentation">Presentation</option>
-                  <option value="Follow-up">Follow-up</option>
-                  <option value="Other">Other</option>
+                  {taskActions.map((a) => (
+                    <option key={a} value={a}>
+                      {a}
+                    </option>
+                  ))}
                 </select>
               </div>
 

@@ -3,13 +3,12 @@ import { prisma } from "@/lib/prisma";
 import { intParam, pageParam, param, sizeParam, type Paged, type SearchParams } from "@/lib/list-params";
 import type { TaskKind } from "@/types/task";
 
-/** General tasks and client tasks, merged into one list (same shape the task lists already use). */
+/** One row per task, in the shape the task lists use. */
 export type UnifiedTaskRow = {
   id: number;
   description: string;
   due_date: string;
   status: string;
-  isClientTask: boolean;
   clientId: number | null;
   clientName: string | null;
   created_by_id: number;
@@ -22,20 +21,21 @@ export type UnifiedTaskRow = {
 };
 
 type Scope =
-  /** Manager view: tasks assigned to these salesmen. */
-  | { assignedTo: number[] }
+  /** Manager view: tasks assigned to these salesmen, plus the manager's own (`alsoUser`). */
+  | { assignedTo: number[]; alsoUser?: number }
   /** Salesman view: tasks they created or that were assigned to them. */
   | { userId: number };
 
 function scopeSql(scope: Scope, alias: string) {
   if ("userId" in scope) return Prisma.sql`(${Prisma.raw(alias)}.created_by_id = ${scope.userId} OR ${Prisma.raw(alias)}.assigned_to_id = ${scope.userId})`;
-  if (scope.assignedTo.length === 0) return Prisma.sql`FALSE`;
-  return Prisma.sql`${Prisma.raw(alias)}.assigned_to_id IN (${Prisma.join(scope.assignedTo)})`;
+  const own = scope.alsoUser ? Prisma.sql`${Prisma.raw(alias)}.created_by_id = ${scope.alsoUser} OR ${Prisma.raw(alias)}.assigned_to_id = ${scope.alsoUser}` : Prisma.sql`FALSE`;
+  if (scope.assignedTo.length === 0) return Prisma.sql`(${own})`;
+  return Prisma.sql`(${Prisma.raw(alias)}.assigned_to_id IN (${Prisma.join(scope.assignedTo)}) OR ${own})`;
 }
 
 function unionSql(scope: Scope) {
   return Prisma.sql`
-    SELECT t.id, t.description, t.due_date, t.status, false AS is_client_task, t.client_id, CASE WHEN cl.department IS NULL THEN cl.name ELSE cl.name || ' · ' || cl.department END AS client_name,
+    SELECT t.id, t.description, t.due_date, t.status, t.client_id, CASE WHEN cl.department IS NULL THEN cl.name ELSE cl.name || ' · ' || cl.department END AS client_name,
            t.assigned_to_id, t.created_by_id, a.name AS assigned_name, cb.name AS created_name, t.enquiry_id, e.status AS enquiry_status,
            eo.prefix AS enquiry_prefix, t.outcome,
            CASE WHEN t.category = 'lead_follow_up' THEN 'lead_follow_up'
@@ -53,14 +53,7 @@ function unionSql(scope: Scope) {
     LEFT JOIN organizations eo ON eo.id = e.org_id
     LEFT JOIN clients cl ON cl.id = t.client_id
     WHERE ${scopeSql(scope, "t")}
-    UNION ALL
-    SELECT ct.id, ct.description, ct.due_date, ct.status, true, ct.client_id, CASE WHEN cl.department IS NULL THEN cl.name ELSE cl.name || ' · ' || cl.department END,
-           ct.assigned_to_id, ct.created_by_id, a.name, cb.name, NULL::int, NULL::text, NULL::text, NULL::text, 'general'
-    FROM client_tasks ct
-    JOIN users a ON a.id = ct.assigned_to_id
-    JOIN users cb ON cb.id = ct.created_by_id
-    JOIN clients cl ON cl.id = ct.client_id
-    WHERE ${scopeSql(scope, "ct")}`;
+`;
 }
 
 const OPEN = Prisma.sql`x.status IN ('pending', 'in_process')`;
@@ -94,8 +87,8 @@ function viewSql(view: TaskView, userId: number) {
 function filterParts(params: SearchParams) {
   const parts: Prisma.Sql[] = [];
   const type = param(params, "type");
-  if (type === "general") parts.push(Prisma.sql`NOT x.is_client_task`);
-  if (type === "client") parts.push(Prisma.sql`x.is_client_task`);
+  if (type === "general") parts.push(Prisma.sql`x.kind <> 'client_follow_up'`);
+  if (type === "client") parts.push(Prisma.sql`x.kind = 'client_follow_up'`);
   const status = param(params, "status");
   if (status) parts.push(Prisma.sql`x.status = ${status}`);
   const salesman = intParam(params, "salesman");
@@ -115,7 +108,6 @@ type RawRow = {
   description: string;
   due_date: Date;
   status: string;
-  is_client_task: boolean;
   client_id: number | null;
   client_name: string | null;
   assigned_to_id: number;
@@ -137,7 +129,7 @@ export type TasksPage = Paged<UnifiedTaskRow> & {
   viewCounts: Record<TaskView, number>;
 };
 
-/** One page of tasks, pending first, then by due date — sorted and paged in SQL across both task tables. */
+/** One page of tasks, pending first, then by due date — sorted and paged in SQL. */
 export async function getTasksPage(scope: Scope, params: SearchParams): Promise<TasksPage> {
   const page = pageParam(params);
   const pageSize = sizeParam(params);
@@ -155,7 +147,7 @@ export async function getTasksPage(scope: Scope, params: SearchParams): Promise<
     prisma.$queryRaw<RawRow[]>(Prisma.sql`
       SELECT * FROM (${union}) x ${where}
       ORDER BY CASE x.status WHEN 'pending' THEN 0 WHEN 'in_process' THEN 1 WHEN 'achieved' THEN 2 WHEN 'unsuccessful' THEN 3 ELSE 99 END,
-               x.due_date, x.is_client_task, x.id
+               x.due_date, x.id
       LIMIT ${pageSize} OFFSET ${(page - 1) * pageSize}`),
     prisma.$queryRaw<{ total: number; mine: number; assigned: number }[]>(Prisma.sql`
       SELECT COUNT(*)::int AS total,
@@ -174,7 +166,6 @@ export async function getTasksPage(scope: Scope, params: SearchParams): Promise<
       description: r.description,
       due_date: r.due_date.toISOString(),
       status: r.status,
-      isClientTask: r.is_client_task,
       clientId: r.client_id,
       clientName: r.client_name,
       created_by_id: r.created_by_id,

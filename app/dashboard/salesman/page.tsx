@@ -256,7 +256,7 @@ async function FollowUpsSection({ userId }: { userId: number }) {
       ) : (
         <ul className="divide-y divide-border">
           {open.map((task) => (
-            <li key={`${task.isClientTask ? "c" : "t"}-${task.id}`} className="flex flex-col gap-2 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+            <li key={task.id} className="flex flex-col gap-2 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
               <div className="min-w-0 space-y-1">
                 <div className="flex flex-wrap items-center gap-2 text-xs">
                   <KindBadge task={task} />

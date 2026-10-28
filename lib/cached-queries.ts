@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { withCompanyCr } from "@/lib/clients-list";
+import { clientTasksWhere } from "@/lib/client-tasks";
 import { orderPaymentsInclude, serializeOrder } from "@/lib/order-serialize";
 import { unstable_cache } from "next/cache";
 import { Prisma } from "@prisma/client";
@@ -73,8 +74,8 @@ export const getCachedClientDetail = unstable_cache(
           parent: { select: { cr_no: true, cr_expiry_date: true } },
         },
       }),
-      prisma.clientTask.findMany({
-        where: { client_id: clientId },
+      prisma.task.findMany({
+        where: clientTasksWhere(clientId),
         include: {
           assignedTo: { select: { name: true } },
           createdBy: { select: { name: true } },

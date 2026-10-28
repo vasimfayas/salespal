@@ -2,6 +2,23 @@
 
 Newest first. Types: Added, Changed, Fixed. Tag each release `vX.Y.Z` (fix = patch, feature = minor, breaking = major).
 
+## 1.2.0 - 2026-10-28
+
+Database change: `client_tasks` is merged into `tasks`. Run `prisma/merge-client-tasks-into-tasks.sql` on the server once after deploying.
+
+### Changed
+- One task table: client tasks are now tasks with type "Client follow-up". Lists, counts and the client page read from it.
+- Managers see their own tasks (created by or assigned to them) in Team Tasks, not only their salesmen's.
+- Task list: the Follow up button no longer overlaps the status dropdown.
+- Deleting a user that has history lists every kind of record that blocks it.
+
+### Added
+- Managers, owner and super admin get the full task form on a client page: title, notes, action (call, email, meeting, video conference, collect, ...), due date, task type, assignee and notification.
+- Docs: `docs/ARCHITECTURE.md` and `docs/bugs/BUGS.md`.
+
+### Fixed
+- Assigning a client task to someone outside the manager's team is refused.
+
 ## 1.1.2 - 2026-10-28
 
 ### Added

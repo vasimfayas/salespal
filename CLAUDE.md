@@ -47,3 +47,7 @@ Rules:
 - Read graphify-out/GRAPH_REPORT.md only for broad architecture review or when query/path/explain do not surface enough context.
 - After modifying code, run `graphify update .` to keep the graph current (AST-only, no API cost).
 - A committed graphify-out/graph.json is rewritten whole on every build, so a large diff to it in a pull request is expected. Do not flag it as churn or suggest skipping the graph rebuild or its hooks.
+
+## Docs
+
+`docs/ARCHITECTURE.md` (stack, schema, roles, routes, deployment) and `docs/FUNCTION-CATALOG.md` (how features and calculations work, and where the code is) describe the app. When a change alters what they describe (schema, roles/scoping, routes, env vars, a calculation or where a function lives), update the matching section in the same change.

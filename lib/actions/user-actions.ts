@@ -96,8 +96,6 @@ export async function deleteUser(id: number): Promise<Result> {
           cancelledEnquiries: true,
           taskUpdates: true,
           kpiLogs: true,
-          assignedClientTasks: true,
-          createdClientTasks: true,
         },
       },
     },
@@ -110,7 +108,7 @@ export async function deleteUser(id: number): Promise<Result> {
     [c.assignedClients, "client", "clients"],
     [c.createdEnquiries + c.cancelledEnquiries, "enquiry", "enquiries"],
     [c.createdOrders, "order", "orders"],
-    [c.assignedTasks + c.createdTasks + c.assignedClientTasks + c.createdClientTasks, "task", "tasks"],
+    [c.assignedTasks + c.createdTasks, "task", "tasks"],
     [c.recordedPayments, "payment", "payments"],
     [c.salesmanTargets + c.assignedTargets, "target", "targets"],
     [c.clientLogs, "client history entry", "client history entries"],
@@ -126,7 +124,7 @@ export async function deleteUser(id: number): Promise<Result> {
   if (total > 0) {
     return {
       success: false,
-      error: `${user.name} can't be deleted: they have ${listed.join(", ")} on record. Reassign their clients, then keep the account (history can't be deleted) and remove their company assignments instead.`,
+      error: `${user.name} can't be deleted: they have ${listed.join(", ")} on record.${c.assignedClients > 0 ? " Reassign their clients, then" : " Their history can't be deleted, so"} keep the account and remove their company assignments instead.`,
     };
   }
   await prisma.user.delete({ where: { id } });

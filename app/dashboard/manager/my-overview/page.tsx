@@ -71,27 +71,23 @@ async function PerformanceCards({ userId }: { userId: number }) {
   );
 }
 
-/** Tasks the manager hands to the team vs the ones on their own plate (general and client tasks). */
+/** Tasks the manager hands to the team vs the ones on their own plate. */
 async function TaskCards({ userId }: { userId: number }) {
   const open = { in: [...OPEN_TASK_STATUSES] };
   const toTeam = { created_by_id: userId, assigned_to_id: { not: userId } };
   const mine = { assigned_to_id: userId, status: open };
   const overdue = { ...mine, due_date: { lt: new Date() } };
-  const [t1, c1, t2, c2, t3, c3, t4, c4] = await Promise.all([
+  const [t1, t2, t3, t4] = await Promise.all([
     prisma.task.count({ where: toTeam }),
-    prisma.clientTask.count({ where: toTeam }),
     prisma.task.count({ where: { ...toTeam, status: open } }),
-    prisma.clientTask.count({ where: { ...toTeam, status: open } }),
     prisma.task.count({ where: mine }),
-    prisma.clientTask.count({ where: mine }),
     prisma.task.count({ where: overdue }),
-    prisma.clientTask.count({ where: overdue }),
   ]);
   const cards = [
-    { label: "Assigned to team", value: t1 + c1, caption: "All tasks you gave your salesmen", icon: ClipboardList, bg: "bg-primary" },
-    { label: "Team tasks open", value: t2 + c2, caption: "Still pending or in process", icon: ListChecks, bg: "bg-info" },
-    { label: "My open tasks", value: t3 + c3, caption: "Assigned to you", icon: CheckCircle2, bg: "bg-success" },
-    { label: "My overdue tasks", value: t4 + c4, caption: "Open and past their due date", icon: ClockAlert, bg: "bg-danger" },
+    { label: "Assigned to team", value: t1, caption: "All tasks you gave your salesmen", icon: ClipboardList, bg: "bg-primary" },
+    { label: "Team tasks open", value: t2, caption: "Still pending or in process", icon: ListChecks, bg: "bg-info" },
+    { label: "My open tasks", value: t3, caption: "Assigned to you", icon: CheckCircle2, bg: "bg-success" },
+    { label: "My overdue tasks", value: t4, caption: "Open and past their due date", icon: ClockAlert, bg: "bg-danger" },
   ];
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">

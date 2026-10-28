@@ -21,7 +21,6 @@ export type ActionTask = {
   kind?: TaskKind;
   clientId?: number | null;
   clientName?: string | null;
-  isClientTask?: boolean;
   enquiry?: { id: number; status: string; prefix?: string | null } | null;
   outcome?: string | null;
 };
@@ -59,7 +58,7 @@ export function TaskActions({ task, enquiriesPath }: { task: ActionTask; enquiri
   const [historyOpen, setHistoryOpen] = useState(false);
   const [followUpOpen, setFollowUpOpen] = useState(false);
   const open = isOpenTask(task.status);
-  const canHaveHistory = !task.isClientTask;
+  const canHaveHistory = true;
 
   return (
     <div className="flex flex-wrap items-center justify-end gap-1.5">
@@ -77,7 +76,7 @@ export function TaskActions({ task, enquiriesPath }: { task: ActionTask; enquiri
         </>
       )}
       {/* Enquiry / order / client follow-ups: log a comment and move the due date. */}
-      {open && !task.isClientTask && (task.kind === "order_follow_up" || task.kind === "client_follow_up") && (
+      {open && (task.kind === "order_follow_up" || task.kind === "client_follow_up") && (
         <Button size="sm" onClick={() => setFollowUpOpen(true)}>
           <MessageSquareText /> Follow up
         </Button>

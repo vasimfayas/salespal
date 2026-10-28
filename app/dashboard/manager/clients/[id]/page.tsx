@@ -3,6 +3,7 @@ import { getSalesPalSession } from "@/lib/auth";
 import { getManagerSalesmanIds } from "@/lib/scoping";
 import { prisma } from "@/lib/prisma";
 import { withCompanyCr } from "@/lib/clients-list";
+import { clientTasksWhere } from "@/lib/client-tasks";
 import { ClientOverview } from "@/app/dashboard/salesman/clients/[id]/ClientOverview";
 import ClientOverviewLoading from "@/app/dashboard/salesman/clients/[id]/loading";
 import { redirect } from "next/navigation";
@@ -87,8 +88,13 @@ async function ClientDetailContent({
     );
   }
 
-  const tasks = await prisma.clientTask.findMany({
-    where: { client_id: clientId },
+  const salesmen = await prisma.user.findMany({
+    where: { id: { in: salesmanIds } },
+    select: { id: true, name: true },
+    orderBy: { name: "asc" },
+  });
+  const tasks = await prisma.task.findMany({
+    where: clientTasksWhere(clientId),
     include: {
       assignedTo: { select: { name: true } },
       createdBy: { select: { name: true } },
@@ -102,6 +108,7 @@ async function ClientDetailContent({
       initialTasks={tasks}
       backLink="/dashboard/manager/clients"
       teamOnly
+      taskSalesmen={salesmen}
       contacts={
         <ClientContactsCard
           clientId={clientId}

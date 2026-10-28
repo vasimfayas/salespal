@@ -121,7 +121,7 @@ const JOB_REFS_BY_MODE: Record<string, JobRef[]> = {
 
 async function wipe() {
   const tables = [
-    "enquiry_agent_requests", "agents", "enquiry_events", "enquiry_follow_ups", "order_payments", "orders", "task_updates", "tasks", "enquiries", "client_tasks",
+    "enquiry_agent_requests", "agents", "enquiry_events", "enquiry_follow_ups", "order_payments", "orders", "task_updates", "tasks", "enquiries",
     "client_documents", "client_logs", "salesman_kpi_logs", "salesman_targets", "shipping_rates", "clients",
     "company_documents", "manager_salesman", "manager_org", "accountant_org", "operations_org", "users", "organizations", "roles",
   ];
@@ -771,10 +771,11 @@ async function main() {
     }));
   await inChunks(updateRows, 10000, (chunk) => prisma.taskUpdate.createMany({ data: chunk }));
   log(`lead tasks: ${leadTasks.length} · task updates: ${updateRows.length}`);
-  const clientTaskRows: Prisma.ClientTaskCreateManyInput[] = Array.from({ length: N.clientTasks }, (_, i) => {
+  const clientTaskRows: Prisma.TaskCreateManyInput[] = Array.from({ length: N.clientTasks }, (_, i) => {
     const c = clients[(i * 7) % clients.length];
     const due = daysAgo(int(-30, 60));
     return {
+      category: "client_follow_up",
       client_id: c.id,
       assigned_to_id: c.assigned_salesman_id,
       created_by_id: c.assigned_salesman_id,
@@ -783,7 +784,7 @@ async function main() {
       status: due.getTime() < NOW ? weighted([["achieved", 6], ["unsuccessful", 2], ["pending", 2]] as const) : weighted([["pending", 6], ["in_process", 4]] as const),
     };
   });
-  await inChunks(clientTaskRows, 10000, (chunk) => prisma.clientTask.createMany({ data: chunk }));
+  await inChunks(clientTaskRows, 10000, (chunk) => prisma.task.createMany({ data: chunk }));
   log(`tasks: ${taskRows.length} · client tasks: ${clientTaskRows.length}`);
 
   /* Salesman targets: monthly for the last 11 months (closed) + the current month, some quarterly */

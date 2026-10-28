@@ -26,6 +26,7 @@ import { statusRequiresContact } from "@/lib/client-contact";
 import { ClientSwitcher } from "@/components/clients/ClientSwitcher";
 
 import { buttonVariants } from "@/components/ui/Button";
+import { taskActions } from "@/types/task";
 import { PremiumBadge, PremiumToggle } from "@/components/clients/ClientCategory";
 import { DepartmentTag } from "@/components/clients/DepartmentTag";
 // Definition of types
@@ -54,6 +55,7 @@ type Client = {
   assignedSalesman?: { name: string | null } | null;
   department?: string | null;
   parent_client_id?: number | null;
+  assigned_salesman_id?: number;
 };
 
 type ClientTask = {
@@ -78,6 +80,8 @@ interface ClientOverviewProps {
   client: Client;
   initialTasks: ClientTask[];
   backLink?: string;
+  /** Managers and owners: salesmen the task can be assigned to. Omitted for salesmen, who get the short form. */
+  taskSalesmen?: { id: number; name: string }[];
   /** Managers: the client search only offers their salesmen's clients. */
   teamOnly?: boolean;
   /** Orders / enquiries summary and tables, streamed in by the page. */
@@ -88,7 +92,7 @@ interface ClientOverviewProps {
   contacts?: React.ReactNode;
 }
 
-export function ClientOverview({ client: initialClient, initialTasks, backLink, teamOnly = false, history, documents, contacts }: ClientOverviewProps) {
+export function ClientOverview({ client: initialClient, initialTasks, backLink, teamOnly = false, taskSalesmen, history, documents, contacts }: ClientOverviewProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
 
@@ -128,7 +132,14 @@ export function ClientOverview({ client: initialClient, initialTasks, backLink, 
   const [taskForm, setTaskForm] = useState({
     description: "",
     due_date: "",
+    // Managers / owners only:
+    title: "",
+    action: "Call",
+    category: "client_follow_up",
+    assigned_to_id: String(initialClient.assigned_salesman_id ?? ""),
+    notification: true,
   });
+  const canAssign = taskSalesmen !== undefined;
 
   // Saving states
   const [isSavingClient, setIsSavingClient] = useState(false);
@@ -248,10 +259,17 @@ export function ClientOverview({ client: initialClient, initialTasks, backLink, 
       const res = await fetch(`/api/clients/${client.id}/tasks`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          description: taskForm.description,
-          due_date: taskForm.due_date,
-        }),
+        body: JSON.stringify(
+          canAssign
+            ? {
+                description: `[${taskForm.action}] ${taskForm.title}${taskForm.description ? ` — ${taskForm.description}` : ""}`,
+                due_date: taskForm.due_date,
+                assigned_to_id: Number(taskForm.assigned_to_id),
+                category: taskForm.category,
+                notification: taskForm.notification,
+              }
+            : { description: taskForm.description, due_date: taskForm.due_date },
+        ),
       });
 
       const data = await res.json();
@@ -262,7 +280,7 @@ export function ClientOverview({ client: initialClient, initialTasks, backLink, 
       // Add to local state
       setTasks((prev) => [...prev, data.task]);
       setIsAddTaskOpen(false);
-      setTaskForm({ description: "", due_date: "" });
+      setTaskForm((f) => ({ ...f, description: "", due_date: "", title: "" }));
       triggerToast("Task added successfully!");
       router.refresh();
     } catch (err: any) {
@@ -760,22 +778,85 @@ export function ClientOverview({ client: initialClient, initialTasks, backLink, 
                 {taskError}
               </div>
             )}
-            <Input
-              label="Task Description"
-              id="task-description"
-              placeholder="e.g. Call client for shipping rates approval"
-              value={taskForm.description}
-              onChange={(e) => setTaskForm({ ...taskForm, description: e.target.value })}
-              required
-            />
-            <Input
-              label="Due Date"
-              id="task-due-date"
-              type="date"
-              value={taskForm.due_date}
-              onChange={(e) => setTaskForm({ ...taskForm, due_date: e.target.value })}
-              required
-            />
+            {canAssign ? (
+              <>
+                <Input
+                  label="Title"
+                  id="task-title"
+                  placeholder="e.g. Discuss shipping rates"
+                  value={taskForm.title}
+                  onChange={(e) => setTaskForm({ ...taskForm, title: e.target.value })}
+                  required
+                />
+                <Input
+                  label="Notes (optional)"
+                  id="task-description"
+                  value={taskForm.description}
+                  onChange={(e) => setTaskForm({ ...taskForm, description: e.target.value })}
+                />
+                <div className="grid grid-cols-2 gap-3">
+                  <TaskSelect label="Action" id="task-action" value={taskForm.action} onChange={(v) => setTaskForm({ ...taskForm, action: v })}>
+                    {taskActions.map((a) => (
+                      <option key={a} value={a}>
+                        {a}
+                      </option>
+                    ))}
+                  </TaskSelect>
+                  <Input
+                    label="Due Date"
+                    id="task-due-date"
+                    type="date"
+                    value={taskForm.due_date}
+                    onChange={(e) => setTaskForm({ ...taskForm, due_date: e.target.value })}
+                    required
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <TaskSelect label="Task type" id="task-category" value={taskForm.category} onChange={(v) => setTaskForm({ ...taskForm, category: v })}>
+                    <option value="client_follow_up">Client follow-up</option>
+                    <option value="order_follow_up">Order follow-up</option>
+                    <option value="payment_follow_up">Payment follow-up</option>
+                    <option value="general">General</option>
+                  </TaskSelect>
+                  <TaskSelect label="Assign to *" id="task-assignee" value={taskForm.assigned_to_id} onChange={(v) => setTaskForm({ ...taskForm, assigned_to_id: v })} required>
+                    <option value="">Select salesman...</option>
+                    {taskSalesmen.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.name}
+                      </option>
+                    ))}
+                  </TaskSelect>
+                </div>
+                <label className="flex cursor-pointer select-none items-center gap-2 border-t border-border py-1.5 text-xs font-medium text-foreground/85">
+                  <input
+                    type="checkbox"
+                    checked={taskForm.notification}
+                    onChange={(e) => setTaskForm({ ...taskForm, notification: e.target.checked })}
+                    className="h-4 w-4 cursor-pointer rounded border-border-strong text-primary focus:ring-ring/20"
+                  />
+                  Send alert notification to the salesman
+                </label>
+              </>
+            ) : (
+              <>
+                <Input
+                  label="Task Description"
+                  id="task-description"
+                  placeholder="e.g. Call client for shipping rates approval"
+                  value={taskForm.description}
+                  onChange={(e) => setTaskForm({ ...taskForm, description: e.target.value })}
+                  required
+                />
+                <Input
+                  label="Due Date"
+                  id="task-due-date"
+                  type="date"
+                  value={taskForm.due_date}
+                  onChange={(e) => setTaskForm({ ...taskForm, due_date: e.target.value })}
+                  required
+                />
+              </>
+            )}
             <div className="flex justify-end gap-2.5 pt-3 border-t border-border mt-5">
               <button
                 type="button"
@@ -796,6 +877,25 @@ export function ClientOverview({ client: initialClient, initialTasks, backLink, 
           </form>
         </div>
       </Modal>
+    </div>
+  );
+}
+
+function TaskSelect({ label, id, value, onChange, required, children }: { label: string; id: string; value: string; onChange: (value: string) => void; required?: boolean; children: React.ReactNode }) {
+  return (
+    <div className="flex flex-col gap-1">
+      <label className="text-xs font-semibold text-foreground/85" htmlFor={id}>
+        {label}
+      </label>
+      <select
+        id={id}
+        required={required}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="h-10 w-full cursor-pointer rounded-control border border-input bg-card px-3 text-sm text-foreground shadow-xs outline-none transition-[border-color,box-shadow] duration-150 hover:border-border-strong focus:border-ring focus:ring-3 focus:ring-ring/15"
+      >
+        {children}
+      </select>
     </div>
   );
 }

@@ -44,8 +44,8 @@ INSERT INTO tasks (assigned_to_id, created_by_id, description, due_date, notific
 SELECT s.id, CASE WHEN g%3=0 THEN s.id ELSE ms.manager_id END, 'Task ' || g, now() + ((random()*120-60) || ' days')::interval, g%5=0,
   (ARRAY['pending','in_process','achieved','unsuccessful'])[1+g%4]
 FROM generate_series(1,40000) g JOIN sm s ON s.rn = 1 + g%60 JOIN manager_salesman ms ON ms.salesman_id = s.id;
-INSERT INTO client_tasks (client_id, assigned_to_id, created_by_id, description, due_date, status)
-SELECT c.id, c.assigned_salesman_id, c.assigned_salesman_id, 'Client task ' || g, now() + ((random()*60-30) || ' days')::interval, (ARRAY['pending','in_process','achieved','unsuccessful'])[1+g%4]
+INSERT INTO tasks (category, client_id, assigned_to_id, created_by_id, description, due_date, status)
+SELECT 'client_follow_up', c.id, c.assigned_salesman_id, c.assigned_salesman_id, 'Client task ' || g, now() + ((random()*60-30) || ' days')::interval, (ARRAY['pending','in_process','achieved','unsuccessful'])[1+g%4]
 FROM generate_series(1,10000) g JOIN clients c ON c.id = (SELECT min(id) FROM clients) + (g*3 % 30000);
 -- 15k enquiries
 INSERT INTO enquiries (client_id, enquiry_date, mode, "from", "to", job_ref, incoterm, payment_mode, credit_days, clearance, provisional_cost, provisional_profit, status, created_by_id, created_at, updated_at)

@@ -2,7 +2,12 @@ import { NextResponse, type NextRequest } from "next/server";
 import { revalidateTag } from "next/cache";
 import { getToken } from "next-auth/jwt";
 import { prisma } from "@/lib/prisma";
-import { clientScopeWhere } from "@/lib/scoping";
+import { canAccessSalesman, clientScopeWhere } from "@/lib/scoping";
+import { clientTasksWhere } from "@/lib/client-tasks";
+import { taskCategories, type TaskCategory } from "@/types/task";
+
+/** A task about one client (what used to be the separate client_tasks table). */
+const CLIENT_TASK = "client_follow_up";
 
 export async function GET(
   request: NextRequest,
@@ -19,8 +24,8 @@ export async function GET(
   });
   if (!client) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
-  const tasks = await prisma.clientTask.findMany({
-    where: { client_id: clientId },
+  const tasks = await prisma.task.findMany({
+    where: clientTasksWhere(clientId),
     include: {
       assignedTo: { select: { name: true } },
       createdBy: { select: { name: true } },
@@ -48,10 +53,17 @@ export async function POST(
 
   const body = await request.json();
   const assignedToId = token.role_id === 3 ? Number(token.id) : Number(body.assigned_to_id || token.id);
+  if (assignedToId !== Number(token.id) && !(await canAccessSalesman(token, assignedToId))) {
+    return NextResponse.json({ error: "Pick a salesman from your team" }, { status: 403 });
+  }
+  // No category = a client follow-up; "general" = no type.
+  const category: TaskCategory | null = body.category === "general" ? null : taskCategories.includes(body.category) ? body.category : CLIENT_TASK;
 
-  const task = await prisma.clientTask.create({
+  const task = await prisma.task.create({
     data: {
       client_id: clientId,
+      category,
+      notification: Boolean(body.notification),
       assigned_to_id: assignedToId,
       created_by_id: Number(token.id),
       description: body.description,

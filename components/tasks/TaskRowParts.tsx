@@ -61,9 +61,13 @@ export function DueDate({ task, now }: { task: RowTask; now: number }) {
   );
 }
 
-/** True when some row shows TaskActions' inline buttons (lead outcomes / enquiry links), so the actions column needs room. */
+/** True when some row shows TaskActions' inline buttons (lead outcomes, follow up, enquiry links), so the actions column needs room. */
 export const hasInlineActions = (tasks: RowTask[]) =>
-  tasks.some((t) => isOpenTask(t.status) && (t.kind === "lead_follow_up" || (t.kind === "enquiry_follow_up" && !!t.enquiry)));
+  tasks.some(
+    (t) =>
+      isOpenTask(t.status) &&
+      (t.kind === "lead_follow_up" || t.kind === "client_follow_up" || t.kind === "order_follow_up" || (t.kind === "enquiry_follow_up" && !!t.enquiry)),
+  );
 
 export function StatusSelect({ task, updating, onChange }: { task: RowTask; updating: boolean; onChange: (status: string) => void }) {
   return (

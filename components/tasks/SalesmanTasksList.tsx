@@ -24,7 +24,6 @@ type Task = {
   assignedTo?: { name: string | null };
   createdBy?: { name: string | null };
   created_by_id?: number;
-  isClientTask?: boolean;
   clientId?: number | null;
   clientName?: string | null;
   /** Set on automatic enquiry follow-up tasks. */
@@ -109,7 +108,7 @@ export function SalesmanTasksList({ data, currentUserId }: SalesmanTasksListProp
     setTimeout(() => setToastMsg(null), 3000);
   };
 
-  const combinedTasks = localTasks.map((t) => ({ id: `${t.isClientTask ? "client-task" : "task"}-${t.id}`, data: t }));
+  const combinedTasks = localTasks.map((t) => ({ id: `task-${t.id}`, data: t }));
 
   // Add task submission
   async function handleAddSubmit(e: React.FormEvent) {
@@ -146,7 +145,7 @@ export function SalesmanTasksList({ data, currentUserId }: SalesmanTasksListProp
       });
       setIsAddOpen(false);
       if (data.task) {
-        setLocalTasks((prev) => [{ ...data.task, isClientTask: false, created_by_id: currentUserId, kind: data.task.category ?? "general", clientId: data.task.client_id, clientName: followUpClient?.name ?? null }, ...prev]);
+        setLocalTasks((prev) => [{ ...data.task, created_by_id: currentUserId, kind: data.task.category ?? "general", clientId: data.task.client_id, clientName: followUpClient?.name ?? null }, ...prev]);
         setFollowUpClient(null);
       }
       router.refresh();
@@ -157,15 +156,11 @@ export function SalesmanTasksList({ data, currentUserId }: SalesmanTasksListProp
     }
   }
 
-  async function handleStatusChange(taskId: number, newStatus: string, isClientTask?: boolean, clientId?: number) {
+  async function handleStatusChange(taskId: number, newStatus: string) {
     setUpdatingTaskId(taskId);
 
     try {
-      const url = isClientTask
-        ? `/api/clients/${clientId}/tasks/${taskId}`
-        : `/api/tasks/${taskId}`;
-
-      const res = await fetch(url, {
+      const res = await fetch(`/api/tasks/${taskId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: newStatus }),
@@ -179,7 +174,7 @@ export function SalesmanTasksList({ data, currentUserId }: SalesmanTasksListProp
       triggerToast("Task status updated");
       if (data.task) {
         setLocalTasks((prev) =>
-          prev.map((t) => (t.id === data.task.id && !!t.isClientTask === !!isClientTask ? { ...t, status: data.task.status } : t)),
+          prev.map((t) => (t.id === data.task.id ? { ...t, status: data.task.status } : t)),
         );
       }
       router.refresh();
@@ -308,7 +303,7 @@ export function SalesmanTasksList({ data, currentUserId }: SalesmanTasksListProp
                         {isGuidedTask(task) ? (
                           <TaskStatusPill task={task} />
                         ) : (
-                          <StatusSelect task={task} updating={updatingTaskId === task.id} onChange={(status) => handleStatusChange(task.id, status, task.isClientTask, task.clientId ?? undefined)} />
+                          <StatusSelect task={task} updating={updatingTaskId === task.id} onChange={(status) => handleStatusChange(task.id, status)} />
                         )}
                       </td>
                       <td className="px-4 py-3 text-right">
@@ -331,7 +326,7 @@ export function SalesmanTasksList({ data, currentUserId }: SalesmanTasksListProp
                     {isGuidedTask(task) ? (
                       <TaskStatusPill task={task} />
                     ) : (
-                      <StatusSelect task={task} updating={updatingTaskId === task.id} onChange={(status) => handleStatusChange(task.id, status, task.isClientTask, task.clientId ?? undefined)} />
+                      <StatusSelect task={task} updating={updatingTaskId === task.id} onChange={(status) => handleStatusChange(task.id, status)} />
                     )}
                   </div>
                   <p className="text-sm text-foreground">{task.description}</p>

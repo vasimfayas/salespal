@@ -32,7 +32,7 @@ async function ManagerTasksSection({ params }: { params: SearchParams }) {
     select: { id: true, name: true },
     orderBy: { name: "asc" },
   });
-  const data = await getTasksPage({ assignedTo: salesmen.map((s) => s.id) }, params);
+  const data = await getTasksPage({ assignedTo: salesmen.map((s) => s.id), alsoUser: managerId }, params);
 
   return <ManagerTasksList data={data} salesmen={salesmen} />;
 }

@@ -15,6 +15,9 @@ export type TaskListItem = {
 export const taskCategories = ["client_follow_up", "order_follow_up", "payment_follow_up"] as const;
 export type TaskCategory = (typeof taskCategories)[number];
 
+/** What the person is asked to do (prefixed to the task text, e.g. "[Video conference] ..."). */
+export const taskActions = ["Call", "Email", "Meeting", "Video conference", "Collect", "Presentation", "Follow-up", "Other"] as const;
+
 /** Category of the automatic task created when an order is sent back for revision; done once the offer is revised. */
 export const REVISION_TASK_CATEGORY = "order_revision";
 
