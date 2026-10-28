@@ -9,6 +9,7 @@ import { useCallback, useState, useEffect } from "react";
 interface Org {
   id: number;
   name: string;
+  prefix: string | null;
 }
 
 const selectClass =
@@ -72,14 +73,14 @@ export function DashboardFilters({ orgs }: { orgs: Org[] }) {
           size="sm"
           value={selectedOrg}
           onChange={handleOrgChange}
-          options={[{ value: "all", label: "All" }, ...orgs.map((org) => ({ value: String(org.id), label: <span className="whitespace-nowrap">{org.name}</span> }))]}
+          options={[{ value: "all", label: "All" }, ...orgs.map((org) => ({ value: String(org.id), label: <span className="whitespace-nowrap" title={org.name}>{org.prefix ?? org.name}</span> }))]}
         />
       ) : (
         <select aria-label="Company" value={selectedOrg} onChange={(e) => handleOrgChange(e.target.value)} className={cn(selectClass, "sm:w-44")}>
           <option value="all">All companies</option>
           {orgs.map((org) => (
-            <option key={org.id} value={String(org.id)}>
-              {org.name}
+            <option key={org.id} value={String(org.id)} title={org.name}>
+              {org.prefix ?? org.name}
             </option>
           ))}
         </select>

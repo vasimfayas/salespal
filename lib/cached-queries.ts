@@ -98,11 +98,11 @@ export const getCachedClientDetail = unstable_cache(
 export const getCachedAdminOrgs = unstable_cache(
   async () => {
     return prisma.organization.findMany({
-      select: { id: true, name: true },
+      select: { id: true, name: true, prefix: true },
       orderBy: { name: "asc" },
     });
   },
-  ["admin-orgs"],
+  ["admin-orgs-v2"],
   { revalidate: 300, tags: ["admin-dashboard"] }
 );
 
