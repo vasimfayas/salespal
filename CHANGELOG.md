@@ -2,6 +2,11 @@
 
 Newest first. Types: Added, Changed, Fixed. Tag each release `vX.Y.Z` (fix = patch, feature = minor, breaking = major).
 
+## 1.4.1 - 2026-10-28
+
+### Added
+- SalesPal can be installed to a phone's home screen and opens full screen without the browser bars (manifest, icons, iOS web-app settings).
+
 ## 1.4.0 - 2026-10-28
 
 ### Added

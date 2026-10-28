@@ -8,6 +8,8 @@ const appFont = Plus_Jakarta_Sans({ subsets: ["latin"], variable: "--font-app", 
 export const metadata: Metadata = {
   title: "SalesPal",
   description: "Sales monitoring for logistics teams",
+  appleWebApp: { capable: true, title: "SalesPal", statusBarStyle: "default" },
+  icons: { apple: "/apple-touch-icon.png" },
 };
 
 export const viewport: Viewport = {
