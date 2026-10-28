@@ -127,6 +127,16 @@ export function BulkImportClientsModal({
     setProgress(0);
     const out: RowResult[] = [];
 
+    // Group the clients under one batch so the super admin can review or reverse the import. A failure here must not stop the import.
+    const batchId: number | null = await fetch("/api/import-batches", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ file_name: fileName, total_rows: rows.length, org_id: orgId ? Number(orgId) : undefined }),
+    })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((body) => body?.id ?? null)
+      .catch(() => null);
+
     for (const { line, data } of rows) {
       const missing = REQUIRED.filter((col) => !data[col]);
       const salesman = resolveSalesman(data);
@@ -152,6 +162,7 @@ export function BulkImportClientsModal({
               assigned_salesman_id: salesman,
               org_id: orgId ? Number(orgId) : undefined,
               status: "lead",
+              import_batch_id: batchId ?? undefined,
             }),
           });
           const body = await res.json().catch(() => ({}));
@@ -163,6 +174,13 @@ export function BulkImportClientsModal({
       setProgress(out.length);
     }
 
+    if (batchId) {
+      await fetch(`/api/import-batches/${batchId}/finish`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ failed_rows: out.filter((r) => !r.ok).length }),
+      }).catch(() => {});
+    }
     setResults(out);
     setRunning(false);
     const created = out.filter((r) => r.ok).length;

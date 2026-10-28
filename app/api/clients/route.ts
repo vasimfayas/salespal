@@ -176,10 +176,19 @@ export async function POST(request: NextRequest) {
     }
   }
 
+  // Part of a bulk import: it must be the caller's own, still-running batch.
+  let importBatchId: number | null = null;
+  if (body.import_batch_id !== undefined && body.import_batch_id !== null) {
+    const batch = await prisma.importBatch.findFirst({ where: { id: Number(body.import_batch_id), created_by_id: getTokenUserId(token), status: "importing" }, select: { id: true } });
+    if (!batch) return NextResponse.json({ error: "Import not found" }, { status: 400 });
+    importBatchId = batch.id;
+  }
+
   let client;
   try {
     client = await prisma.client.create({
       data: {
+        import_batch_id: importBatchId,
         name: parent ? parent.name : cleanText(body.name)!,
         contact_person_name: contactPersonName,
         contact_no: contactNo,

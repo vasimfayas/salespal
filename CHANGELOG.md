@@ -2,6 +2,14 @@
 
 Newest first. Types: Added, Changed, Fixed. Tag each release `vX.Y.Z` (fix = patch, feature = minor, breaking = major).
 
+## 1.4.0 - 2026-10-28
+
+### Added
+- Control Panel for the super admin: log of bulk client imports with a reverse option, deployment log with notes, and an error log that catches server and browser errors automatically.
+
+### Deploy note
+- Run `psql "$DATABASE_URL" -f prisma/add-control-panel.sql` once on the server (new tables and `clients.import_batch_id`).
+
 ## 1.3.0 - 2026-10-28
 
 ### Added

@@ -6,6 +6,7 @@ import {
   ClipboardCheck,
   ClipboardList,
   Globe,
+  Settings2,
   Landmark,
   LayoutDashboard,
   LayoutGrid,
@@ -44,6 +45,7 @@ const ICONS: Record<string, LucideIcon> = {
   Agents: Globe,
   Accounts: Landmark,
   Approvals: ClipboardCheck,
+  "Control Panel": Settings2,
 };
 
 const GROUPS: Record<string, string> = {
@@ -67,6 +69,7 @@ const GROUPS: Record<string, string> = {
   Reports: "Reports",
   Accounts: "Reports",
   Approvals: "Operations",
+  "Control Panel": "Administration",
 };
 
 export type NavItem = { label: string; href: string; icon: LucideIcon };

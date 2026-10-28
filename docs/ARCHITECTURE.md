@@ -240,6 +240,12 @@ Indexes: salesman, org, (org, status), (salesman, status), status, category, cre
 
 **ClientDocument** [`client_documents`]: `client_id`, `description`, `doc_type?` (`cr`, `computer_card`, `signatory_id` for KYC), `expiry_date?`, file columns as for company documents, `uploaded_by_id`.
 
+**ImportBatch** [`import_batches`]: one bulk client CSV import (`file_name`, `org_id/org_name`, `total_rows`, `failed_rows`, `status` `importing|completed|reversed|partially_reversed`, `created_by_*`, reversal fields). `clients.import_batch_id` points at it; reversing deletes the batch's clients that have no enquiries, orders, approvals or departments (`reverseImportBatch`).
+
+**Deployment** [`deployments`]: `version`, `commit?`, `deployed_at`, `note?`. A row is added on server start when version/commit differ from the latest row (`instrumentation.ts` → `lib/deployments.ts`).
+
+**ErrorLog** [`error_logs`]: errors grouped by `fingerprint` (source + message + route with ids stripped): `source` (`server|client`), `message`, `stack?`, `path`, `count`, `first_seen/last_seen`, `status` (`open|resolved`; a repeat reopens it). Written by `onRequestError` in `instrumentation.ts` and by `app/dashboard/error.tsx` via `POST /api/error-log`.
+
 **SalesmanKpiLog** [`salesman_kpi_logs`]: `salesman_id`, `action`. Minimal log table.
 
 #### Tasks
@@ -339,7 +345,7 @@ All under `app/dashboard/<role>/`. Each role has its own tree.
 
 | Role | Pages |
 |---|---|
-| admin | (overview), accounts, agents, approvals, clients, clients/[id], companies, enquiries, orders, reports, salesmen, shipping-rates, tasks, users |
+| admin | (overview), accounts, control-panel (super admin only: imports + reverse, deployments, errors), agents, approvals, clients, clients/[id], companies, enquiries, orders, reports, salesmen, shipping-rates, tasks, users |
 | manager | (team overview), my-overview, team, team/[salesmanId], tasks, my-clients, clients, clients/[id], salesmen, enquiries, orders, shipping-rates, agents, approvals, reports |
 | salesman | dashboard-org, (overview), tasks, clients, clients/[id], enquiries, orders, orders/[id] |
 | accountant | (dashboard), enquiries, orders, shipping-rates, agents, approvals |
@@ -365,6 +371,7 @@ Data for dashboards is assembled in `lib/admin-dashboard.ts`, `manager-dashboard
 | Companies | `companies/[id]/documents` (POST), `/documents/[docId]`, `/documents/export`, `/logo` |
 | Team | `manager-org`, `manager-salesman` (POST, DELETE), `salesman-targets` (POST) |
 | Reports | `reports/company`, `reports/salesman/[id]`, `reports/jobs` (GET, POST), `reports/jobs/[id]/file` |
+| Control panel | `import-batches` (POST start), `import-batches/[id]/finish`, `error-log` (POST from the browser); reverse / resolve are server actions in `lib/actions/control-panel-actions.ts` |
 | Calendar | `calendar` (GET `?from&to&mode=rows|summary&user`) |
 | Misc | `activity`, `kpi/[userId]`, `cron/cleanup-tasks` |
 
@@ -410,6 +417,7 @@ Convention: handlers call `getSalesPalSession()`, return `401` when there is no 
 - First deploy of a fresh database: `prisma db push`, then `npm run prisma:seed` and/or `npm run seed:super-admin`.
 - Default password for new logins: `salespal123` (`lib/roles.ts`); users should change it.
 - Versioning: `package.json` version, `CHANGELOG.md`, git tags `vX.Y.Z`. Version and commit show at the bottom of the sidebar.
+- Control Panel tables (`import_batches`, `deployments`, `error_logs`, `clients.import_batch_id`) come from `prisma/add-control-panel.sql`; run it once on a database that predates them.
 - Tests: `npm test` runs `tests/*.test.ts` (payments, rate limit). Little else is covered.
 
 ## 12. Known limits worth remembering

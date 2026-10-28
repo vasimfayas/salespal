@@ -216,6 +216,8 @@ model Client {
   credit_approved              Boolean             @default(false)
   credit_days_approved         Int?
   credit_approved_at           DateTime?
+  /// The bulk import this client was created by (Control Panel → Imports can reverse it). Null for clients added by hand.
+  import_batch_id              Int?
   created_at                   DateTime            @default(now())
   assignedSalesman             User                @relation("AssignedClients", fields: [assigned_salesman_id], references: [id])
   organization                 Organization        @relation(fields: [org_id], references: [id])
@@ -229,6 +231,7 @@ model Client {
   documents                    ClientDocument[]
   approvalRequests             ApprovalRequest[]
   contacts                     ClientContact[]
+  importBatch                  ImportBatch?        @relation(fields: [import_batch_id], references: [id], onDelete: SetNull)
 
   @@index([assigned_salesman_id])
   @@index([org_id])
@@ -238,6 +241,7 @@ model Client {
   @@index([category])
   @@index([created_at])
   @@index([parent_client_id])
+  @@index([import_batch_id])
   @@map("clients")
 }
 
@@ -711,4 +715,69 @@ model ReportJob {
 
   @@index([requested_by, created_at])
   @@map("report_jobs")
+}
+
+/// One bulk client import (CSV). Each client it created carries import_batch_id so the batch can be reversed.
+model ImportBatch {
+  id              Int       @id @default(autoincrement())
+  /// What was imported; only "clients" for now.
+  type            String    @default("clients")
+  file_name       String?
+  org_id          Int?
+  org_name        String?
+  total_rows      Int       @default(0)
+  /// Rows that were rejected (set when the import finishes).
+  failed_rows     Int       @default(0)
+  /// importing | completed | reversed | partially_reversed
+  status          String    @default("importing")
+  created_by_id   Int
+  created_by_name String
+  created_at      DateTime  @default(now())
+  finished_at     DateTime?
+  reversed_at     DateTime?
+  reversed_by     String?
+  /// Clients removed / kept by the reversal (kept ones have enquiries, orders, approvals or departments).
+  reversed_count  Int       @default(0)
+  kept_count      Int       @default(0)
+  clients         Client[]
+
+  @@index([created_at])
+  @@map("import_batches")
+}
+
+/// One row per deployment, written by the server when it starts on a new version / commit (instrumentation.ts).
+model Deployment {
+  id          Int      @id @default(autoincrement())
+  version     String
+  commit      String?
+  deployed_at DateTime @default(now())
+  note        String?
+
+  @@index([deployed_at])
+  @@map("deployments")
+}
+
+/// Errors caught on the server (instrumentation.ts) or in the browser (error boundaries), grouped by fingerprint.
+model ErrorLog {
+  id          Int      @id @default(autoincrement())
+  /// sha1 of source + message + route: the same error counts up instead of adding rows.
+  fingerprint String   @unique
+  /// server | client
+  source      String
+  message     String
+  stack       String?
+  path        String?
+  method      String?
+  digest      String?
+  user_id     Int?
+  /// The app version it happened on.
+  version     String?
+  count       Int      @default(1)
+  first_seen  DateTime @default(now())
+  last_seen   DateTime @default(now())
+  /// open | resolved
+  status      String   @default("open")
+
+  @@index([status, last_seen])
+  @@map("error_logs")
 }

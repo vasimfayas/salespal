@@ -71,4 +71,5 @@ navConfig[6] = [
   { label: "Tasks", href: "/dashboard/admin/tasks" },
   { label: "Shipping Rates", href: "/dashboard/admin/shipping-rates" },
   ...navConfig[1].slice(8),
+  { label: "Control Panel", href: "/dashboard/admin/control-panel" },
 ];
