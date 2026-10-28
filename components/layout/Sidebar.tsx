@@ -10,6 +10,7 @@ import { useShell } from "@/components/layout/ShellContext";
 import { getNavGroups, getNavItems, isNavActive } from "@/components/layout/nav-meta";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { SimpleTooltip } from "@/components/ui/tooltip";
+import { isOwnerRole } from "@/lib/roles";
 import { cn } from "@/lib/utils";
 
 function Brand({ compact = false }: { compact?: boolean }) {
@@ -160,6 +161,15 @@ export function Sidebar() {
   );
 }
 
+/** Owners have too many links for a phone tab bar; the rest stay in the drawer. */
+const OWNER_TABS = ["Overview", "Tasks", "Salesmen", "Accounts", "Approvals", "Reports"];
+
+function tabBarItems(roleId: number) {
+  const items = getNavItems(roleId).filter((item) => !item.href.includes("?"));
+  if (!isOwnerRole(roleId)) return items;
+  return OWNER_TABS.flatMap((label) => items.filter((item) => item.label === label));
+}
+
 /** Thumb-reachable tab bar for phones (same links as the sidebar). */
 export function MobileTabBar() {
   const pathname = usePathname();
@@ -174,7 +184,7 @@ export function MobileTabBar() {
       aria-label="Quick navigation"
       className="fixed inset-x-0 bottom-0 z-40 flex h-16 items-stretch justify-around border-t border-border bg-card/95 px-1 pb-[env(safe-area-inset-bottom)] backdrop-blur-md md:hidden"
     >
-      {getNavItems(roleId).filter((item) => !item.href.includes("?")).map((item) => {
+      {tabBarItems(roleId).map((item) => {
         const active = isNavActive(item.href, activePath, roleId);
         const Icon = item.icon;
         return (
