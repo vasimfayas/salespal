@@ -110,6 +110,12 @@ function SidebarNav({ compact }: { compact: boolean }) {
             {!compact && <span>Logout</span>}
           </button>
         </SimpleTooltip>
+        {!compact && (
+          <p className="mt-2 px-3 text-xs text-sidebar-muted">
+            v{process.env.NEXT_PUBLIC_APP_VERSION}
+            {process.env.NEXT_PUBLIC_COMMIT && ` · ${process.env.NEXT_PUBLIC_COMMIT}`}
+          </p>
+        )}
       </div>
     </>
   );
