@@ -442,9 +442,9 @@ export function CompaniesClient({
           // Compute total staff (managers + salesmen under this company)
           const assignedManagersIds = company.managers.map((m) => m.manager_id);
           const assignedSalesmen = localSalesmenList.filter((s) =>
-            localManagerSalesmen.some((ms) => assignedManagersIds.includes(ms.manager_id) && ms.salesman_id === s.id)
+            localManagerSalesmen.some((ms) => ms.org_id === company.id && assignedManagersIds.includes(ms.manager_id) && ms.salesman_id === s.id)
           );
-          const totalStaff = assignedManagersIds.length + assignedSalesmen.length;
+          const totalStaff = new Set([...assignedManagersIds, ...assignedSalesmen.map((s) => s.id)]).size;
 
           // One neutral look for every company card; colour is kept for state, not identity.
           const labelText = "text-foreground";
