@@ -108,18 +108,25 @@ export async function deleteUser(id: number): Promise<Result> {
   const c = user._count;
   const work: [number, string, string][] = [
     [c.assignedClients, "client", "clients"],
-    [c.createdEnquiries, "enquiry", "enquiries"],
+    [c.createdEnquiries + c.cancelledEnquiries, "enquiry", "enquiries"],
     [c.createdOrders, "order", "orders"],
     [c.assignedTasks + c.createdTasks + c.assignedClientTasks + c.createdClientTasks, "task", "tasks"],
     [c.recordedPayments, "payment", "payments"],
     [c.salesmanTargets + c.assignedTargets, "target", "targets"],
+    [c.clientLogs, "client history entry", "client history entries"],
+    [c.enquiryEvents + c.enquiryFollowUps, "enquiry stage or follow-up entry", "enquiry stage or follow-up entries"],
+    [c.taskUpdates, "task update", "task updates"],
+    [c.uploadedClientDocuments + c.uploadedCompanyDocuments, "uploaded document", "uploaded documents"],
+    [c.updatedShippingRates, "shipping rate edit", "shipping rate edits"],
+    [c.agentRequestsSent, "agent rate request", "agent rate requests"],
+    [c.kpiLogs, "KPI log entry", "KPI log entries"],
   ];
   const listed = work.filter(([n]) => n > 0).map(([n, one, many]) => `${n} ${n === 1 ? one : many}`);
   const total = Object.values(c).reduce((a, b) => a + b, 0);
   if (total > 0) {
     return {
       success: false,
-      error: `${user.name} can't be deleted: they have ${listed.length ? listed.join(", ") : "activity"} on record. Reassign their clients first, or keep the account.`,
+      error: `${user.name} can't be deleted: they have ${listed.join(", ")} on record. Reassign their clients, then keep the account (history can't be deleted) and remove their company assignments instead.`,
     };
   }
   await prisma.user.delete({ where: { id } });
