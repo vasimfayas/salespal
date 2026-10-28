@@ -2,6 +2,12 @@
 
 Newest first. Types: Added, Changed, Fixed. Tag each release `vX.Y.Z` (fix = patch, feature = minor, breaking = major).
 
+## 1.1.1 - 2026-10-28
+
+### Changed
+- Owner dashboard company selector shows the company prefix instead of the full name.
+- Deleting a user that has history now lists every kind of record that blocks it.
+
 ## 1.1.0 - 2026-10-28
 
 ### Changed
