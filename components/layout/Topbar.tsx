@@ -1,16 +1,18 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { Bell, ChevronRight, Menu, PanelLeft, Search } from "lucide-react";
+import { Bell, CalendarDays, ChevronRight, Menu, PanelLeft, Search } from "lucide-react";
 import { CommandPalette } from "@/components/layout/CommandPalette";
 import { useShell } from "@/components/layout/ShellContext";
 import { UserMenu } from "@/components/layout/UserMenu";
 import { getBreadcrumbs } from "@/components/layout/nav-meta";
 import { ThemeToggle } from "@/components/shared/ThemeToggle";
-import { Button } from "@/components/ui/Button";
+import { Button, buttonVariants } from "@/components/ui/Button";
 import { SimpleTooltip } from "@/components/ui/tooltip";
+import { cn } from "@/lib/utils";
 
 export function Topbar() {
   const pathname = usePathname();
@@ -69,6 +71,17 @@ export function Topbar() {
         <Button variant="ghost" size="icon" className="lg:hidden" aria-label="Search pages" onClick={() => setPaletteOpen(true)}>
           <Search />
         </Button>
+
+        <SimpleTooltip label="Calendar" side="bottom">
+          <Link
+            href="/dashboard/calendar"
+            aria-label="Calendar"
+            aria-current={pathname === "/dashboard/calendar" ? "page" : undefined}
+            className={cn(buttonVariants({ variant: "ghost", size: "icon" }), pathname === "/dashboard/calendar" && "bg-muted text-foreground")}
+          >
+            <CalendarDays />
+          </Link>
+        </SimpleTooltip>
 
         <ThemeToggle />
 

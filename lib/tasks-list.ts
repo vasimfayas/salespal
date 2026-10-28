@@ -33,19 +33,22 @@ function scopeSql(scope: Scope, alias: string) {
   return Prisma.sql`(${Prisma.raw(alias)}.assigned_to_id IN (${Prisma.join(scope.assignedTo)}) OR ${own})`;
 }
 
-function unionSql(scope: Scope) {
-  return Prisma.sql`
-    SELECT t.id, t.description, t.due_date, t.status, t.client_id, CASE WHEN cl.department IS NULL THEN cl.name ELSE cl.name || ' · ' || cl.department END AS client_name,
-           t.assigned_to_id, t.created_by_id, a.name AS assigned_name, cb.name AS created_name, t.enquiry_id, e.status AS enquiry_status,
-           eo.prefix AS enquiry_prefix, t.outcome,
-           CASE WHEN t.category = 'lead_follow_up' THEN 'lead_follow_up'
+/** What a task is about, from its enquiry_id / category (alias `t` = tasks). Shared with the calendar. */
+export const taskKindSql = Prisma.sql`CASE WHEN t.category = 'lead_follow_up' THEN 'lead_follow_up'
                 WHEN t.category = 'order_revision' THEN 'order_revision'
                 WHEN t.enquiry_id IS NOT NULL THEN 'enquiry_follow_up'
                 WHEN t.category = 'client_follow_up' THEN 'client_follow_up'
                 -- Accountant payment reminders created before tasks had a category
                 WHEN t.category = 'payment_follow_up' OR t.description LIKE 'Payment reminder:%' THEN 'payment_follow_up'
                 WHEN t.category = 'order_follow_up' THEN 'order_follow_up'
-                ELSE 'general' END AS kind
+                ELSE 'general' END`;
+
+function unionSql(scope: Scope) {
+  return Prisma.sql`
+    SELECT t.id, t.description, t.due_date, t.status, t.client_id, CASE WHEN cl.department IS NULL THEN cl.name ELSE cl.name || ' · ' || cl.department END AS client_name,
+           t.assigned_to_id, t.created_by_id, a.name AS assigned_name, cb.name AS created_name, t.enquiry_id, e.status AS enquiry_status,
+           eo.prefix AS enquiry_prefix, t.outcome,
+           ${taskKindSql} AS kind
     FROM tasks t
     JOIN users a ON a.id = t.assigned_to_id
     JOIN users cb ON cb.id = t.created_by_id

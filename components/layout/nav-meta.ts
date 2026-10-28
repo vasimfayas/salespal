@@ -120,6 +120,7 @@ export function isNavActive(href: string, activePath: string, roleId: number) {
 
 /** Breadcrumb trail for the current path, built from the role's nav links. */
 export function getBreadcrumbs(pathname: string, roleId: number): string[] {
+  if (pathname === "/dashboard/calendar") return ["Calendar"];
   const items = getNavItems(roleId);
   const match = items
     .filter((item) => pathname === item.href || pathname.startsWith(`${item.href}/`))

@@ -2,6 +2,11 @@
 
 Newest first. Types: Added, Changed, Fixed. Tag each release `vX.Y.Z` (fix = patch, feature = minor, breaking = major).
 
+## 1.3.0 - 2026-10-28
+
+### Added
+- Calendar for every role, opened from the top bar: month, week and year views, scheduled tasks per day with the assignee, a colour and icon per task type (legend doubles as a filter), and a person filter for managers and owners.
+
 ## 1.2.0 - 2026-10-28
 
 Database change: `client_tasks` is merged into `tasks`. Run `prisma/merge-client-tasks-into-tasks.sql` on the server once after deploying.

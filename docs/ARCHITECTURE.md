@@ -344,6 +344,7 @@ All under `app/dashboard/<role>/`. Each role has its own tree.
 | salesman | dashboard-org, (overview), tasks, clients, clients/[id], enquiries, orders, orders/[id] |
 | accountant | (dashboard), enquiries, orders, shipping-rates, agents, approvals |
 | operations | enquiries, shipping-rates |
+| all roles | `/dashboard/calendar` (task calendar: month / week / year, opened from the top bar icon; data from `lib/calendar.ts` via `GET /api/calendar`) |
 | public | `/login`, `/enquiry-form/[token]`, `/agent-quote/[token]` |
 
 Data for dashboards is assembled in `lib/admin-dashboard.ts`, `manager-dashboard.ts`, `accountant-dashboard.ts`, `owner-accounts.ts`, `performance.ts`, `pipeline-metrics.ts`, and streamed section by section with `Suspense` (`components/dashboard/*Sections.tsx`).
@@ -364,6 +365,7 @@ Data for dashboards is assembled in `lib/admin-dashboard.ts`, `manager-dashboard
 | Companies | `companies/[id]/documents` (POST), `/documents/[docId]`, `/documents/export`, `/logo` |
 | Team | `manager-org`, `manager-salesman` (POST, DELETE), `salesman-targets` (POST) |
 | Reports | `reports/company`, `reports/salesman/[id]`, `reports/jobs` (GET, POST), `reports/jobs/[id]/file` |
+| Calendar | `calendar` (GET `?from&to&mode=rows|summary&user`) |
 | Misc | `activity`, `kpi/[userId]`, `cron/cleanup-tasks` |
 
 Server actions (`lib/actions/`) cover company, user, manager-team and approval changes made from forms.
