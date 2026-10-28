@@ -2,6 +2,12 @@
 
 Newest first. Types: Added, Changed, Fixed. Tag each release `vX.Y.Z` (fix = patch, feature = minor, breaking = major).
 
+## 1.1.0 - 2026-10-28
+
+### Changed
+- Owner mobile tab bar trimmed to Overview, Tasks, Salesmen, Accounts, Approvals and Reports. Other links stay in the menu drawer.
+- App version and commit shown at the bottom of the sidebar. Commit comes from Coolify's `SOURCE_COMMIT`.
+
 ## 1.0.0 - 2026-10-28
 First tracked release. Everything before this is summarised below.
 
