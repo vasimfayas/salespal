@@ -18,6 +18,7 @@ import {
   currencyTypes,
   DEFAULT_CURRENCY,
   rateUnit,
+  rateValidUntil,
   type ShippingRateListItem,
 } from "@/types/shipping-rate";
 
@@ -46,6 +47,7 @@ const emptyForm = {
   mode: "sea",
   container: containerTypesByMode.sea[0],
   price: "",
+  valid_until: "",
 };
 
 /** Add / edit a freight rate. Mode comes first: it decides the places, carriers and container or weight break offered. */
@@ -69,6 +71,7 @@ export function ShippingRateModal({ rate, open, onClose, onSaved, fx }: Shipping
             mode: rate.mode,
             container: rate.container,
             price: String(rate.price),
+            valid_until: rateValidUntil(rate) ?? "",
           }
         : emptyForm,
     );
@@ -251,6 +254,18 @@ export function ShippingRateModal({ rate, open, onClose, onSaved, fx }: Shipping
                 )}
               </p>
             )}
+          </div>
+
+          <div>
+            <Input
+              id="rate-valid-until"
+              label="Valid until"
+              type="date"
+              required
+              value={form.valid_until}
+              onChange={(e) => setForm({ ...form, valid_until: e.target.value })}
+            />
+            <p className="mt-1.5 text-xs text-muted-foreground">After this date the rate shows as expired and its price is hidden.</p>
           </div>
 
           <div className="mt-6 flex items-center justify-end gap-2.5 border-t border-border pt-4">

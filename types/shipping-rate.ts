@@ -15,6 +15,15 @@ export function containerLabel(container: string) {
 /** "per kg" for air weight breaks, "per container" otherwise (older air rates were entered per container). */
 export const rateUnit = (container: string) => (containerTypesByMode.air.includes(container) ? "per kg" : "per container");
 
+/** A rate is valid through its last day; after that it is expired and its price is not shown. */
+export function rateValidUntil(rate: { valid_until?: string | Date | null }): string | null {
+  return rate.valid_until ? new Date(rate.valid_until).toISOString().slice(0, 10) : null;
+}
+export function isRateExpired(rate: { valid_until?: string | Date | null }, today = new Date().toLocaleDateString("en-CA")) {
+  const until = rateValidUntil(rate);
+  return until !== null && until < today;
+}
+
 export const commonCarriers = ["MSC", "Maersk", "CMA CGM", "COSCO", "Hapag-Lloyd", "ONE", "Evergreen", "Yang Ming", "HMM", "ZIM"] as const;
 
 export const airCarriers = [
@@ -56,6 +65,8 @@ export type ShippingRateListItem = {
   mode: string;
   container: ContainerType;
   price: number;
+  /** Last valid day (YYYY-MM-DD or ISO date); null for rates entered before validity existed. */
+  valid_until?: string | Date | null;
   updated_by_id: number;
   created_at: string | Date;
   updated_at: string | Date;

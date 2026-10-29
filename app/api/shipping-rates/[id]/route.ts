@@ -3,6 +3,7 @@ import { revalidateTag } from "next/cache";
 import { getToken } from "next-auth/jwt";
 import { prisma } from "@/lib/prisma";
 import { hasRole } from "@/lib/scoping";
+import { parseDateOnly } from "@/lib/salesman-targets";
 import { orderModes } from "@/types/order";
 import { containerTypesByMode, currencyTypes, DEFAULT_CURRENCY } from "@/types/shipping-rate";
 
@@ -32,6 +33,10 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
     if (!Number.isFinite(price) || price < 0) return NextResponse.json({ error: "Invalid price" }, { status: 400 });
   }
 
+  // Every saved rate needs a validity date (older rates without one get it the first time they are edited).
+  const validUntil = body.valid_until !== undefined ? parseDateOnly(body.valid_until) : existing.valid_until;
+  if (!validUntil) return NextResponse.json({ error: "Enter the date until which this rate is valid" }, { status: 400 });
+
   const duplicate = await prisma.shippingRate.findFirst({
     where: { id: { not: existing.id }, location, port, mode, container },
   });
@@ -44,7 +49,7 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
 
   const rate = await prisma.shippingRate.update({
     where: { id: existing.id },
-    data: { location, port, carrier, currency, mode, container, price, updated_by_id: Number(token.id) } as any,
+    data: { location, port, carrier, currency, mode, container, price, valid_until: validUntil, updated_by_id: Number(token.id) } as any,
   });
 
   revalidateTag("shipping-rates", { expire: 0 });

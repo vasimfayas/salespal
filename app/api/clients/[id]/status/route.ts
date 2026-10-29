@@ -4,6 +4,7 @@ import { getToken } from "next-auth/jwt";
 import { prisma } from "@/lib/prisma";
 import { clientScopeWhere } from "@/lib/scoping";
 import { applyClientStatus, canSetStatus, isClientStatus } from "@/lib/client-status-flow";
+import { isLostReason, lostReasonText } from "@/types/enquiry";
 import { cleanText, contactRequiredMessage, missingContactFields, statusRequiresContact } from "@/lib/client-contact";
 
 export async function PATCH(request: NextRequest, context: { params: Promise<{ id: string }> }) {
@@ -17,6 +18,16 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
   if (!isClientStatus(body.status)) return NextResponse.json({ error: "Invalid status" }, { status: 400 });
   if (!canSetStatus(Number(token.role_id), scoped.status, body.status)) {
     return NextResponse.json({ error: "Only managers can change the black list" }, { status: 403 });
+  }
+
+  // Marking a client lost needs a reason (kept in the client's history).
+  let lostReason: string | undefined;
+  if (body.status === "lost" && scoped.status !== "lost") {
+    if (!isLostReason(body.lost_reason)) {
+      return NextResponse.json({ error: "Select why this client was lost", code: "LOST_REASON_REQUIRED" }, { status: 422 });
+    }
+    const remark = cleanText(body.lost_remark);
+    lostReason = lostReasonText(body.lost_reason, remark ? remark.slice(0, 300) : null);
   }
 
   // Moving past Lead needs contact details. They can be sent with the status change.
@@ -56,7 +67,7 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
           data: { client_id: scoped.id, action: "Contact details added", done_by: Number(token.id) },
         });
       }
-      await applyClientStatus(tx, scoped, body.status, Number(token.id), { source: "manual" });
+      await applyClientStatus(tx, scoped, body.status, Number(token.id), { source: "manual", reason: lostReason });
       return tx.client.findUniqueOrThrow({ where: { id: scoped.id } });
     });
 

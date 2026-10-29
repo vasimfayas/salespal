@@ -3,6 +3,7 @@ import { revalidateTag } from "next/cache";
 import { getToken } from "next-auth/jwt";
 import { prisma } from "@/lib/prisma";
 import { hasRole } from "@/lib/scoping";
+import { parseDateOnly } from "@/lib/salesman-targets";
 import { orderModes } from "@/types/order";
 import { containerTypesByMode, currencyTypes, DEFAULT_CURRENCY } from "@/types/shipping-rate";
 
@@ -33,6 +34,9 @@ export async function POST(request: NextRequest) {
   const price = Number(body.price);
   if (!Number.isFinite(price) || price < 0) return NextResponse.json({ error: "Invalid price" }, { status: 400 });
 
+  const validUntil = parseDateOnly(body.valid_until);
+  if (!validUntil) return NextResponse.json({ error: "Enter the date until which this rate is valid" }, { status: 400 });
+
   const duplicate = await prisma.shippingRate.findFirst({
     where: { location, port, mode: body.mode, container: body.container },
   });
@@ -52,6 +56,7 @@ export async function POST(request: NextRequest) {
       mode: body.mode,
       container: body.container,
       price,
+      valid_until: validUntil,
       updated_by_id: Number(token.id),
     } as any,
   });

@@ -9,7 +9,7 @@ import { SimpleTooltip } from "@/components/ui/tooltip";
 import { DocumentExpiryBadge } from "@/components/companies/DocumentExpiryBadge";
 import { cn, formatDate } from "@/lib/utils";
 import { COMPANY_DOCUMENT_ACCEPT, COMPANY_DOCUMENT_MAX_BYTES, documentExpiryState, formatFileSize } from "@/types/company";
-import { KYC_DOC_TYPES, kycStatus, type ClientDocumentItem, type KycDocType } from "@/types/client";
+import { CLIENT_DOC_TYPES, KYC_DOC_TYPES, isKycDocType, kycStatus, type ClientDocType, type ClientDocumentItem, type KycDocType } from "@/types/client";
 import { isOwnerRole } from "@/lib/roles";
 
 const MAX_FILES = 10;
@@ -124,7 +124,7 @@ export function ClientDocumentsCard({
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-1.5">
                     <p className="text-sm font-medium text-foreground">{doc.description}</p>
-                    {doc.doc_type && <span className="rounded-full bg-primary-soft px-1.5 py-px text-[10px] font-semibold text-primary-soft-foreground">KYC</span>}
+                    {isKycDocType(doc.doc_type) && <span className="rounded-full bg-primary-soft px-1.5 py-px text-[10px] font-semibold text-primary-soft-foreground">KYC</span>}
                     <DocumentExpiryBadge expiryDate={doc.expiry_date} />
                   </div>
                   <a href={fileUrl(clientId, doc.id)} target="_blank" rel="noopener" className="block truncate text-xs text-primary hover:underline">
@@ -195,8 +195,8 @@ export function ClientDocumentsCard({
 function DocumentDialog({ state, clientId, onClose, onSaved }: { state: DialogState; clientId: number; onClose: () => void; onSaved: () => void }) {
   const editing = state?.mode === "edit" ? state.doc : null;
   const initialType = editing ? editing.doc_type : state?.mode === "add" ? (state.docType ?? null) : null;
-  const [docType, setDocType] = useState<KycDocType | "">(initialType ?? "");
-  const [description, setDescription] = useState(editing?.description ?? (initialType ? KYC_DOC_TYPES[initialType] : ""));
+  const [docType, setDocType] = useState<ClientDocType | "">(initialType ?? "");
+  const [description, setDescription] = useState(editing?.description ?? (initialType ? CLIENT_DOC_TYPES[initialType] : ""));
   const [expiry, setExpiry] = useState(editing?.expiry_date ?? "");
   const [files, setFiles] = useState<File[]>([]);
   const [saving, setSaving] = useState(false);
@@ -256,17 +256,17 @@ function DocumentDialog({ state, clientId, onClose, onSaved }: { state: DialogSt
                 <select
                   value={docType}
                   onChange={(e) => {
-                    const next = e.target.value as KycDocType | "";
-                    // Name a KYC document after its type unless something was already typed.
-                    if (next && (!description || Object.values(KYC_DOC_TYPES).includes(description as never))) setDescription(KYC_DOC_TYPES[next]);
+                    const next = e.target.value as ClientDocType | "";
+                    // Name a typed document after its type unless something was already typed.
+                    if (next && (!description || Object.values(CLIENT_DOC_TYPES).includes(description as never))) setDescription(CLIENT_DOC_TYPES[next]);
                     setDocType(next);
                   }}
                   className={inputClass}
                 >
                   <option value="">Other document</option>
-                  {Object.entries(KYC_DOC_TYPES).map(([type, label]) => (
+                  {Object.entries(CLIENT_DOC_TYPES).map(([type, label]) => (
                     <option key={type} value={type}>
-                      KYC · {label}
+                      {isKycDocType(type) ? "KYC · " : ""}{label}
                     </option>
                   ))}
                 </select>
@@ -276,8 +276,8 @@ function DocumentDialog({ state, clientId, onClose, onSaved }: { state: DialogSt
                 <input required maxLength={200} value={description} onChange={(e) => setDescription(e.target.value)} placeholder="e.g. Signed service agreement" className={inputClass} />
               </label>
               <label className="block text-sm font-medium text-foreground">
-                <span className="mb-1 block">Expiry date {!docType && <span className="font-normal text-muted-foreground">(optional)</span>}</span>
-                <input type="date" required={!!docType} value={expiry} onChange={(e) => setExpiry(e.target.value)} className={inputClass} />
+                <span className="mb-1 block">Expiry date {!isKycDocType(docType) && <span className="font-normal text-muted-foreground">(optional)</span>}</span>
+                <input type="date" required={isKycDocType(docType)} value={expiry} onChange={(e) => setExpiry(e.target.value)} className={inputClass} />
               </label>
 
               <div>

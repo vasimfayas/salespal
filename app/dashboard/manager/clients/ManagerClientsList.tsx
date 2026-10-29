@@ -21,6 +21,7 @@ import { Input } from "@/components/ui/Input";
 import { Toast } from "@/components/ui/Toast";
 import { clientStatusLabel, clientStatusLabels, clientStatuses } from "@/types/client";
 import { clientStatusDotClass } from "@/components/clients/client-status-ui";
+import { LostReasonDialog } from "@/components/shared/LostReasonDialog";
 import { ContactDetailsDialog, type ContactPromptTarget } from "@/components/clients/ContactDetailsDialog";
 import { missingContactFields, statusRequiresContact } from "@/lib/client-contact";
 
@@ -124,6 +125,7 @@ export function ManagerClientsList({
   const [departmentOf, setDepartmentOf] = useState<CrMatch | null>(null);
   // Status change past Lead on a client with no contact details asks for them first
   const [contactPrompt, setContactPrompt] = useState<ContactPromptTarget | null>(null);
+  const [lostTarget, setLostTarget] = useState<{ id: number; name: string } | null>(null);
   const [addForm, setAddForm] = useState({
     name: "",
     contact_person_name: "",
@@ -164,9 +166,15 @@ export function ManagerClientsList({
     reset();
   }
 
-  async function handleStatusChange(clientId: number, newStatus: string) {
+  async function handleStatusChange(clientId: number, newStatus: string, lost?: { reason: string; remark: string }) {
     const clientToUpdate = optimisticClients.find((c) => c.id === clientId);
     if (!clientToUpdate) return;
+
+    // Losing a client needs a reason first.
+    if (newStatus === "lost" && clientToUpdate.status !== "lost" && !lost) {
+      setLostTarget(clientToUpdate);
+      return;
+    }
 
     if (statusRequiresContact(newStatus) && missingContactFields(clientToUpdate).length > 0) {
       setContactPrompt({ client: clientToUpdate, status: newStatus });
@@ -181,7 +189,7 @@ export function ManagerClientsList({
         const res = await fetch(`/api/clients/${clientId}/status`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ status: newStatus }),
+          body: JSON.stringify({ status: newStatus, lost_reason: lost?.reason, lost_remark: lost?.remark }),
         });
         const data = await res.json();
         if (!res.ok) {
@@ -1054,6 +1062,19 @@ export function ManagerClientsList({
         }}
         salesmen={salesmen}
         companies={companies}
+      />
+
+      <LostReasonDialog
+        open={!!lostTarget}
+        title="Why was this client lost?"
+        description={lostTarget ? `${lostTarget.name} will be marked Lost. A reason is required.` : undefined}
+        confirmLabel="Mark as lost"
+        onClose={() => setLostTarget(null)}
+        onConfirm={async (reason, remark) => {
+          const id = lostTarget!.id;
+          setLostTarget(null);
+          await handleStatusChange(id, "lost", { reason, remark });
+        }}
       />
 
       <ContactDetailsDialog

@@ -39,7 +39,7 @@ import { Select } from "@/components/ui/Select";
 import { Pagination } from "@/components/ui/Pagination";
 import { convert, type ExchangeRates } from "@/lib/exchange-rates";
 import { orderModes } from "@/types/order";
-import { containerLabel, containerTypes, containerTypesByMode, currencyTypes, DEFAULT_CURRENCY, rateUnit, type ShippingRateListItem } from "@/types/shipping-rate";
+import { containerLabel, containerTypes, containerTypesByMode, currencyTypes, DEFAULT_CURRENCY, isRateExpired, rateUnit, rateValidUntil, type ShippingRateListItem } from "@/types/shipping-rate";
 
 /* ═══════════════════════════════════════════════════════════════════
    TYPES & CONSTANTS
@@ -87,6 +87,10 @@ export function ShippingRateTable({ initialRates, editable = false, canDelete = 
     const v = convert(r.price, cur, displayCurrency, fx);
     return v === null ? { value: r.price, currency: cur } : { value: v, currency: displayCurrency };
   }
+  // A rate past its "valid until" date is expired: no price is shown for it and it never counts as the best price.
+  const today = new Date().toLocaleDateString("en-CA");
+  const expired = (r: ShippingRateListItem) => isRateExpired(r, today);
+  const validityText = (r: ShippingRateListItem) => { const until = rateValidUntil(r); return until ? `${expired(r) ? "Expired" : "Valid until"} ${formatDate(until)}` : null; };
   const showPrice = (r: ShippingRateListItem) => { const p = priceOf(r); return formatRatePrice(p.value, p.currency); };
   // Currencies the rates are entered in, for the exchange-rate strip.
   const rateCurrencies = useMemo(() => [...new Set(rates.map((r) => r.currency ?? "USD"))].filter((c) => c !== displayCurrency && fx?.rates[c]), [rates, displayCurrency, fx]);
@@ -213,12 +217,13 @@ export function ShippingRateTable({ initialRates, editable = false, canDelete = 
     // Compare in QAR so rates in different currencies rank fairly.
     const qar = (r: ShippingRateListItem) => convert(r.price, r.currency ?? "USD", "QAR", fx) ?? r.price;
     for (const r of filteredRates) {
+      if (expired(r)) continue;
       if (!best || qar(r) < qar(best)) {
         best = r;
       }
     }
     return best ? best.id : null;
-  }, [filteredRates, fx]);
+  }, [filteredRates, fx, today]);
 
   // ─── Delete Handler ───
   async function handleDelete(id: number) {
@@ -443,7 +448,7 @@ export function ShippingRateTable({ initialRates, editable = false, canDelete = 
                     <div className="lg:col-span-7 space-y-3">
                       {/* Badges row */}
                       <div className="flex flex-wrap items-center gap-1.5">
-                        <Badge label="Active Rate" variant="positive" icon={CheckCircle2} />
+                        {expired(matchedRate) ? <Badge label="Expired" variant="negative" icon={AlertCircle} /> : <Badge label="Active Rate" variant="positive" icon={CheckCircle2} />}
                         {matchedRate.carrier && (
                           <Badge label={matchedRate.carrier} variant="neutral" icon={Tag} />
                         )}
@@ -483,6 +488,7 @@ export function ShippingRateTable({ initialRates, editable = false, canDelete = 
                           <Clock size={11} style={{ color: "var(--ds-text-muted)" }} />
                           {formatDate(matchedRate.updated_at)}
                         </span>
+                        {validityText(matchedRate) && <span className="flex items-center gap-1">{validityText(matchedRate)}</span>}
                       </div>
                     </div>
 
@@ -491,14 +497,20 @@ export function ShippingRateTable({ initialRates, editable = false, canDelete = 
                       <div>
                         <span className="ss-type-overline block">Contract Rate</span>
                         <div className="flex items-baseline gap-2 mt-1">
-                          <span className="ss-type-price-hero text-[28px] sm:text-[36px]">
-                            {showPrice(matchedRate)}
-                          </span>
-                          <span className="ss-type-caption">{rateUnit(matchedRate.container)}</span>
+                          {expired(matchedRate) ? (
+                            <span className="text-lg font-semibold text-danger-foreground">Rate expired. Ask accounts for a new rate.</span>
+                          ) : (
+                            <>
+                              <span className="ss-type-price-hero text-[28px] sm:text-[36px]">
+                                {showPrice(matchedRate)}
+                              </span>
+                              <span className="ss-type-caption">{rateUnit(matchedRate.container)}</span>
+                            </>
+                          )}
                         </div>
                       </div>
 
-                      {marketRange && (
+                      {marketRange && !expired(matchedRate) && (
                         <div className="pt-3 flex items-center justify-between gap-2" style={{ borderTop: "1px solid var(--ds-border-subtle)" }}>
                           <div className="min-w-0">
                             <span className="ss-type-overline flex items-center gap-1">
@@ -723,8 +735,10 @@ export function ShippingRateTable({ initialRates, editable = false, canDelete = 
                     key={rate.id}
                     carrier={rate.carrier}
                     container={rate.container}
-                    price={showPrice(rate)}
-                    unit={rateUnit(rate.container)}
+                    price={expired(rate) ? "Expired" : showPrice(rate)}
+                    unit={expired(rate) ? undefined : rateUnit(rate.container)}
+                    validity={validityText(rate)}
+                    expired={expired(rate)}
                     mode={rate.mode}
                     origin={rate.location}
                     destination={rate.port}
@@ -804,10 +818,15 @@ export function ShippingRateTable({ initialRates, editable = false, canDelete = 
                         {/* Price */}
                         <td>
                           <span className="flex items-center gap-2">
-                            <span className={cn("ss-type-price-md ss-tabular", isBest && "ss-price-best")}>{showPrice(rate)}</span>
+                            {expired(rate) ? (
+                              <Badge label="Expired" variant="negative" icon={AlertCircle} />
+                            ) : (
+                              <span className={cn("ss-type-price-md ss-tabular", isBest && "ss-price-best")}>{showPrice(rate)}</span>
+                            )}
                             {isBest && <Badge label="Best" variant="positive" icon={Trophy} />}
                           </span>
-                          <span className="block ss-type-caption">{rateUnit(rate.container)}</span>
+                          <span className="block ss-type-caption">{expired(rate) ? validityText(rate) : rateUnit(rate.container)}</span>
+                          {!expired(rate) && validityText(rate) && <span className="block ss-type-caption">{validityText(rate)}</span>}
                         </td>
 
                         {/* Updated */}

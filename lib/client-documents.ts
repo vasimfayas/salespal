@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { clientScopeWhere, type ScopedToken } from "@/lib/scoping";
-import { isKycDocType, type ClientDocumentItem } from "@/types/client";
+import { isClientDocType, type ClientDocumentItem } from "@/types/client";
 import { isOwnerRole } from "@/lib/roles";
 
 /**
@@ -47,7 +47,7 @@ export function serializeClientDocument(doc: {
   return {
     id: doc.id,
     description: doc.description,
-    doc_type: isKycDocType(doc.doc_type) ? doc.doc_type : null,
+    doc_type: isClientDocType(doc.doc_type) ? doc.doc_type : null,
     expiry_date: doc.expiry_date ? doc.expiry_date.toISOString().slice(0, 10) : null,
     file_name: doc.file_name,
     mime_type: doc.mime_type,

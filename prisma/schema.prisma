@@ -377,6 +377,8 @@ model ShippingRate {
   container     String
   price         Decimal  @default(0) @db.Decimal(12, 2)
   currency      String?  @default("QAR")
+  /// Last day the rate can be quoted; after it the rate shows as expired with no price. Null = no expiry (rates from before validity existed).
+  valid_until   DateTime? @db.Date
   updated_by_id Int
   created_at    DateTime @default(now())
   updated_at    DateTime @updatedAt

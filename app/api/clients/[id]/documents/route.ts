@@ -11,7 +11,7 @@ import {
   getClientDocuments,
   serializeClientDocument,
 } from "@/lib/client-documents";
-import { isKycDocType } from "@/types/client";
+import { isClientDocType, isKycDocType } from "@/types/client";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -44,9 +44,9 @@ export async function POST(request: NextRequest, context: Params) {
   const expiry = expiryRaw ? parseDateOnly(expiryRaw) : null;
   if (expiryRaw && !expiry) return NextResponse.json({ error: "Invalid expiry date" }, { status: 400 });
   const docTypeRaw = String(form.get("doc_type") ?? "").trim();
-  if (docTypeRaw && !isKycDocType(docTypeRaw)) return NextResponse.json({ error: "Invalid document type" }, { status: 400 });
+  if (docTypeRaw && !isClientDocType(docTypeRaw)) return NextResponse.json({ error: "Invalid document type" }, { status: 400 });
   const docType = docTypeRaw || null;
-  if (docType && !expiry) return NextResponse.json({ error: "KYC documents need an expiry date" }, { status: 400 });
+  if (docType && isKycDocType(docType) && !expiry) return NextResponse.json({ error: "KYC documents need an expiry date" }, { status: 400 });
   if (files.length === 0) return NextResponse.json({ error: "Attach at least one file" }, { status: 400 });
   if (files.length > MAX_CLIENT_DOCUMENTS_PER_UPLOAD) {
     return NextResponse.json({ error: `Upload up to ${MAX_CLIENT_DOCUMENTS_PER_UPLOAD} files at a time` }, { status: 400 });

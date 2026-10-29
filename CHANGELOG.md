@@ -2,6 +2,16 @@
 
 Newest first. Types: Added, Changed, Fixed. Tag each release `vX.Y.Z` (fix = patch, feature = minor, breaking = major).
 
+## 1.5.0 - 2026-10-29
+
+### Added
+- Client documents: new type "Credit Agreement Copy" (not part of KYC; expiry optional).
+- Shipping rates have a "Valid until" date. After it the rate shows as Expired with no price and is skipped for best price.
+- Marking a client Lost now asks for a reason (and optional remark), enforced by the server and written to the client history.
+
+### Deploy note
+- Run `psql "$DATABASE_URL" -f prisma/add-rate-validity.sql` once on the server (adds `shipping_rates.valid_until`).
+
 ## 1.4.1 - 2026-10-28
 
 ### Added

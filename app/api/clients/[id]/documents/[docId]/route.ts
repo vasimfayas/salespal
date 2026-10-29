@@ -5,7 +5,7 @@ import { getTokenUserId, hasRole } from "@/lib/scoping";
 import { parseDateOnly } from "@/lib/salesman-targets";
 import { readDocumentFile, removeDocumentFile, storeUploadedFile, validateDocumentFile } from "@/lib/company-documents";
 import { CLIENT_DOCUMENT_EDITOR_ROLES, canDeleteClientDocument, findScopedClient, serializeClientDocument } from "@/lib/client-documents";
-import { isKycDocType } from "@/types/client";
+import { isClientDocType, isKycDocType } from "@/types/client";
 
 type Params = { params: Promise<{ id: string; docId: string }> };
 
@@ -58,9 +58,9 @@ export async function PATCH(request: NextRequest, context: Params) {
   const expiry = expiryRaw ? parseDateOnly(expiryRaw) : null;
   if (expiryRaw && !expiry) return NextResponse.json({ error: "Invalid expiry date" }, { status: 400 });
   const docTypeRaw = String(form.get("doc_type") ?? "").trim();
-  if (docTypeRaw && !isKycDocType(docTypeRaw)) return NextResponse.json({ error: "Invalid document type" }, { status: 400 });
+  if (docTypeRaw && !isClientDocType(docTypeRaw)) return NextResponse.json({ error: "Invalid document type" }, { status: 400 });
   const docType = docTypeRaw || null;
-  if (docType && !expiry) return NextResponse.json({ error: "KYC documents need an expiry date" }, { status: 400 });
+  if (docType && isKycDocType(docType) && !expiry) return NextResponse.json({ error: "KYC documents need an expiry date" }, { status: 400 });
 
   let stored: Awaited<ReturnType<typeof storeUploadedFile>> | null = null;
   if (file instanceof File && file.size > 0) {

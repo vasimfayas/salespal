@@ -40,6 +40,8 @@ interface RateCardProps {
   badge?: RateCardBadge;
   selected?: boolean;
   expired?: boolean;
+  /** "Valid until 31 Dec 2026" / "Expired 31 Dec 2026" */
+  validity?: string | null;
   // Editable actions
   editable?: boolean;
   onEdit?: () => void;
@@ -67,6 +69,7 @@ export function RateCard({
   badge = "none",
   selected = false,
   expired = false,
+  validity,
   editable = false,
   onEdit,
   onDelete,
@@ -117,6 +120,7 @@ export function RateCard({
           {price}
         </span>
         {unit && <span className="ss-type-caption">{unit}</span>}
+        {validity && <span className="ss-type-caption ml-auto">{validity}</span>}
       </div>
 
       {/* Details: updated date */}

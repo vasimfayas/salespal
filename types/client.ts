@@ -60,6 +60,10 @@ export type ClientLogItem = {
 /** The KYC documents every client needs, each with an expiry date. */
 export const KYC_DOC_TYPES = { cr: "CR", computer_card: "Computer card", signatory_id: "Authorised signatory ID" } as const;
 export type KycDocType = keyof typeof KYC_DOC_TYPES;
+/** Every document type a client file can be tagged with: the KYC ones plus the credit agreement (not part of KYC). */
+export const CLIENT_DOC_TYPES = { ...KYC_DOC_TYPES, credit_agreement: "Credit Agreement Copy" } as const;
+export type ClientDocType = keyof typeof CLIENT_DOC_TYPES;
+export const isClientDocType = (v: unknown): v is ClientDocType => typeof v === "string" && v in CLIENT_DOC_TYPES;
 export const isKycDocType = (v: unknown): v is KycDocType => typeof v === "string" && v in KYC_DOC_TYPES;
 
 /**
@@ -81,7 +85,7 @@ export type ClientDocumentItem = {
   id: number;
   description: string;
   /** KYC document type, or null for other paperwork. */
-  doc_type: KycDocType | null;
+  doc_type: ClientDocType | null;
   expiry_date: string | null; // YYYY-MM-DD
   file_name: string;
   mime_type: string;
