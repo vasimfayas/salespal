@@ -2,6 +2,7 @@ import { Worker } from "bullmq";
 import { prisma } from "@/lib/prisma";
 import { REPORT_QUEUE, redisConnection } from "@/lib/report-queue";
 import { buildCompanyReportPdf } from "@/lib/report-pdf";
+import { parseFilters } from "@/lib/company-report";
 import { writeStoredFile } from "@/lib/company-documents";
 import { EMAIL_ATTEMPTS, EMAIL_QUEUE, deliverEmailJob } from "@/lib/email-queue";
 
@@ -13,8 +14,8 @@ const worker = new Worker(
     const row = await prisma.reportJob.findUnique({ where: { id: reportJobId }, include: { requestedBy: { select: { id: true, role_id: true } } } });
     if (!row) return;
     await prisma.reportJob.update({ where: { id: row.id }, data: { status: "running" } });
-    const { org, from, to } = row.params as { org: number; from: string; to: string };
-    const built = await buildCompanyReportPdf(org, from, to, { id: row.requestedBy.id, role_id: row.requestedBy.role_id });
+    const params = row.params as { org: number; from: string; to: string };
+    const built = await buildCompanyReportPdf(params.org, params.from, params.to, { id: row.requestedBy.id, role_id: row.requestedBy.role_id }, parseFilters(params));
     if (!built) throw new Error("Company not found");
     const file_path = `reports/${row.id}.pdf`;
     await writeStoredFile(file_path, built.pdf);

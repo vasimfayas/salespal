@@ -2,7 +2,7 @@ import path from "node:path";
 import { renderToBuffer } from "@react-pdf/renderer";
 import { getManagerOrgIds } from "@/lib/scoping";
 import { readDocumentFile } from "@/lib/company-documents";
-import { getCompanyReport, parseRange } from "@/lib/company-report";
+import { getCompanyReport, parseRange, type ReportFilters } from "@/lib/company-report";
 import { CompanyReportPdf, type PdfLogo } from "@/components/reports/CompanyReportPdf";
 import { isOwnerRole } from "@/lib/roles";
 
@@ -15,10 +15,10 @@ export async function canReportOn(actor: ReportActor, orgId: number) {
 }
 
 /** The company report PDF for a date range, or null when the company doesn't exist. Shared by the web route and the worker. */
-export async function buildCompanyReportPdf(orgId: number, from: string, to: string, actor: ReportActor) {
+export async function buildCompanyReportPdf(orgId: number, from: string, to: string, actor: ReportActor, filters?: ReportFilters) {
   const range = parseRange(from, to);
   if (!range) throw new Error("Invalid date range");
-  const report = await getCompanyReport(orgId, range, actor);
+  const report = await getCompanyReport(orgId, range, actor, filters);
   if (!report) return null;
 
   let logo: PdfLogo = null;
@@ -30,6 +30,6 @@ export async function buildCompanyReportPdf(orgId: number, from: string, to: str
       .catch(() => null);
   }
   const pdf = await renderToBuffer(<CompanyReportPdf report={report} logo={logo} />);
-  const fileName = `${report.org.name} report ${from} to ${to}.pdf`.replace(/[\\/:*?"<>|]+/g, "-");
+  const fileName = `${report.org.name} report ${from} to ${to}${report.filterNotes.length ? " (filtered)" : ""}.pdf`.replace(/[\\/:*?"<>|]+/g, "-");
   return { pdf, fileName };
 }

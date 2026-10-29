@@ -3,12 +3,10 @@ import { prisma } from "@/lib/prisma";
 import { revalidateTaskViews } from "@/lib/enquiry-follow-ups";
 import { APPROVAL_KEEP_MONTHS } from "@/lib/approvals";
 import { removeDocumentFile } from "@/lib/company-documents";
+import { REPORT_KEEP_DAYS } from "@/lib/report-retention";
 
 /** Closed tasks are kept this long, then removed. Their outcomes stay in the client history (client_logs). */
 const KEEP_MONTHS = 6;
-
-/** Generated report PDFs and their job rows are kept this many days. */
-const REPORT_KEEP_DAYS = 30;
 
 /**
  * Daily housekeeping: deletes tasks closed (achieved / unsuccessful) more than KEEP_MONTHS ago, and approval

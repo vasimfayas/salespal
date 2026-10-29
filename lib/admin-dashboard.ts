@@ -6,6 +6,7 @@ import { cohortFunnel, likeForLike, statusEntries } from "@/lib/pipeline-metrics
 
 import { byPerformance, getPerformance, monthPeriod } from "@/lib/performance";
 import { VOID_ORDER_STATUSES } from "@/types/order";
+import { countLostEnquiries } from "@/lib/admin-drilldown";
 /**
  * Owner dashboard aggregates. Everything is counted in Postgres and returns a few hundred bytes,
  * so results fit the Next data cache (the old load-everything queries were over its 2 MB limit).
@@ -139,6 +140,18 @@ export const getAdminTaskHealth = unstable_cache(
     return { taskCounts, taskTotal: tasks.reduce((sum, t) => sum + t._count._all, 0), clientCounts: clients };
   },
   ["admin-task-health"],
+  CACHE
+);
+
+/** Lost enquiries in the period vs the same-length previous one (lost date inside the window). */
+export const getAdminLostEnquiryCounts = unstable_cache(
+  async (orgId: number | null, start: string, end: string | null, prevStart: string, prevEnd: string) => {
+    const current = { from: new Date(start), to: end ? new Date(new Date(end).getTime() + 1) : new Date() };
+    const previous = likeForLike(current, new Date(prevStart), new Date(new Date(prevEnd).getTime() + 1));
+    const [now, before] = await Promise.all([countLostEnquiries(orgId, current), countLostEnquiries(orgId, previous)]);
+    return { now, before };
+  },
+  ["admin-lost-enquiry-counts"],
   CACHE
 );
 

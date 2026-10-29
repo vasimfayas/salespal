@@ -1,8 +1,9 @@
-import { changeLabel, COHORT_DAYS } from "@/lib/pipeline-metrics";
+import { changeLabel } from "@/lib/pipeline-metrics";
 import { getCachedAdminActivityFeed, getCachedAdminOrgs } from "@/lib/cached-queries";
 import {
   getAdminCompanyScorecards,
   getAdminKpiCounts,
+  getAdminLostEnquiryCounts,
   getAdminLeaderboard,
   getAdminLostClients,
   getAdminOnboardingTrend,
@@ -41,53 +42,8 @@ import {
   XCircle,
 } from "lucide-react";
 
-/* ─── Helper: date range calculation ─── */
-type PeriodKey = "this_month" | "last_month" | "quarter";
-
-export function getPeriodRange(period: PeriodKey) {
-  const now = new Date();
-  let start: Date;
-  let end: Date | undefined;
-
-  if (period === "last_month") {
-    start = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-    end = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999);
-  } else if (period === "quarter") {
-    const quarter = Math.floor(now.getMonth() / 3);
-    start = new Date(now.getFullYear(), quarter * 3, 1);
-    end = undefined; // until now
-  } else {
-    start = new Date(now.getFullYear(), now.getMonth(), 1);
-    end = undefined;
-  }
-  return { start, end };
-}
-
-function getPreviousPeriodRange(period: PeriodKey) {
-  const now = new Date();
-  if (period === "last_month") {
-    const start = new Date(now.getFullYear(), now.getMonth() - 2, 1);
-    const end = new Date(
-      now.getFullYear(),
-      now.getMonth() - 1,
-      0,
-      23,
-      59,
-      59,
-      999,
-    );
-    return { start, end };
-  } else if (period === "quarter") {
-    const quarter = Math.floor(now.getMonth() / 3);
-    const start = new Date(now.getFullYear(), (quarter - 1) * 3, 1);
-    const end = new Date(now.getFullYear(), quarter * 3, 0, 23, 59, 59, 999);
-    return { start, end };
-  } else {
-    const start = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-    const end = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999);
-    return { start, end };
-  }
-}
+import { getPeriodRange, getPreviousPeriodRange, type PeriodKey } from "@/lib/dashboard-period";
+export { getPeriodRange };
 
 /* ─── Delta badge component ─── */
 function DeltaBadge({
@@ -143,20 +99,23 @@ export async function KpiCardsRow({
   const { start, end } = getPeriodRange(period);
   const { start: prevStart, end: prevEnd } = getPreviousPeriodRange(period);
 
+  const args = [orgId ?? null, start.toISOString(), end?.toISOString() ?? null, prevStart.toISOString(), prevEnd.toISOString()] as const;
+  const [kpis, lostEnq] = await Promise.all([getAdminKpiCounts(...args), getAdminLostEnquiryCounts(...args)]);
   const {
     counts,
     onboardedThis: onboardedThisPeriod,
     onboardedPrev: onboardedPrevPeriod,
     lostThis: lostThisPeriod,
     lostPrev: lostPrevPeriod,
-    funnel,
-  } = await getAdminKpiCounts(orgId ?? null, start.toISOString(), end?.toISOString() ?? null, prevStart.toISOString(), prevEnd.toISOString());
+  } = kpis;
 
   const onboardedClients = counts.onboarded ?? 0;
   const activePipeline = (counts.follow_up ?? 0) + (counts.lead ?? 0);
   // Same-length previous period (lib/pipeline-metrics.ts likeForLike); % only once the base is big enough.
   const onboarded = changeLabel(onboardedThisPeriod, onboardedPrevPeriod);
   const lost = changeLabel(lostThisPeriod, lostPrevPeriod);
+  const lostEnquiry = changeLabel(lostEnq.now, lostEnq.before);
+  const drill = (kind: string) => `/dashboard/admin/overview/${kind}?period=${period}${orgId ? `&org=${orgId}` : ""}`;
 
   return (
     <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
@@ -168,6 +127,7 @@ export async function KpiCardsRow({
         badgeDirection={onboarded.diff > 0 ? "up" : onboarded.diff < 0 ? "down" : "flat"}
         caption={<>{onboardedClients} onboarded now · {onboardedPrevPeriod} in the same days before</>}
         theme={{ bg: "bg-primary" }}
+        href={drill("onboarded")}
       />
       <StatCard
         icon={Users}
@@ -175,18 +135,18 @@ export async function KpiCardsRow({
         value={activePipeline}
         caption={<>Leads + follow-ups</>}
         theme={{ bg: "bg-info" }}
+        href={drill("pipeline")}
       />
       <StatCard
         icon={BarChart3}
-        label="Conversion Rate"
-        value={funnel.rate === null ? "—" : `${funnel.rate}%`}
-        caption={
-          <>
-            {funnel.onboarded} of {funnel.added} clients added in the last {COHORT_DAYS} days onboarded
-            {funnel.medianDays !== null ? ` · median ${funnel.medianDays} days` : ""}
-          </>
-        }
-        theme={{ bg: "bg-primary" }}
+        label="Lost Enquiries"
+        value={lostEnq.now}
+        badgeLabel={lostEnquiry.label}
+        badgeDirection={lostEnquiry.diff > 0 ? "up" : lostEnquiry.diff < 0 ? "down" : "flat"}
+        goodWhen="down"
+        caption={<>{lostEnq.before} in the same days before</>}
+        theme={{ bg: "bg-warning" }}
+        href={drill("lost-enquiries")}
       />
       <StatCard
         icon={XCircle}
@@ -197,6 +157,7 @@ export async function KpiCardsRow({
         goodWhen="down"
         caption={<>{lostPrevPeriod} in the same days before</>}
         theme={{ bg: "bg-primary" }}
+        href={drill("lost-clients")}
       />
     </div>
   );

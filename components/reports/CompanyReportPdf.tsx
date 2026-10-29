@@ -36,6 +36,7 @@ export function CompanyReportPdf({ report: r, logo }: { report: CompanyReport; l
   const reasonMax = Math.max(...t.reasons.map((x) => x.count), 1);
   const ref = (id: number | null) => (id ? enquiryRef(id, r.org.prefix) : "—");
   const range = `${date(r.from)} – ${date(r.to)}`;
+  const shown = r.filters.parts;
 
   return (
     <Document title={`${r.org.name} — report ${range}`} author="SalesPal" subject="Company performance report">
@@ -58,6 +59,7 @@ export function CompanyReportPdf({ report: r, logo }: { report: CompanyReport; l
             <Text style={s.eyebrow}>Company report · Overall summary</Text>
             <Text style={s.heroTitle}>{r.org.name}</Text>
             <Text style={s.heroSub}>{range}</Text>
+            {r.filterNotes.length > 0 && <Text style={[s.heroSub, { marginTop: 3 }]}>Filtered · {r.filterNotes.join(" · ")}</Text>}
           </View>
         </View>
 
@@ -181,7 +183,8 @@ export function CompanyReportPdf({ report: r, logo }: { report: CompanyReport; l
 
       {/* 3+ · Details */}
       <Page size="A4" orientation="landscape" style={s.page}>
-        <Section title="Orders" note={`${int(t.orders)} counted · ${money(t.orderValue)} · prov. profit ${money(t.profit)}`}>
+        {shown.includes("orders") && (
+        <Section breakBefore={shown.indexOf("orders") > 0} title="Orders" note={`${int(t.orders)} counted · ${money(t.orderValue)} · prov. profit ${money(t.profit)}`}>
           <Table
             empty="No orders in this period"
             rows={r.details.orders.rows}
@@ -200,8 +203,9 @@ export function CompanyReportPdf({ report: r, logo }: { report: CompanyReport; l
           />
           <Cut show={r.details.orders.truncated} />
         </Section>
-
-        <Section title="Enquiries" note={`${int(t.enquiries)} raised · ${int(t.confirmed)} confirmed`} breakBefore>
+        )}
+        {shown.includes("enquiries") && (
+        <Section breakBefore={shown.indexOf("enquiries") > 0} title="Enquiries" note={`${int(t.enquiries)} raised · ${int(t.confirmed)} confirmed`}>
           <Table
             empty="No enquiries in this period"
             rows={r.details.enquiries.rows}
@@ -218,8 +222,28 @@ export function CompanyReportPdf({ report: r, logo }: { report: CompanyReport; l
           />
           <Cut show={r.details.enquiries.truncated} />
         </Section>
-
-        <Section title="Lost enquiries & orders" note={`${int(t.lost)} lost · ${money(t.lostValue)} quoted value`} breakBefore>
+        )}
+        {shown.includes("confirmed") && (
+        <Section breakBefore={shown.indexOf("confirmed") > 0} title="Confirmed enquiries" note={`${int(t.confirmed)} confirmed of ${int(t.enquiries)} raised`}>
+          <Table
+            empty="No confirmed enquiries in this period"
+            rows={r.details.confirmed.rows}
+            cols={[
+              { label: "Enquiry", width: "11%", strong: true, render: (x) => ref(x.id) },
+              { label: "Date", width: "9%", render: (x) => date(x.enquiry_date) },
+              { label: "Client", width: "18%", render: (x) => x.client },
+              { label: "Staff", width: "13%", render: (x) => x.by },
+              { label: "Route", width: "20%", render: (x) => `${title(x.mode)} · ${x.from} › ${x.to}` },
+              { label: "Stage", width: "11%", render: (x) => enquiryStatusLabels[x.status as EnquiryStatus] ?? title(x.status) },
+              { label: "Quoted", width: "9%", align: "right", render: (x) => (x.quoted === null ? "—" : money(x.quoted)) },
+              { label: "Prov. profit", width: "9%", align: "right", render: (x) => (x.profit === null ? "—" : money(x.profit)) },
+            ]}
+          />
+          <Cut show={r.details.confirmed.truncated} />
+        </Section>
+        )}
+        {shown.includes("lost") && (
+        <Section breakBefore={shown.indexOf("lost") > 0} title="Lost enquiries & orders" note={`${int(t.lost)} lost · ${money(t.lostValue)} quoted value`}>
           <Table
             empty="Nothing was lost in this period"
             rows={r.details.lost.rows}
@@ -236,6 +260,7 @@ export function CompanyReportPdf({ report: r, logo }: { report: CompanyReport; l
           />
           <Cut show={r.details.lost.truncated} />
         </Section>
+        )}
         <Footer r={r} />
       </Page>
     </Document>

@@ -174,9 +174,9 @@
     "semantic_hash": ""
   },
   "app/api/enquiries/[id]/send-to-agent/route.ts": {
-    "mtime": 1793259069.7250862,
-    "seen": 1793259277.445353,
-    "ast_hash": "6573eee83a264348c8c5a99139aa1128",
+    "mtime": 1793261593.3643801,
+    "seen": 1793261823.888322,
+    "ast_hash": "3089367d42ab7c8665644e2b5aca5243",
     "semantic_hash": ""
   },
   "app/api/enquiries/[id]/signature/route.ts": {
@@ -204,9 +204,9 @@
     "semantic_hash": ""
   },
   "app/api/enquiries/send-to-client/route.ts": {
-    "mtime": 1793259439.671101,
-    "seen": 1793259497.497683,
-    "ast_hash": "c1a073866946b9b22f46ed89ce87f62e",
+    "mtime": 1793261593.364741,
+    "seen": 1793261823.888435,
+    "ast_hash": "f3bbeafb6f9a9c840c22ca392312f4ce",
     "semantic_hash": ""
   },
   "app/api/enquiry-form/[token]/route.ts": {
@@ -1218,16 +1218,16 @@
     "semantic_hash": ""
   },
   "components/enquiries/SendToAgentDialog.tsx": {
-    "mtime": 1793259439.6719797,
-    "seen": 1793259497.50281,
-    "ast_hash": "b5f450855e854acaeb9de727154e7669",
+    "mtime": 1793261773.1783721,
+    "seen": 1793261823.893777,
+    "ast_hash": "6cc19982034c55c46c4e7041f5bc80f4",
     "semantic_hash": ""
   },
   "components/enquiries/SendToClientDialog.tsx": {
-    "mtime": 1791638305.1404963,
-    "seen": 1791876939.630362,
-    "ast_hash": "2ed3dac277e3466f716a78c319ceb97e",
-    "semantic_hash": "2ed3dac277e3466f716a78c319ceb97e"
+    "mtime": 1793261648.7302723,
+    "seen": 1793261823.8937778,
+    "ast_hash": "724855dd9ab1d9dd521ff4f834469389",
+    "semantic_hash": ""
   },
   "components/enquiries/SignaturePad.tsx": {
     "mtime": 1791637851.3202362,
@@ -1752,15 +1752,15 @@
     "semantic_hash": ""
   },
   "lib/enquiry-agent.ts": {
-    "mtime": 1793259439.6705725,
-    "seen": 1793259497.505171,
-    "ast_hash": "c5af5fb8d8d10e8efc1a00e2b4850486",
+    "mtime": 1793261593.363781,
+    "seen": 1793261823.895991,
+    "ast_hash": "3a55d574126a4383eb15daf1bf7d9b4c",
     "semantic_hash": ""
   },
   "lib/enquiry-client-form.ts": {
-    "mtime": 1793259439.6709073,
-    "seen": 1793259497.505172,
-    "ast_hash": "390963d840a8b0434cfa5f8e4e66fab2",
+    "mtime": 1793261593.364078,
+    "seen": 1793261823.895992,
+    "ast_hash": "2ed639d406fe43ace5d03d1b6bd04541",
     "semantic_hash": ""
   },
   "lib/enquiry-fields.ts": {
@@ -2268,9 +2268,9 @@
     "semantic_hash": ""
   },
   ".worker/index.mjs": {
-    "mtime": 1792057877.0465279,
-    "seen": 1793256277.460298,
-    "ast_hash": "c62d2b99d8cd3702a87368c69e2cab41",
+    "mtime": 1793261700.5477772,
+    "seen": 1793261823.887446,
+    "ast_hash": "b128de2dcd951714078bcb4ba83cecc7",
     "semantic_hash": ""
   },
   "app/api/reports/jobs/[id]/file/route.ts": {
@@ -2298,9 +2298,9 @@
     "semantic_hash": ""
   },
   "worker/index.mts": {
-    "mtime": 1792055979.6640155,
-    "seen": 1792056268.529479,
-    "ast_hash": "00f780381bd553bd3b6bad120526b7d4",
+    "mtime": 1793261593.3917046,
+    "seen": 1793261823.897152,
+    "ast_hash": "87aede9c30589b22d372b39c46c88a74",
     "semantic_hash": ""
   },
   "app/api/calendar/route.ts": {
@@ -2418,9 +2418,9 @@
     "semantic_hash": ""
   },
   "docs/ARCHITECTURE.md": {
-    "mtime": 1793259491.3029876,
-    "seen": 1793259497.50651,
-    "ast_hash": "389c090f4aa950d4f1be63a316401302",
+    "mtime": 1793261817.1572568,
+    "seen": 1793261823.897276,
+    "ast_hash": "af9b1901fb0d11fab157a33299fd2266",
     "semantic_hash": ""
   },
   "docs/bugs/BUGS.md": {
@@ -2535,6 +2535,24 @@
     "mtime": 1793259439.6703765,
     "seen": 1793259497.505118,
     "ast_hash": "050b20f4b933a74d46d5d4262bd0d9f2",
+    "semantic_hash": ""
+  },
+  "app/api/email-jobs/route.ts": {
+    "mtime": 1793261593.372485,
+    "seen": 1793261823.8882072,
+    "ast_hash": "b5959c4a0cb9ddd0a7cb122c9d292dd5",
+    "semantic_hash": ""
+  },
+  "hooks/useEmailJobs.ts": {
+    "mtime": 1793261643.204852,
+    "seen": 1793261823.895232,
+    "ast_hash": "30058843ed4eb575c4fb0c5e666c8a3c",
+    "semantic_hash": ""
+  },
+  "lib/email-queue.ts": {
+    "mtime": 1793261593.3451738,
+    "seen": 1793261823.8959281,
+    "ast_hash": "9429008c756a3c146d8c82651608cc07",
     "semantic_hash": ""
   }
 }

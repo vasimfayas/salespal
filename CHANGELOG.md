@@ -2,6 +2,24 @@
 
 Newest first. Types: Added, Changed, Fixed. Tag each release `vX.Y.Z` (fix = patch, feature = minor, breaking = major).
 
+## 1.8.0 - 2026-10-29
+
+### Added
+- Reports: filter a company report by staff (one or several), mode, From country, To country, and choose which detail tables to include (Orders, All enquiries, Confirmed enquiries, Lost enquiries & orders). A filtered PDF says what it was narrowed to; the recent list shows the filters.
+- Reports: a Delete button on finished and failed reports (removes the PDF).
+- Reports: each finished report shows "Deleted in N days" (reports are kept 30 days by the daily cleanup).
+- Overview: Onboarded, Active Pipeline, Lost Clients and the new Lost Enquiries tiles open a list of the records behind the number, with 20 / 50 rows per page.
+
+### Changed
+- Overview: the Conversion Rate tile is now Lost Enquiries (this period vs the same days before).
+- Reports page: removed the Top performer, Team order value and New clients tiles.
+
+### Fixed
+- Phone: the bottom tab bar no longer clips its icons and labels on iPhones (the safe area is now added to its height).
+
+### Deploy note
+- No database changes. The worker builds the report PDFs, so it must be redeployed with the web app (Auto Deploy does both).
+
 ## 1.7.0 - 2026-10-29
 
 ### Added

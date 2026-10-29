@@ -3,6 +3,9 @@ import { prisma } from "@/lib/prisma";
 import { getManagerSalesmanIds, getManagerSalesmanIdsForOrg } from "@/lib/scoping";
 import { getTargetAchievements, parseDateOnly, targetState, todayUtc } from "@/lib/salesman-targets";
 import { isLostReason, lostReasonLabels, lostReasons } from "@/types/enquiry";
+import { placeCountry } from "@/lib/agents";
+import { reportParts, type ReportPart } from "@/lib/report-parts";
+import { getLocations } from "@/lib/locations-db";
 import { VOID_ORDER_STATUSES } from "@/types/order";
 
 /**
@@ -28,16 +31,64 @@ export function parseRange(fromValue: unknown, toValue: unknown) {
   return { from, to, end: new Date(to.getTime() + 86_400_000) };
 }
 
+export { reportParts, reportPartLabels, type ReportPart } from "@/lib/report-parts";
+const DEFAULT_PARTS: ReportPart[] = ["orders", "enquiries", "lost"];
+
+/** Narrowing for a report; the defaults (everyone, every mode and country, the three usual tables) are the unfiltered report. */
+export type ReportFilters = { staff: number[]; mode: string | null; fromCountry: string | null; toCountry: string | null; parts: ReportPart[] };
+
+const text = (v: unknown) => (typeof v === "string" && v.trim() ? v.trim().slice(0, 80) : null);
+
+/** Filters from a request body or a stored job's params; anything unrecognised falls back to "no filter". */
+export function parseFilters(body: Record<string, unknown>): ReportFilters {
+  const staff = Array.isArray(body.staff) ? [...new Set(body.staff.map(Number).filter((x) => Number.isInteger(x) && x > 0))].slice(0, 200) : [];
+  const parts = reportParts.filter((x) => Array.isArray(body.parts) && body.parts.includes(x));
+  return {
+    staff,
+    mode: ["sea", "air", "land"].includes(body.mode as string) ? (body.mode as string) : null,
+    fromCountry: text(body.from_country),
+    toCountry: text(body.to_country),
+    parts: parts.length ? parts : DEFAULT_PARTS,
+  };
+}
+
+/** The filters as stored in the job's params (only what differs from the default). */
+export function filterParams(f: ReportFilters) {
+  return {
+    ...(f.staff.length ? { staff: f.staff } : {}),
+    ...(f.mode ? { mode: f.mode } : {}),
+    ...(f.fromCountry ? { from_country: f.fromCountry } : {}),
+    ...(f.toCountry ? { to_country: f.toCountry } : {}),
+    parts: f.parts,
+  };
+}
+
+/** Every distinct From / To text this company's enquiries and orders use that belongs to `country`, per the locations list. */
+async function placesIn(country: string, orgId: number) {
+  const [rows, places] = await Promise.all([
+    prisma.$queryRaw<{ v: string }[]>(Prisma.sql`
+      SELECT "from" AS v FROM enquiries WHERE org_id = ${orgId} UNION SELECT "to" FROM enquiries WHERE org_id = ${orgId}
+      UNION SELECT "from" FROM orders WHERE org_id = ${orgId} UNION SELECT "to" FROM orders WHERE org_id = ${orgId}`),
+    getLocations(),
+  ]);
+  const want = country.toLowerCase();
+  return rows.map((r) => r.v).filter((v) => placeCountry(v, places) === want);
+}
+
 export type CompanyReport = NonNullable<Awaited<ReturnType<typeof getCompanyReport>>>;
 
-export async function getCompanyReport(orgId: number, range: NonNullable<ReturnType<typeof parseRange>>, viewer: { id: number; role_id: number }) {
+export async function getCompanyReport(orgId: number, range: NonNullable<ReturnType<typeof parseRange>>, viewer: { id: number; role_id: number }, f: ReportFilters = parseFilters({})) {
   const { from, end } = range;
   // Compare as plain dates: date columns vs. JS Date params would be shifted by the DB session time zone.
   const day = (d: Date) => Prisma.sql`${d.toISOString().slice(0, 10)}::date`;
   const [S, E] = [day(from), day(end)];
   const voided = Prisma.join([...VOID_ORDER_STATUSES]);
+  const [fromPlaces, toPlaces] = await Promise.all([f.fromCountry ? placesIn(f.fromCountry, orgId) : null, f.toCountry ? placesIn(f.toCountry, orgId) : null]);
+  const inList = (col: string, list: string[] | null) => (list ? (list.length ? Prisma.sql`AND ${Prisma.raw(col)} IN (${Prisma.join(list)})` : Prisma.sql`AND FALSE`) : Prisma.empty);
+  /** The report's staff / mode / country filters for rows aliased `a` (orders or enquiries). */
+  const fo = (a: "o" | "e") => Prisma.sql`${f.staff.length ? Prisma.sql`AND ${Prisma.raw(a)}.created_by_id IN (${Prisma.join(f.staff)})` : Prisma.empty} ${f.mode ? Prisma.sql`AND ${Prisma.raw(a)}.mode = ${f.mode}` : Prisma.empty} ${inList(`${a}."from"`, fromPlaces)} ${inList(`${a}."to"`, toPlaces)}`;
 
-  const [org, orderAgg, actualAgg, enquiryAgg, lostAgg, orders, enquiries, lostItems, sellers] = await Promise.all([
+  const [org, orderAgg, actualAgg, enquiryAgg, lostAgg, orders, enquiries, lostItems, sellers, confirmedItems] = await Promise.all([
     prisma.organization.findUnique({ where: { id: orgId }, select: { name: true, prefix: true, logo_path: true, address: true, phone: true, email: true } }),
 
     prisma.$queryRaw<{ by: number; count: Num; value: Num; profit: Num; voided: Num }[]>(Prisma.sql`
@@ -47,7 +98,7 @@ export async function getCompanyReport(orgId: number, range: NonNullable<ReturnT
              COALESCE(SUM(e.provisional_profit) FILTER (WHERE o.status NOT IN (${voided})), 0)::float8 AS profit,
              COUNT(*) FILTER (WHERE o.status IN (${voided}))::int AS voided
       FROM orders o LEFT JOIN enquiries e ON e.id = o.enquiry_id
-      WHERE o.org_id = ${orgId} AND o.created_at >= ${S} AND o.created_at < ${E}
+      WHERE o.org_id = ${orgId} AND o.created_at >= ${S} AND o.created_at < ${E} ${fo("o")}
       GROUP BY 1`),
 
     prisma.$queryRaw<{ by: number; count: Num; cost: Num; profit: Num }[]>(Prisma.sql`
@@ -55,7 +106,7 @@ export async function getCompanyReport(orgId: number, range: NonNullable<ReturnT
              COALESCE(SUM(e.actual_cost), 0)::float8 AS cost, COALESCE(SUM(e.actual_profit), 0)::float8 AS profit
       FROM orders o JOIN enquiries e ON e.id = o.enquiry_id
       WHERE o.org_id = ${orgId} AND o.status NOT IN (${voided}) AND e.actual_profit IS NOT NULL
-        AND o.invoice_date >= ${S} AND o.invoice_date < ${E}
+        AND o.invoice_date >= ${S} AND o.invoice_date < ${E} ${fo("o")}
       GROUP BY 1`),
 
     prisma.$queryRaw<{ by: number; total: Num; confirmed: Num; lost: Num; quoted: Num }[]>(Prisma.sql`
@@ -64,7 +115,7 @@ export async function getCompanyReport(orgId: number, range: NonNullable<ReturnT
              COUNT(*) FILTER (WHERE e.status = 'lost')::int AS lost,
              COALESCE(SUM(e.provisional_cost + e.provisional_profit), 0)::float8 AS quoted
       FROM enquiries e
-      WHERE e.org_id = ${orgId} AND e.enquiry_date >= ${S} AND e.enquiry_date < ${E}
+      WHERE e.org_id = ${orgId} AND e.enquiry_date >= ${S} AND e.enquiry_date < ${E} ${fo("e")}
       GROUP BY 1`),
 
     // A lost enquiry whose order was cancelled counts as a lost order.
@@ -73,7 +124,7 @@ export async function getCompanyReport(orgId: number, range: NonNullable<ReturnT
              EXISTS (SELECT 1 FROM orders o WHERE o.origin_enquiry_id = e.id AND o.status = 'cancelled') AS is_order,
              COUNT(*)::int AS count, COALESCE(SUM(e.provisional_cost + e.provisional_profit), 0)::float8 AS value
       FROM enquiries e
-      WHERE e.org_id = ${orgId} AND e.status = 'lost' AND e.cancelled_at >= ${S} AND e.cancelled_at < ${E}
+      WHERE e.org_id = ${orgId} AND e.status = 'lost' AND e.cancelled_at >= ${S} AND e.cancelled_at < ${E} ${fo("e")}
       GROUP BY 1, 2, 3`),
 
     prisma.$queryRaw<{ id: number; job_no: string | null; enquiry_id: number | null; created_at: Date; client: string; by: string; mode: string; from: string; to: string; status: string; amount: Num; profit: Num; actual_profit: Num }[]>(Prisma.sql`
@@ -84,7 +135,7 @@ export async function getCompanyReport(orgId: number, range: NonNullable<ReturnT
       JOIN clients c ON c.id = o.client_id
       JOIN users u ON u.id = o.created_by_id
       LEFT JOIN enquiries e ON e.id = o.enquiry_id
-      WHERE o.org_id = ${orgId} AND o.created_at >= ${S} AND o.created_at < ${E}
+      WHERE o.org_id = ${orgId} AND o.created_at >= ${S} AND o.created_at < ${E} ${fo("o")}
       ORDER BY o.created_at, o.id LIMIT ${DETAIL_LIMIT + 1}`),
 
     prisma.$queryRaw<{ id: number; enquiry_date: Date; client: string; by: string; mode: string; from: string; to: string; status: string; quoted: Num; profit: Num }[]>(Prisma.sql`
@@ -93,7 +144,7 @@ export async function getCompanyReport(orgId: number, range: NonNullable<ReturnT
       FROM enquiries e
       JOIN clients c ON c.id = e.client_id
       JOIN users u ON u.id = e.created_by_id
-      WHERE e.org_id = ${orgId} AND e.enquiry_date >= ${S} AND e.enquiry_date < ${E}
+      WHERE e.org_id = ${orgId} AND e.enquiry_date >= ${S} AND e.enquiry_date < ${E} ${fo("e")}
       ORDER BY e.enquiry_date, e.id LIMIT ${DETAIL_LIMIT + 1}`),
 
     prisma.$queryRaw<{ id: number; client: string; by: string; from: string; to: string; reason: string | null; text: string | null; is_order: boolean; lost_at: Date; value: Num }[]>(Prisma.sql`
@@ -103,15 +154,25 @@ export async function getCompanyReport(orgId: number, range: NonNullable<ReturnT
       FROM enquiries e
       JOIN clients c ON c.id = e.client_id
       JOIN users u ON u.id = e.created_by_id
-      WHERE e.org_id = ${orgId} AND e.status = 'lost' AND e.cancelled_at >= ${S} AND e.cancelled_at < ${E}
+      WHERE e.org_id = ${orgId} AND e.status = 'lost' AND e.cancelled_at >= ${S} AND e.cancelled_at < ${E} ${fo("e")}
       ORDER BY e.cancelled_at, e.id LIMIT ${DETAIL_LIMIT + 1}`),
 
     prisma.managerSalesman.findMany({ where: { org_id: orgId }, select: { salesman_id: true }, distinct: ["salesman_id"] }),
+
+    prisma.$queryRaw<{ id: number; enquiry_date: Date; client: string; by: string; mode: string; from: string; to: string; status: string; quoted: Num; profit: Num }[]>(Prisma.sql`
+      SELECT e.id, e.enquiry_date, c.name AS client, u.name AS by, e.mode, e."from", e."to", e.status,
+             (e.provisional_cost + e.provisional_profit)::float8 AS quoted, e.provisional_profit::float8 AS profit
+      FROM enquiries e
+      JOIN clients c ON c.id = e.client_id
+      JOIN users u ON u.id = e.created_by_id
+      WHERE e.org_id = ${orgId} AND e.status = 'confirmed' AND e.enquiry_date >= ${S} AND e.enquiry_date < ${E} ${fo("e")}
+      ORDER BY e.enquiry_date, e.id LIMIT ${DETAIL_LIMIT + 1}`),
   ]);
   if (!org) return null;
 
   /* Staff: the company's salesmen plus anyone who sold for it in the range; a manager sees only their team. */
   let staffIds = [...new Set([...sellers.map((x) => x.salesman_id), ...orderAgg.map((r) => r.by), ...actualAgg.map((r) => r.by), ...enquiryAgg.map((r) => r.by), ...lostAgg.map((r) => r.by)])];
+  if (f.staff.length) staffIds = staffIds.filter((id) => f.staff.includes(id));
   if (viewer.role_id === 2) {
     const team = new Set([...(await getManagerSalesmanIdsForOrg(viewer.id, orgId)), ...(await getManagerSalesmanIds(viewer.id))]);
     staffIds = staffIds.filter((id) => team.has(id));
@@ -202,8 +263,17 @@ export async function getCompanyReport(orgId: number, range: NonNullable<ReturnT
       lostValue: sum(lostAgg, (r) => r.value),
       reasons,
     },
+    filters: f,
+    // What the report was narrowed to, in words (shown under the title); empty for an unfiltered report.
+    filterNotes: [
+      f.staff.length ? `Staff: ${users.filter((u) => f.staff.includes(u.id)).map((u) => u.name).join(", ") || "none found"}` : null,
+      f.mode ? `Mode: ${f.mode}` : null,
+      f.fromCountry ? `From: ${f.fromCountry}` : null,
+      f.toCountry ? `To: ${f.toCountry}` : null,
+    ].filter((x): x is string => !!x),
     staff,
     details: {
+      confirmed: cut(confirmedItems.map((r) => ({ ...r, quoted: r.quoted === null ? null : n(r.quoted), profit: r.profit === null ? null : n(r.profit) }))),
       orders: cut(
         orders.map((r) => ({ ...r, amount: n(r.amount), profit: r.profit === null ? null : n(r.profit), actual_profit: r.actual_profit === null ? null : n(r.actual_profit) })),
       ),
@@ -211,4 +281,19 @@ export async function getCompanyReport(orgId: number, range: NonNullable<ReturnT
       lost: cut(lostItems.map((r) => ({ ...r, value: r.value === null ? null : n(r.value) }))),
     },
   };
+}
+
+/** People the staff filter offers: the salesmen working for each company (a manager's own team only), with the companies they work for. */
+export async function getReportStaff(viewer: { id: number; role_id: number }, orgIds: number[]) {
+  const links = await prisma.managerSalesman.findMany({
+    where: { org_id: { in: orgIds }, ...(viewer.role_id === 2 ? { manager_id: viewer.id } : {}) },
+    select: { org_id: true, salesman: { select: { id: true, name: true } } },
+  });
+  const byId = new Map<number, { id: number; name: string; orgIds: number[] }>();
+  for (const l of links) {
+    const row = byId.get(l.salesman.id) ?? { id: l.salesman.id, name: l.salesman.name, orgIds: [] };
+    if (!row.orgIds.includes(l.org_id)) row.orgIds.push(l.org_id);
+    byId.set(l.salesman.id, row);
+  }
+  return [...byId.values()].sort((a, b) => a.name.localeCompare(b.name));
 }

@@ -182,7 +182,7 @@ export function MobileTabBar() {
   return (
     <nav
       aria-label="Quick navigation"
-      className="fixed inset-x-0 bottom-0 z-40 flex h-16 items-stretch justify-around border-t border-border bg-card/95 px-1 pb-[env(safe-area-inset-bottom)] backdrop-blur-md md:hidden"
+      className="fixed inset-x-0 bottom-0 z-40 flex h-[calc(4rem+env(safe-area-inset-bottom))] items-stretch justify-around border-t border-border bg-card/95 px-1 pb-[env(safe-area-inset-bottom)] backdrop-blur-md md:hidden"
     >
       {tabBarItems(roleId).map((item) => {
         const active = isNavActive(item.href, activePath, roleId);

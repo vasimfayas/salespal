@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSalesPalSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { parseRange } from "@/lib/company-report";
+import { filterParams, parseFilters, parseRange } from "@/lib/company-report";
 import { canReportOn } from "@/lib/report-pdf";
 import { reportQueue } from "@/lib/report-queue";
 import { isOwnerRole } from "@/lib/roles";
@@ -28,7 +28,7 @@ export async function GET() {
   return NextResponse.json({ jobs: withQueue, typical_seconds });
 }
 
-/** Queue a company report: { org, from, to }. The worker builds it; poll GET for the status. */
+/** Queue a company report: { org, from, to, staff?, mode?, from_country?, to_country?, parts? }. The worker builds it; poll GET for the status. */
 export async function POST(request: Request) {
   const session = await getSalesPalSession();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -41,7 +41,7 @@ export async function POST(request: Request) {
   if (!parseRange(body.from, body.to)) return NextResponse.json({ error: "Pick a valid date range (from must be on or before to)" }, { status: 400 });
   if (!(await canReportOn(actor, org))) return NextResponse.json({ error: "Company not found" }, { status: 404 });
 
-  const job = await prisma.reportJob.create({ data: { type: "company", params: { org, from: body.from, to: body.to }, requested_by: actor.id }, select });
+  const job = await prisma.reportJob.create({ data: { type: "company", params: { org, from: body.from, to: body.to, ...filterParams(parseFilters(body)) }, requested_by: actor.id }, select });
   await reportQueue().add("company", { reportJobId: job.id });
   return NextResponse.json({ job }, { status: 202 });
 }

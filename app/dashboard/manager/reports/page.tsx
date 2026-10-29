@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { getSalesPalSession } from "@/lib/auth";
 import { getManagerOrgIds } from "@/lib/scoping";
 import { PageHeader } from "@/components/layout/PageHeader";
+import { getReportStaff } from "@/lib/company-report";
 import { CompanyReportForm } from "@/components/reports/CompanyReportForm";
 
 /** Company report for the manager's companies. */
@@ -14,10 +15,11 @@ export default async function ManagerReportsPage() {
     select: { id: true, name: true },
     orderBy: { name: "asc" },
   });
+  const staff = await getReportStaff({ id: session.user.id, role_id: 2 }, companies.map((c) => c.id));
   return (
     <>
       <PageHeader title="Reports" subtitle="Company performance for any date range." />
-      <CompanyReportForm companies={companies} />
+      <CompanyReportForm companies={companies} staff={staff} />
     </>
   );
 }

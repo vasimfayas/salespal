@@ -1,4 +1,5 @@
-import { TrendingUp, TrendingDown, Minus, type LucideIcon } from "lucide-react";
+import Link from "next/link";
+import { ArrowUpRight, TrendingUp, TrendingDown, Minus, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export interface StatCardTheme {
@@ -31,6 +32,7 @@ export function StatCard({
   caption,
   theme,
   goodWhen = "up",
+  href,
 }: {
   icon: LucideIcon;
   label: string;
@@ -45,16 +47,19 @@ export function StatCard({
   theme: StatCardTheme;
   /** Which way is good news: "down" for lost clients, overdue tasks… (colours the pill). */
   goodWhen?: "up" | "down";
+  /** Makes the whole card a link, to the list of records behind the figure. */
+  href?: string;
 }) {
   const TrendIcon = badgeDirection === "up" ? TrendingUp : badgeDirection === "down" ? TrendingDown : Minus;
 
-  return (
-    <div className="@container flex h-full min-w-0 flex-col rounded-card border border-border bg-card p-4 text-left shadow-card sm:p-5">
+  const body = (
+    <>
       <div className="flex items-start gap-2.5">
         <span className={cn("flex size-8 shrink-0 items-center justify-center rounded-[10px]", chip[theme.bg] ?? chip["bg-primary"])}>
           <Icon size={16} strokeWidth={2.25} aria-hidden />
         </span>
         <span className="line-clamp-2 pt-1.5 text-sm font-medium leading-snug text-muted-foreground">{label}</span>
+        {href && <ArrowUpRight size={16} className="ml-auto mt-1.5 shrink-0 text-muted-foreground transition-colors group-hover:text-primary" aria-hidden />}
       </div>
 
       <div className="mt-4 flex flex-wrap items-end justify-between gap-2">
@@ -76,6 +81,14 @@ export function StatCard({
       </div>
 
       {caption && <div className="mt-4 border-t border-border pt-3 text-xs text-muted-foreground">{caption}</div>}
-    </div>
+    </>
+  );
+  const box = "@container flex h-full min-w-0 flex-col rounded-card border border-border bg-card p-4 text-left shadow-card sm:p-5";
+  return href ? (
+    <Link href={href} aria-label={`${label}: see the list`} className={cn(box, "group transition-colors hover:border-primary/40 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring")}>
+      {body}
+    </Link>
+  ) : (
+    <div className={box}>{body}</div>
   );
 }

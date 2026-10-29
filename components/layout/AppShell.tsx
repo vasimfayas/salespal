@@ -35,7 +35,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
           <Topbar />
           <main id="main-content" className="flex-1 overflow-auto">
-            <div className="mx-auto w-full max-w-7xl px-4 pb-24 pt-6 sm:px-6 md:pb-10 lg:px-8">
+            <div className="mx-auto w-full max-w-7xl px-4 pb-[calc(6rem+env(safe-area-inset-bottom))] pt-6 sm:px-6 md:pb-10 lg:px-8">
               <DashboardContentWrapper>{children}</DashboardContentWrapper>
             </div>
           </main>

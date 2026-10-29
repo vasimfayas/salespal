@@ -327,7 +327,7 @@ Indexes: salesman, org, (org, status), (salesman, status), status, category, cre
 
 **ApprovalAction** [`approval_actions`]: the log: `request_id`, `step` (-1 = submitted), `action` (`submitted, approved, rejected, cancelled`), `comment?`, `actor_id`.
 
-**ReportJob** [`report_jobs`]: `type`, `params` (Json), `requested_by`, `status` (`queued, running, done, failed`), `file_path?`, `file_name?`, `error?`, `finished_at?`. PDFs kept 30 days.
+**ReportJob** [`report_jobs`]: `type`, `params` (Json: `org, from, to` plus optional filters `staff[], mode, from_country, to_country, parts[]`, see `parseFilters` in `lib/company-report.ts`), `requested_by`, `status` (`queued, running, done, failed`), `file_path?`, `file_name?`, `error?`, `finished_at?`. PDFs kept 30 days (`lib/report-retention.ts`) or until the requester deletes them.
 
 ### 5.5 Status flows (summary)
 
@@ -378,7 +378,7 @@ Data for dashboards is assembled in `lib/admin-dashboard.ts`, `manager-dashboard
 | Shipping rates | `shipping-rates` (GET, POST), `shipping-rates/[id]` (PATCH, DELETE) |
 | Companies | `companies/[id]/documents` (POST), `/documents/[docId]`, `/documents/export`, `/logo` |
 | Team | `manager-org`, `manager-salesman` (POST, DELETE), `salesman-targets` (POST) |
-| Reports | `reports/company`, `reports/salesman/[id]`, `reports/jobs` (GET, POST), `reports/jobs/[id]/file` |
+| Reports | `reports/company`, `reports/salesman/[id]`, `reports/jobs` (GET, POST), `reports/jobs/[id]` (DELETE), `reports/jobs/[id]/file` |
 | Control panel | `import-batches` (POST start), `import-batches/[id]/finish`, `error-log` (POST from the browser); reverse / resolve are server actions in `lib/actions/control-panel-actions.ts` |
 | Calendar | `calendar` (GET `?from&to&mode=rows|summary&user`) |
 | Misc | `activity`, `kpi/[userId]`, `cron/cleanup-tasks` |
