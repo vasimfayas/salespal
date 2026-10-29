@@ -112,7 +112,7 @@ Defined in `lib/roles.ts` (seed list in `prisma/add-roles.sql`).
 |---|---|
 | `clientScopeWhere` | Owner: all. Manager: clients in their companies. Salesman: `assigned_salesman_id = self`. Others: nothing |
 | `orderScopeWhere` | Owner: all. Accountant and manager: orders in their companies (`org_id`). Salesman: `created_by_id = self` |
-| `taskScopeWhere` | Task visibility per role |
+| `taskScopeWhere` | Task visibility per role, plus the to-do rule from `lib/task-privacy.ts`: a `todo` task is only visible to its owner. Team counts and dashboards exclude to-dos (`notTodo`); the task list SQL and calendar use `todoPrivacySql` |
 | `getManagerOrgIds`, `getAccountantOrgIds`, `getOperationsOrgIds` | Company ids for those roles |
 | `getSalesmanOrgIds` | Companies a salesman works for (from `manager_salesman`) |
 | `getManagerSalesmanIds`, `getManagerSalesmanIdsForOrg` | A manager's team, overall or per company |
@@ -366,7 +366,7 @@ Data for dashboards is assembled in `lib/admin-dashboard.ts`, `manager-dashboard
 | Enquiries | `enquiries` (GET, POST), `enquiries/[id]` (PATCH), `/stage`, `/cancel`, `/follow-ups`, `/send-to-agent`, `/signature`, `enquiries/send-to-client`, `enquiries/follow-ups/sync` |
 | Public forms | `enquiry-form/[token]` (POST), `agent-quote/[token]` (POST) |
 | Orders | `orders` (GET, POST), `orders/[id]` (GET, PATCH), `/status`, `/payments`, `/reminder`, `orders/stats` |
-| Tasks | `tasks` (GET, POST), `tasks/[id]` (PATCH, DELETE), `/follow-up`, `/outcome`, `/updates` |
+| Tasks | `tasks` (GET; POST by every role. `category: "todo"` is a private personal task: always assigned to the creator and hidden from everyone else, including managers and owners; accountants and operations can only create to-dos. Owners and managers may pass `assigned_to_id` for other task types), `tasks/[id]` (PATCH, DELETE), `/follow-up`, `/outcome`, `/updates` |
 | Agents | `agents` (GET, POST), `agents/[id]` (PATCH, DELETE) |
 | Shipping rates | `shipping-rates` (GET, POST), `shipping-rates/[id]` (PATCH, DELETE) |
 | Companies | `companies/[id]/documents` (POST), `/documents/[docId]`, `/documents/export`, `/logo` |

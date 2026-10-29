@@ -12,11 +12,11 @@ export default async function AdminTasksPage({ searchParams }: { searchParams: P
   const session = await getSalesPalSession();
   if (session?.user.role_id !== SUPER_ADMIN_ROLE) redirect("/dashboard/admin");
   const salesmen = await prisma.user.findMany({ where: { role_id: 3 }, select: { id: true, name: true }, orderBy: { name: "asc" } });
-  const data = await getTasksPage({ assignedTo: salesmen.map((s) => s.id) }, await searchParams);
+  const data = await getTasksPage({ assignedTo: salesmen.map((s) => s.id), alsoUser: Number(session.user.id) }, await searchParams);
   return (
     <>
       <PageHeader title="Tasks" subtitle="Assign, manage and monitor every salesman's tasks." />
-      <ManagerTasksList data={data} salesmen={salesmen} />
+      <ManagerTasksList data={data} salesmen={salesmen} currentUser={{ id: Number(session.user.id), name: session.user.name ?? "Me" }} />
     </>
   );
 }

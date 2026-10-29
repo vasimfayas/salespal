@@ -2,6 +2,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { intParam, pageParam, param, sizeParam, type Paged, type SearchParams } from "@/lib/list-params";
 import type { TaskKind } from "@/types/task";
+import { todoPrivacySql } from "@/lib/task-privacy";
 
 /** One row per task, in the shape the task lists use. */
 export type UnifiedTaskRow = {
@@ -27,6 +28,12 @@ type Scope =
   | { userId: number };
 
 function scopeSql(scope: Scope, alias: string) {
+  // A to-do is private: only its owner (the signed-in user) sees it, never a manager or owner reading a team list.
+  const viewer = "userId" in scope ? scope.userId : scope.alsoUser;
+  return Prisma.sql`(${scopeRowsSql(scope, alias)} AND ${todoPrivacySql(alias, viewer)})`;
+}
+
+function scopeRowsSql(scope: Scope, alias: string) {
   if ("userId" in scope) return Prisma.sql`(${Prisma.raw(alias)}.created_by_id = ${scope.userId} OR ${Prisma.raw(alias)}.assigned_to_id = ${scope.userId})`;
   const own = scope.alsoUser ? Prisma.sql`${Prisma.raw(alias)}.created_by_id = ${scope.alsoUser} OR ${Prisma.raw(alias)}.assigned_to_id = ${scope.alsoUser}` : Prisma.sql`FALSE`;
   if (scope.assignedTo.length === 0) return Prisma.sql`(${own})`;
@@ -41,6 +48,7 @@ export const taskKindSql = Prisma.sql`CASE WHEN t.category = 'lead_follow_up' TH
                 -- Accountant payment reminders created before tasks had a category
                 WHEN t.category = 'payment_follow_up' OR t.description LIKE 'Payment reminder:%' THEN 'payment_follow_up'
                 WHEN t.category = 'order_follow_up' THEN 'order_follow_up'
+                WHEN t.category = 'todo' THEN 'todo'
                 ELSE 'general' END`;
 
 function unionSql(scope: Scope) {
@@ -86,11 +94,12 @@ function viewSql(view: TaskView, userId: number) {
   }
 }
 
-/** Filters: type (general | client), status, salesman (assignee id), q (description / salesman / client). */
+/** Filters: type (todo | general | client), status, salesman (assignee id), q (description / salesman / client). */
 function filterParts(params: SearchParams) {
   const parts: Prisma.Sql[] = [];
   const type = param(params, "type");
-  if (type === "general") parts.push(Prisma.sql`x.kind <> 'client_follow_up'`);
+  if (type === "todo") parts.push(Prisma.sql`x.kind = 'todo'`);
+  if (type === "general") parts.push(Prisma.sql`x.kind NOT IN ('client_follow_up', 'todo')`);
   if (type === "client") parts.push(Prisma.sql`x.kind = 'client_follow_up'`);
   const status = param(params, "status");
   if (status) parts.push(Prisma.sql`x.status = ${status}`);

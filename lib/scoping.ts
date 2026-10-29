@@ -1,6 +1,7 @@
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { isOwnerRole, SUPER_ADMIN_ROLE } from "@/lib/roles";
+import { visibleTo } from "@/lib/task-privacy";
 
 export type ScopedToken = {
   id?: number;
@@ -86,14 +87,21 @@ export async function orderStatsScope(token: ScopedToken): Promise<OrderStatsSco
   return { role_id: token.role_id ?? 0, userId, orgIds: [] };
 }
 
+/** Who can see a task. A personal to-do is only ever visible to the person it belongs to, whatever their role. */
 export async function taskScopeWhere(token: ScopedToken): Promise<Prisma.TaskWhereInput> {
   const userId = getTokenUserId(token);
+  return { AND: [await taskRoleScope(token, userId), visibleTo(userId)] };
+}
+
+async function taskRoleScope(token: ScopedToken, userId: number): Promise<Prisma.TaskWhereInput> {
   if (isOwnerRole(token.role_id)) return {};
   if (token.role_id === 2) {
     const salesmanIds = await getManagerSalesmanIds(userId);
     return { OR: [{ created_by_id: userId }, { assigned_to_id: { in: salesmanIds } }] };
   }
   if (token.role_id === 3) return { OR: [{ assigned_to_id: userId }, { created_by_id: userId }] };
+  // Accountant / operations: only their own tasks (they can add to-dos).
+  if (token.role_id === 4 || token.role_id === 5) return { OR: [{ assigned_to_id: userId }, { created_by_id: userId }] };
   return { id: -1 };
 }
 

@@ -2,6 +2,16 @@
 
 Newest first. Types: Added, Changed, Fixed. Tag each release `vX.Y.Z` (fix = patch, feature = minor, breaking = major).
 
+## 1.6.0 - 2026-10-29
+
+### Added
+- "To do": a private personal task for every role. Nobody to assign; only its owner sees it (lists, calendar, dashboards and reports exclude other people's to-dos).
+- Calendar: add a task on a picked day. Owners and managers can add it for themselves or give a General task to someone.
+
+### Changed
+- The old untyped task type is called "General" (assigned by a manager) and is separate from "To do".
+- Managers, owners, accountants and operations can now create their own tasks (previously only salesmen could create personal ones).
+
 ## 1.5.0 - 2026-10-29
 
 ### Added

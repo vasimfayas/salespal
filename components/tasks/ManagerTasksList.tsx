@@ -40,9 +40,11 @@ interface ManagerTasksListProps {
   /** One server-filtered page of tasks (general + client tasks merged). */
   data: TasksPage;
   salesmen: SalesmanItem[];
+  /** The signed-in user: they can add a task for themselves as well as for a salesman. */
+  currentUser: SalesmanItem;
 }
 
-export function ManagerTasksList({ data, salesmen }: ManagerTasksListProps) {
+export function ManagerTasksList({ data, salesmen, currentUser }: ManagerTasksListProps) {
   const router = useRouter();
 
   // Optimistic edits layered over the server page until router.refresh() delivers fresh rows.
@@ -58,7 +60,7 @@ export function ManagerTasksList({ data, salesmen }: ManagerTasksListProps) {
   const [searchQuery, setSearchQuery] = useDebouncedParam("q", set, get("q"));
   const statusFilter = get("status", "all");
   const salesmanFilter = get("salesman", "all");
-  const typeFilter = (get("type") || "all") as "all" | "general" | "client";
+  const typeFilter = (get("type") || "all") as "all" | "todo" | "general" | "client";
   const [pickedClient, setPickedClient] = useState<{ id: number; name: string } | null>(null);
 
   // Modals state
@@ -72,7 +74,7 @@ export function ManagerTasksList({ data, salesmen }: ManagerTasksListProps) {
     due_date: "",
     assigned_to_id: "",
     client_id: "",
-    category: "",
+    category: "todo",
     notification: true, // Default to true (on)
   });
 
@@ -99,18 +101,20 @@ export function ManagerTasksList({ data, salesmen }: ManagerTasksListProps) {
     setIsSaving(true);
 
     // A "Client follow-up" is a regular task about the client; otherwise picking a client makes it a client task.
+    // A to-do is the user's own: nobody to pick and no client.
+    const isTodo = addTaskForm.category === "todo";
     const isClientFollowUp = addTaskForm.category === "client_follow_up";
     if (isClientFollowUp && !pickedClient) {
       setErrorMsg("Select the client to follow up.");
       setIsSaving(false);
       return;
     }
-    const isClientLinked = pickedClient !== null && !isClientFollowUp;
+    const isClientLinked = pickedClient !== null && !isClientFollowUp && !isTodo;
     const selectedClientId = pickedClient?.id ?? 0;
-    const assignedSalesmanId = Number(addTaskForm.assigned_to_id);
+    const assignedSalesmanId = isTodo ? currentUser.id : Number(addTaskForm.assigned_to_id);
 
     if (isNaN(assignedSalesmanId)) {
-      setErrorMsg("Please select a salesman to assign the task.");
+      setErrorMsg("Please select who the task is for.");
       setIsSaving(false);
       return;
     }
@@ -161,7 +165,7 @@ export function ManagerTasksList({ data, salesmen }: ManagerTasksListProps) {
         due_date: "",
         assigned_to_id: "",
         client_id: "",
-        category: "",
+        category: "todo",
         notification: true,
       });
       setPickedClient(null);
@@ -175,7 +179,7 @@ export function ManagerTasksList({ data, salesmen }: ManagerTasksListProps) {
           clientName: pickedClient?.name ?? null,
           kind: data.task.category ?? "general",
           assignedTo: {
-            name: salesmen.find((s) => s.id === assignedSalesmanId)?.name || null,
+            name: [currentUser, ...salesmen].find((s) => s.id === assignedSalesmanId)?.name || null,
           },
         };
         setLocalTasks((prev) => [newTask, ...prev]);
@@ -344,6 +348,7 @@ export function ManagerTasksList({ data, salesmen }: ManagerTasksListProps) {
         <div className="flex items-center gap-1.5 bg-muted p-1 rounded-xl w-fit">
           {([
             { key: "all" as const, label: "All Tasks" },
+            { key: "todo" as const, label: "To do" },
             { key: "general" as const, label: "General" },
             { key: "client" as const, label: "Client Tasks" },
           ]).map((tab) => (
@@ -548,13 +553,18 @@ export function ManagerTasksList({ data, salesmen }: ManagerTasksListProps) {
                 onChange={(e) => setAddTaskForm({ ...addTaskForm, category: e.target.value })}
                 className="w-full rounded-control border border-input bg-card px-3 text-sm text-foreground shadow-xs outline-none transition-[border-color,box-shadow] duration-150 hover:border-border-strong focus:border-ring focus:ring-3 focus:ring-ring/15 h-10 cursor-pointer"
               >
-                <option value="">General</option>
+                <option value="todo">To do</option>
+                <option value="">General task (assign to a salesman)</option>
                 <option value="client_follow_up">Client follow-up</option>
                 <option value="order_follow_up">Order follow-up</option>
                 <option value="payment_follow_up">Payment follow-up</option>
               </select>
             </div>
 
+            {addTaskForm.category === "todo" ? (
+              <p className="rounded-control bg-muted px-3 py-2 text-xs text-muted-foreground">A to-do is private. It is added to your own list and nobody else can see it.</p>
+            ) : (
+              <>
             {/* Row: Assign To (Salesman) and Client (Optional) */}
             <div className="grid grid-cols-2 gap-3">
               <div className="flex flex-col gap-1">
@@ -568,7 +578,8 @@ export function ManagerTasksList({ data, salesmen }: ManagerTasksListProps) {
                   onChange={(e) => setAddTaskForm({ ...addTaskForm, assigned_to_id: e.target.value })}
                   className="w-full rounded-control border border-input bg-card px-3 text-sm text-foreground shadow-xs outline-none transition-[border-color,box-shadow] duration-150 placeholder:text-muted-foreground/70 hover:border-border-strong focus:border-ring focus:ring-3 focus:ring-ring/15 disabled:cursor-not-allowed disabled:bg-muted disabled:opacity-70 h-10 cursor-pointer"
                 >
-                  <option value="">Select salesman...</option>
+                  <option value="">Select who it is for...</option>
+                  <option value={currentUser.id}>Myself (personal to-do)</option>
                   {salesmen.map((s) => (
                     <option key={s.id} value={s.id}>
                       {s.name}
@@ -584,6 +595,9 @@ export function ManagerTasksList({ data, salesmen }: ManagerTasksListProps) {
                 <ClientPicker id="task-client" value={pickedClient} onChange={setPickedClient} inputClassName="text-xs" />
               </div>
             </div>
+
+              </>
+            )}
 
             {/* Notification alert toggle (Default on) */}
             <div className="flex items-center gap-2 py-1.5 border-t border-border">

@@ -1,3 +1,4 @@
+import { notTodo } from "@/lib/task-privacy";
 import { Prisma } from "@prisma/client";
 import { unstable_cache } from "next/cache";
 import { prisma } from "@/lib/prisma";
@@ -131,7 +132,7 @@ export const getAdminLeaderboard = unstable_cache(
 export const getAdminTaskHealth = unstable_cache(
   async (orgId: number | null) => {
     const [tasks, clients] = await Promise.all([
-      prisma.task.groupBy({ by: ["status"], _count: { _all: true } }),
+      prisma.task.groupBy({ by: ["status"], where: notTodo, _count: { _all: true } }),
       statusCounts(orgId ? { org_id: orgId } : {}),
     ]);
     const taskCounts: Counts = Object.fromEntries(tasks.map((t) => [t.status, t._count._all]));

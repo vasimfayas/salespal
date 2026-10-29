@@ -11,8 +11,8 @@ export type TaskListItem = {
   createdBy?: { name: string };
 };
 
-/** Values users can pick for a task's type (stored in tasks.category; NULL = general). */
-export const taskCategories = ["client_follow_up", "order_follow_up", "payment_follow_up"] as const;
+/** Values users can pick for a task's type (stored in tasks.category; "todo" = a private personal task, NULL = a general task assigned to someone). */
+export const taskCategories = ["todo", "client_follow_up", "order_follow_up", "payment_follow_up"] as const;
 export type TaskCategory = (typeof taskCategories)[number];
 
 /** What the person is asked to do (prefixed to the task text, e.g. "[Video conference] ..."). */
@@ -33,9 +33,10 @@ export const OPEN_TASK_STATUSES = ["pending", "in_process"] as const;
 export const isOpenTask = (status: string) => (OPEN_TASK_STATUSES as readonly string[]).includes(status);
 
 /** What a task is about — derived in SQL from enquiry_id / category (see lib/tasks-list.ts). */
-export type TaskKind = "general" | "lead_follow_up" | "client_follow_up" | "enquiry_follow_up" | "order_follow_up" | "order_revision" | "payment_follow_up";
+export type TaskKind = "todo" | "general" | "lead_follow_up" | "client_follow_up" | "enquiry_follow_up" | "order_follow_up" | "order_revision" | "payment_follow_up";
 
 export const taskKindLabels: Record<TaskKind, string> = {
+  todo: "To do",
   general: "General",
   lead_follow_up: "Lead follow-up",
   client_follow_up: "Client follow-up",

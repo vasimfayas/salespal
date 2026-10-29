@@ -68,7 +68,7 @@ function assignedByLabel(task: Task, currentUserId: number) {
 export function SalesmanTasksList({ data, currentUserId }: SalesmanTasksListProps) {
   const router = useRouter();
   const { get, set, isPending: isNavigating } = useUrlFilters();
-  const typeFilter = (get("type") || "all") as "all" | "general" | "client";
+  const typeFilter = (get("type") || "all") as "all" | "todo" | "general" | "client";
   const view = (get("view") || "all") as TaskView;
   // Fixed per mount so due-date colours are stable across re-renders
   const [now] = useState(() => Date.now());
@@ -93,7 +93,7 @@ export function SalesmanTasksList({ data, currentUserId }: SalesmanTasksListProp
     description: "",
     due_date: "",
     status: "pending",
-    category: "",
+    category: "todo",
     notification: false
   });
 
@@ -140,7 +140,7 @@ export function SalesmanTasksList({ data, currentUserId }: SalesmanTasksListProp
         description: "",
         due_date: "",
         status: "pending",
-        category: "",
+        category: "todo",
         notification: false
       });
       setIsAddOpen(false);
@@ -257,7 +257,8 @@ export function SalesmanTasksList({ data, currentUserId }: SalesmanTasksListProp
             className="w-full rounded-control border border-input bg-card px-3 text-sm text-foreground shadow-xs outline-none transition-[border-color,box-shadow] duration-150 placeholder:text-muted-foreground/70 hover:border-border-strong focus:border-ring focus:ring-3 focus:ring-ring/15 disabled:cursor-not-allowed disabled:bg-muted disabled:opacity-70 h-10 sm:w-44 cursor-pointer"
           >
             <option value="all">All sources</option>
-            <option value="general">General tasks</option>
+            <option value="todo">To do</option>
+            <option value="general">General</option>
             <option value="client">Client tasks</option>
           </select>
         </div>
@@ -393,7 +394,7 @@ export function SalesmanTasksList({ data, currentUserId }: SalesmanTasksListProp
                 onChange={(e) => setAddTaskForm({ ...addTaskForm, category: e.target.value })}
                 className="w-full rounded-control border border-input bg-card px-3 text-sm text-foreground shadow-xs outline-none transition-[border-color,box-shadow] duration-150 placeholder:text-muted-foreground/70 hover:border-border-strong focus:border-ring focus:ring-3 focus:ring-ring/15 disabled:cursor-not-allowed disabled:bg-muted disabled:opacity-70 h-10 cursor-pointer"
               >
-                <option value="">General</option>
+                <option value="todo">To do </option>
                 <option value="client_follow_up">Client follow-up</option>
                 <option value="order_follow_up">Order follow-up</option>
                 <option value="payment_follow_up">Payment follow-up</option>

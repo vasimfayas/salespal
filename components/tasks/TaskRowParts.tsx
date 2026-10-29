@@ -11,6 +11,7 @@ import { isOpenTask, taskKindLabels, taskStatuses, type TaskKind } from "@/types
 export type RowTask = ActionTask & { due_date: Date | string };
 
 const KIND_BADGE: Record<TaskKind, { icon: typeof ListTodo; className: string }> = {
+  todo: { icon: ListTodo, className: "bg-muted text-muted-foreground" },
   general: { icon: ListTodo, className: "bg-muted text-muted-foreground" },
   lead_follow_up: { icon: UserPlus, className: "bg-success-soft text-success-foreground" },
   client_follow_up: { icon: UserRound, className: "bg-primary-soft text-primary-soft-foreground" },

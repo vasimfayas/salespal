@@ -183,7 +183,7 @@ export async function getSalesmanMonthlyReport(salesmanId: number, monthKey: str
 
     prisma.$queryRaw<{ status: string; count: Num }[]>(Prisma.sql`
       SELECT status, COUNT(*)::int AS count FROM tasks
-      WHERE assigned_to_id = ${salesmanId} AND due_date >= ${S} AND due_date < ${E}
+      WHERE assigned_to_id = ${salesmanId} AND due_date >= ${S} AND due_date < ${E} AND category IS DISTINCT FROM 'todo'
       GROUP BY 1`),
 
     prisma.enquiryFollowUp.count({ where: { created_by_id: salesmanId, created_at: { gte: start, lt: end } } }),

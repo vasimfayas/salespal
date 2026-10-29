@@ -1,3 +1,4 @@
+import { notTodo } from "@/lib/task-privacy";
 import { unstable_cache } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { likeForLike, recentEntries, statusEntries } from "@/lib/pipeline-metrics";
@@ -75,7 +76,7 @@ export const getManagerKpiCards = unstable_cache(
     const previous = prevStart && prevEnd ? likeForLike(current, new Date(prevStart), new Date(new Date(prevEnd).getTime() + 1)) : null;
     const week = { from: new Date(Math.max(new Date(weekStart).getTime(), current.from.getTime())), to: current.to };
     const pipelineWhere = { assigned_salesman_id: { in: salesmanIds }, status: { in: ["lead", "follow_up"] } };
-    const overdueWhere = { assigned_to_id: { in: salesmanIds }, due_date: { lt: new Date() }, status: { in: ["pending", "in_process"] } };
+    const overdueWhere = { assigned_to_id: { in: salesmanIds }, due_date: { lt: new Date() }, status: { in: ["pending", "in_process"] }, AND: [notTodo] };
 
     const [entered, enteredBefore, weekEntered, onboardedLogs, pipelineTotal, pipeline, overdueTotal, overdue] =
       await Promise.all([
@@ -121,7 +122,7 @@ export const getManagerTaskStats = unstable_cache(
     if (salesmanIds.length === 0) return {} as Record<number, { total: number; completed: number }>;
     const grouped = await prisma.task.groupBy({
       by: ["assigned_to_id", "status"],
-      where: { assigned_to_id: { in: salesmanIds } },
+      where: { assigned_to_id: { in: salesmanIds }, AND: [notTodo] },
       _count: { _all: true },
     });
     const stats: Record<number, { total: number; completed: number }> = {};
@@ -139,7 +140,7 @@ export const getManagerTaskStats = unstable_cache(
 /** Open (pending / in-process) team tasks: total + the earliest-due ones. */
 export const getManagerPendingTasks = unstable_cache(
   async (salesmanIds: number[]) => {
-    const where = { assigned_to_id: { in: salesmanIds }, status: { in: ["pending", "in_process"] } };
+    const where = { assigned_to_id: { in: salesmanIds }, status: { in: ["pending", "in_process"] }, AND: [notTodo] };
     const [total, rows] = await Promise.all([
       prisma.task.count({ where }),
       prisma.task.findMany({

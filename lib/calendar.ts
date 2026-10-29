@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { getManagerSalesmanIds } from "@/lib/scoping";
 import { isOwnerRole } from "@/lib/roles";
 import { taskKindSql } from "@/lib/tasks-list";
+import { todoPrivacySql } from "@/lib/task-privacy";
 import type { TaskKind } from "@/types/task";
 
 export type CalendarTask = {
@@ -28,9 +29,13 @@ type Viewer = { id: number; role_id: number };
 
 /**
  * Whose tasks a viewer sees: the owner and super admin everyone's, a manager their team's and their own,
- * everyone else the tasks they created or hold.
+ * everyone else the tasks they created or hold. A personal to-do is only ever shown to its owner.
  */
 async function scopeSql(viewer: Viewer) {
+  return Prisma.sql`(${await roleScopeSql(viewer)} AND ${todoPrivacySql("t", viewer.id)})`;
+}
+
+async function roleScopeSql(viewer: Viewer) {
   if (isOwnerRole(viewer.role_id)) return Prisma.sql`TRUE`;
   const mine = Prisma.sql`t.created_by_id = ${viewer.id} OR t.assigned_to_id = ${viewer.id}`;
   if (viewer.role_id === 2) {

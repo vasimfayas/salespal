@@ -1,3 +1,4 @@
+import { notTodo } from "@/lib/task-privacy";
 import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import { getSalesPalSession } from "@/lib/auth";
@@ -74,7 +75,7 @@ async function PerformanceCards({ userId }: { userId: number }) {
 /** Tasks the manager hands to the team vs the ones on their own plate. */
 async function TaskCards({ userId }: { userId: number }) {
   const open = { in: [...OPEN_TASK_STATUSES] };
-  const toTeam = { created_by_id: userId, assigned_to_id: { not: userId } };
+  const toTeam = { created_by_id: userId, assigned_to_id: { not: userId }, AND: [notTodo] };
   const mine = { assigned_to_id: userId, status: open };
   const overdue = { ...mine, due_date: { lt: new Date() } };
   const [t1, t2, t3, t4] = await Promise.all([

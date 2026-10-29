@@ -34,7 +34,7 @@ async function ManagerTasksSection({ params }: { params: SearchParams }) {
   });
   const data = await getTasksPage({ assignedTo: salesmen.map((s) => s.id), alsoUser: managerId }, params);
 
-  return <ManagerTasksList data={data} salesmen={salesmen} />;
+  return <ManagerTasksList data={data} salesmen={salesmen} currentUser={{ id: managerId, name: session!.user.name ?? "Me" }} />;
 }
 
 function ManagerTasksSkeleton() {

@@ -2,10 +2,11 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { CalendarDays, ChevronLeft, ChevronRight, ListTodo, MessageSquareText, Package, RotateCcw, UserPlus, UserRound, Wallet, type LucideIcon } from "lucide-react";
+import { CalendarDays, ChevronLeft, ChevronRight, ListTodo, Plus, MessageSquareText, Package, RotateCcw, UserPlus, UserRound, Wallet, type LucideIcon } from "lucide-react";
 import { SegmentedControl } from "@/components/ui/SegmentedControl";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { Button } from "@/components/ui/Button";
+import { Dialog, DialogBody, DialogContent, DialogFooter } from "@/components/ui/dialog";
 import { cn, titleCase } from "@/lib/utils";
 import { isOpenTask, taskKindLabels, type TaskKind } from "@/types/task";
 import type { CalendarSummaryRow, CalendarTask } from "@/lib/calendar";
@@ -14,6 +15,7 @@ type View = "month" | "week" | "year";
 
 /** One look per task type: the legend, the chips and the dots all read from here. */
 const KINDS: Record<TaskKind, { icon: LucideIcon; dot: string; chip: string }> = {
+  todo: { icon: ListTodo, dot: "bg-slate-500", chip: "border-slate-500 bg-slate-500/10" },
   general: { icon: ListTodo, dot: "bg-slate-400", chip: "border-slate-400 bg-slate-400/10" },
   lead_follow_up: { icon: UserPlus, dot: "bg-emerald-500", chip: "border-emerald-500 bg-emerald-500/10" },
   client_follow_up: { icon: UserRound, dot: "bg-lime-500", chip: "border-lime-500 bg-lime-500/10" },
@@ -87,6 +89,10 @@ export function TaskCalendar({
   const [person, setPerson] = useState("all");
   const [loaded, setLoaded] = useState<Loaded | null>(null);
   const [error, setError] = useState(false);
+  // The day a new task is being added to (null = dialog closed).
+  const [adding, setAdding] = useState<string | null>(null);
+  // Bumped after a to-do is added so the visible range is fetched again.
+  const [reload, setReload] = useState(0);
   const multiUser = people.length > 0;
 
   const { from, to } = rangeFor(view, anchor);
@@ -105,7 +111,7 @@ export function TaskCalendar({
         if (err.name !== "AbortError") setError(true);
       });
     return () => controller.abort();
-  }, [key, from, to, view, person]);
+  }, [key, from, to, view, person, reload]);
 
   const loading = loaded?.key !== key && !error;
 
@@ -178,6 +184,9 @@ export function TaskCalendar({
             ))}
           </select>
         )}
+        <Button size="sm" onClick={() => setAdding(selected ?? today)}>
+          <Plus /> Add task
+        </Button>
         <SegmentedControl
           label="Calendar view"
           size="sm"
@@ -193,6 +202,16 @@ export function TaskCalendar({
           ]}
         />
       </div>
+
+      <AddTaskDialog
+        date={adding}
+        people={people}
+        onClose={() => setAdding(null)}
+        onAdded={() => {
+          setAdding(null);
+          setReload((n) => n + 1);
+        }}
+      />
 
       {/* Legend: doubles as a filter */}
       <ul className="flex flex-wrap gap-1.5" aria-label="Task types">
@@ -231,7 +250,7 @@ export function TaskCalendar({
         ) : view === "month" ? (
           <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
             <MonthGrid anchor={anchor} today={today} selected={selected} byDate={byDate} multiUser={multiUser} onSelect={setSelected} />
-            <DayPanel date={selected} tasks={selectedTasks} multiUser={multiUser} clientsBase={clientsBase} tasksHref={tasksHref} />
+            <DayPanel date={selected} tasks={selectedTasks} multiUser={multiUser} clientsBase={clientsBase} tasksHref={tasksHref} onAdd={setAdding} />
           </div>
         ) : view === "week" ? (
           <WeekView anchor={anchor} today={today} byDate={byDate} multiUser={multiUser} clientsBase={clientsBase} />
@@ -314,7 +333,7 @@ function Chip({ task, multiUser }: { task: CalendarTask; multiUser: boolean }) {
 
 /* ───────────────────────── Day panel & cards ───────────────────────── */
 
-function DayPanel({ date, tasks, multiUser, clientsBase, tasksHref }: { date: string | null; tasks: CalendarTask[]; multiUser: boolean; clientsBase: string | null; tasksHref: string | null }) {
+function DayPanel({ date, tasks, multiUser, clientsBase, tasksHref, onAdd }: { date: string | null; tasks: CalendarTask[]; multiUser: boolean; clientsBase: string | null; tasksHref: string | null; onAdd: (date: string) => void }) {
   return (
     <aside className="rounded-card border border-border bg-card p-4 shadow-card lg:sticky lg:top-20 lg:max-h-[calc(100vh-7rem)] lg:self-start lg:overflow-y-auto" aria-label="Tasks of the selected day">
       {date ? (
@@ -323,6 +342,9 @@ function DayPanel({ date, tasks, multiUser, clientsBase, tasksHref }: { date: st
             <h3 className="text-sm font-semibold text-foreground">{fmt(date, { weekday: "long", month: "long", day: "numeric" })}</h3>
             <span className="text-xs text-muted-foreground">{tasks.length} {tasks.length === 1 ? "task" : "tasks"}</span>
           </div>
+          <Button variant="soft" size="sm" className="mb-3 w-full" onClick={() => onAdd(date)}>
+            <Plus /> Add task on this day
+          </Button>
           {tasks.length === 0 ? (
             <div className="flex flex-col items-center gap-2 py-8 text-center text-sm text-muted-foreground">
               <CalendarDays className="size-6 opacity-60" aria-hidden />
@@ -459,5 +481,90 @@ function YearView({ year, today, kindsByDate, onDay, onMonth }: { year: string; 
         );
       })}
     </div>
+  );
+}
+
+/**
+ * Add a task on a day. By default a private to-do for the signed-in user; owners and managers can instead give a
+ * general task to someone on their list.
+ */
+function AddTaskDialog({ date, people, onClose, onAdded }: { date: string | null; people: CalendarPerson[]; onClose: () => void; onAdded: () => void }) {
+  return (
+    <Dialog open={date !== null} onOpenChange={(o) => !o && onClose()}>
+      {date !== null && (
+        <DialogContent title="Add task" description={`Due ${fmt(date, { weekday: "long", month: "long", day: "numeric" })}.`}>
+          <TaskForm defaultDate={date} people={people} onClose={onClose} onAdded={onAdded} />
+        </DialogContent>
+      )}
+    </Dialog>
+  );
+}
+
+function TaskForm({ defaultDate, people, onClose, onAdded }: { defaultDate: string; people: CalendarPerson[]; onClose: () => void; onAdded: () => void }) {
+  const [title, setTitle] = useState("");
+  const [date, setDate] = useState(defaultDate);
+  const [forWho, setForWho] = useState("me");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const field =
+    "h-10 w-full rounded-control border border-input bg-card px-3 text-sm text-foreground outline-none transition placeholder:text-muted-foreground focus:border-primary focus:ring-3 focus:ring-primary/15";
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    setSaving(true);
+    setError(null);
+    const mine = forWho === "me";
+    try {
+      const res = await fetch("/api/tasks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ description: title, due_date: date, status: "pending", notification: true, category: mine ? "todo" : null, assigned_to_id: mine ? undefined : Number(forWho) }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "Could not add the task");
+      onAdded();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not add the task");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <form onSubmit={submit}>
+      <DialogBody className="space-y-4">
+        {error && <p role="alert" className="rounded-control bg-danger-soft px-3 py-2 text-sm text-danger-foreground">{error}</p>}
+        <label className="block space-y-1.5">
+          <span className="text-sm font-medium text-foreground">What needs doing?</span>
+          <input required autoFocus maxLength={500} value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Prepare the monthly report" className={field} />
+        </label>
+        <label className="block space-y-1.5">
+          <span className="text-sm font-medium text-foreground">Due date</span>
+          <input required type="date" value={date} onChange={(e) => setDate(e.target.value)} className={field} />
+        </label>
+        {people.length > 0 && (
+          <label className="block space-y-1.5">
+            <span className="text-sm font-medium text-foreground">For</span>
+            <select value={forWho} onChange={(e) => setForWho(e.target.value)} className={cn(field, "cursor-pointer")}>
+              <option value="me">Myself (private to-do)</option>
+              {people.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
+        <p className="text-xs text-muted-foreground">{forWho === "me" ? "A to-do is private: only you can see it." : "They get this as a task and can see who gave it."}</p>
+      </DialogBody>
+      <DialogFooter>
+        <Button type="button" variant="secondary" onClick={onClose} disabled={saving}>
+          Cancel
+        </Button>
+        <Button type="submit" loading={saving}>
+          Add task
+        </Button>
+      </DialogFooter>
+    </form>
   );
 }
