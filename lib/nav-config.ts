@@ -20,6 +20,8 @@ export const navConfig: Record<number, NavLink[]> = {
     { label: "Blacklist", href: "/dashboard/admin/clients?status=blacklisted" },
     { label: "Enquiries", href: "/dashboard/admin/enquiries" },
     { label: "Agents", href: "/dashboard/admin/agents" },
+    { label: "Locations", href: "/dashboard/admin/locations" },
+    { label: "Email templates", href: "/dashboard/admin/email-templates" },
     { label: "Approvals", href: "/dashboard/admin/approvals" },
     { label: "Accounts", href: "/dashboard/admin/accounts" },
     { label: "Reports", href: "/dashboard/admin/reports" },

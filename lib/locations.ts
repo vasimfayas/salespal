@@ -153,18 +153,22 @@ const COUNTRIES: CountryDef[] = [
   { country: "Australia", code: "AU", ports: [["Melbourne", "AUMEL"], ["Sydney", "AUSYD"]], airports: [["Sydney Airport", "SYD"]] },
 ];
 
-export const FREIGHT_LOCATIONS: (FreightLocation & { search: string })[] = COUNTRIES.flatMap((c) => {
+/** The starting list, copied into the `locations` table the first time it is read. After that the table (Locations page) is the source. */
+export const SEED_LOCATIONS: FreightLocation[] = COUNTRIES.flatMap((c) => {
   const base = { country: c.country, countryCode: c.code };
-  const rows: FreightLocation[] = [
-    ...(c.ports ?? []).map(([name, code, aliases]) => ({ ...base, name, code, kind: "port" as const, aliases })),
-    ...(c.airports ?? []).map(([name, code, aliases]) => ({ ...base, name, code, kind: "airport" as const, aliases })),
-    ...(c.land ?? []).map(([name, aliases]) => ({ ...base, name, kind: "land" as const, aliases })),
+  const withCountryAliases = (aliases?: string[]) => [...(aliases ?? []), ...(c.aliases ?? [])];
+  return [
+    ...(c.ports ?? []).map(([name, code, aliases]) => ({ ...base, name, code, kind: "port" as const, aliases: withCountryAliases(aliases) })),
+    ...(c.airports ?? []).map(([name, code, aliases]) => ({ ...base, name, code, kind: "airport" as const, aliases: withCountryAliases(aliases) })),
+    ...(c.land ?? []).map(([name, aliases]) => ({ ...base, name, kind: "land" as const, aliases: withCountryAliases(aliases) })),
   ];
-  return rows.map((r) => ({
-    ...r,
-    search: [r.name, r.code, r.country, r.countryCode, ...(r.aliases ?? []), ...(c.aliases ?? [])].filter(Boolean).join(" ").toLowerCase(),
-  }));
 });
+
+/** A location as the pickers use it: the table row plus a lower-cased search string. */
+export type Place = FreightLocation & { id: number; search: string };
+
+export const placeSearch = (l: FreightLocation) =>
+  [l.name, l.code, l.country, l.countryCode, ...(l.aliases ?? [])].filter(Boolean).join(" ").toLowerCase();
 
 /** Text stored on the enquiry for a picked location. */
 export function locationLabel(l: FreightLocation) {

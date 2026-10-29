@@ -1,4 +1,5 @@
 import { orderModes } from "@/types/order";
+import type { Place } from "@/lib/locations";
 
 /** Agent fields from a form body, or an error message. */
 export function parseAgent(body: Record<string, unknown>) {
@@ -22,6 +23,7 @@ export function parseAgent(body: Record<string, unknown>) {
       network: text(body.network, 80) || null,
       code: text(body.code, 40) || null,
       modes,
+      is_top: body.is_top === true,
     },
   } as const;
 }
@@ -31,3 +33,24 @@ export const AGENT_EDITOR_ROLES = [1, 2];
 
 /** Owner, managers and accounts lock / unlock agents. Locked agents can't be sent enquiries. */
 export const AGENT_LOCK_ROLES = [1, 2, 4];
+
+/**
+ * The country of an enquiry's From / To: the end of a label like "Ningbo, China", otherwise looked up in the master list
+ * of places ("Karachi", "London (LHR)"). Lower-cased; "" when unknown.
+ */
+export function placeCountry(place: string, places: Place[]) {
+  if (place.includes(",")) return place.split(",").pop()!.trim().toLowerCase();
+  const name = place.replace(/\(.*?\)/g, "").trim().toLowerCase();
+  const code = place.match(/\(([A-Za-z]{3,5})\)/)?.[1]?.toLowerCase();
+  const hit = places.find((l) => l.name.toLowerCase() === name || (!!code && l.code?.toLowerCase() === code) || l.aliases?.some((x) => x.toLowerCase() === name));
+  return hit?.country.toLowerCase() ?? "";
+}
+
+/**
+ * Agents worth preselecting for an enquiry: they handle its transport mode and are in the country it ships from
+ * (sea from Ningbo → sea agents in China). Agents without a country or mode set are never suggested; they can still be searched.
+ */
+export function agentMatchesRoute(agent: { modes: string[]; country: string | null }, enquiry: { mode: string; from: string }, places: Place[]) {
+  if (!agent.country || !agent.modes.includes(enquiry.mode)) return false;
+  return placeCountry(enquiry.from, places) === agent.country.trim().toLowerCase();
+}

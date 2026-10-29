@@ -9,7 +9,7 @@ import { AGENT_EDITOR_ROLES, parseAgent } from "@/lib/agents";
 export async function GET(request: NextRequest) {
   const token = await getToken({ req: request, secret: process.env.NEXTAUTH_SECRET });
   if (!token || !hasRole(token, [1, 2, 3])) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const agents = await prisma.agent.findMany({ where: { locked: false }, orderBy: { name: "asc" } });
+  const agents = await prisma.agent.findMany({ where: { locked: false }, orderBy: [{ is_top: "desc" }, { name: "asc" }] });
   return NextResponse.json({ agents });
 }
 

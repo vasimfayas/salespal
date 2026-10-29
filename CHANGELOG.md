@@ -2,6 +2,24 @@
 
 Newest first. Types: Added, Changed, Fixed. Tag each release `vX.Y.Z` (fix = patch, feature = minor, breaking = major).
 
+## 1.7.0 - 2026-10-29
+
+### Added
+- Send to agent: pick several agents at once. Agents who handle the enquiry's mode in the country it ships from (e.g. sea agents in China for Ningbo) are preselected; any other agent can be searched and added.
+- Send to agent: a Review step previews the email (company template, real shipment), with edit for that send only and reset to default.
+- Agents page: filters for mode, country and network, a Top agents filter, and a star to flag top agents (listed first and starred when sending).
+- Locations: a master list of seaports, airports and road points (owner and super admin edit it). Enquiry and shipping-rate From / To pickers and the agent country list read from it. Filled from the built-in list on first use.
+- Email templates: each company's own wording for the agent rate request and client enquiry form emails (owner and super admin), with placeholders, preview and reset to default. `{{logo}}` puts the company logo in the signature.
+- Emails are sent by the background worker (queue `emails`, retries with backoff) instead of inside the request; the dialogs show Sending / Emailed per recipient.
+
+### Changed
+- The worker (`npm run worker`) now also sends emails. It needs `REDIS_URL`, `SMTP_*`, `MAIL_FROM`, `DATABASE_URL` and the same `uploads/` volume as the web app.
+- `docs/redis-and-workers-explained.pdf` explains Redis, the queues and the worker setup.
+
+### Deploy note
+- Run once on the server, before deploying: `prisma/add-top-agent.sql`, `prisma/add-locations.sql`, `prisma/add-email-templates.sql`, `prisma/add-email-jobs.sql` (adds `agents.is_top` and tables `locations`, `email_templates`, `email_jobs`).
+- Deploy the worker too, with the SMTP variables, or emails stay "Sending…".
+
 ## 1.6.0 - 2026-10-29
 
 ### Added

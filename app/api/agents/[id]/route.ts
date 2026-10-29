@@ -7,7 +7,7 @@ import { AGENT_EDITOR_ROLES, AGENT_LOCK_ROLES, parseAgent } from "@/lib/agents";
 
 type Params = { params: Promise<{ id: string }> };
 
-/** Body `{ locked }` alone locks / unlocks (owner, managers, accounts); anything else is a full edit (owner, managers). */
+/** Body `{ locked }` alone locks / unlocks (owner, managers, accounts); `{ is_top }` alone flags a top agent; anything else is a full edit (owner, managers). */
 export async function PATCH(request: NextRequest, context: Params) {
   const token = await getToken({ req: request, secret: process.env.NEXTAUTH_SECRET });
   const id = Number((await context.params).id);
@@ -15,6 +15,14 @@ export async function PATCH(request: NextRequest, context: Params) {
   if (typeof body.locked === "boolean" && Object.keys(body).length === 1) {
     if (!token || !hasRole(token, AGENT_LOCK_ROLES)) return NextResponse.json({ error: "You can't lock agents" }, { status: 403 });
     const { count } = await prisma.agent.updateMany({ where: { id }, data: { locked: body.locked } });
+    if (!count) return NextResponse.json({ error: "Agent not found" }, { status: 404 });
+    revalidatePath("/dashboard", "layout");
+    return NextResponse.json({ ok: true });
+  }
+  // Body `{ is_top }` alone flags / unflags a top agent (owner, managers).
+  if (typeof body.is_top === "boolean" && Object.keys(body).length === 1) {
+    if (!token || !hasRole(token, AGENT_EDITOR_ROLES)) return NextResponse.json({ error: "Only managers can flag top agents" }, { status: 403 });
+    const { count } = await prisma.agent.updateMany({ where: { id }, data: { is_top: body.is_top } });
     if (!count) return NextResponse.json({ error: "Agent not found" }, { status: 404 });
     revalidatePath("/dashboard", "layout");
     return NextResponse.json({ ok: true });

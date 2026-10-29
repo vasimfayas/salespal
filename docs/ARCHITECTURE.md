@@ -287,9 +287,13 @@ Indexes: salesman, org, (org, status), (salesman, status), status, category, cre
 
 **EnquiryFollowUp** [`enquiry_follow_ups`]: `enquiry_id`, `comment`, `created_by_id`.
 
-**Agent** [`agents`]: freight partner: `name`, `contact_person?`, `email`, `phone?`, `extra_emails[]`, `extra_phones[]`, `country?`, `network?`, `code?`, `modes[]` (`air, sea, land`), `locked`.
+**Agent** [`agents`]: freight partner: `name`, `contact_person?`, `email`, `phone?`, `extra_emails[]`, `extra_phones[]`, `country?`, `network?`, `code?`, `modes[]` (`air, sea, land`), `locked`, `is_top` (top agent: listed first, starred, preselect-friendly).
 
-**EnquiryAgentRequest** [`enquiry_agent_requests`]: one "send to agent" rate request: `enquiry_id`, `agent_id`, `token` unique (link `/agent-quote/<token>`), `sent_by_id`, `sent_at`, reply fields `cost?`, `notes?`, `replied_at?`.
+**EnquiryAgentRequest** [`enquiry_agent_requests`]: one "send to agent" rate request: `enquiry_id`, `agent_id`, `token` unique (link `/agent-quote/<token>`), `sent_by_id`, `sent_at`, reply fields `cost?`, `notes?`, `replied_at?`. "Send to agent" takes `agent_ids[]` (up to 25): one request/token/email each; the dialog preselects agents whose `modes` include the enquiry mode and whose `country` is the country of the enquiry's From (`agentMatchesRoute` in `lib/agents.ts`; the From place is resolved through the `locations` table).
+
+**Location** [`locations`]: master list of seaports, airports and road points the From / To pickers suggest: `name`, `code?` (UN/LOCODE or IATA), `kind` (`port, airport, land`), `country`, `country_code`, `aliases[]`; unique on `(kind, name, country)`. Seeded once from `SEED_LOCATIONS` in `lib/locations.ts` when the table is empty (`getLocations` in `lib/locations-db.ts`); afterwards the table is the source. Owner and super admin edit it on `/dashboard/admin/locations`. Enquiries and rates store the place as plain text, so edits never change them.
+
+**EmailTemplate** [`email_templates`]: a company's own wording for an outgoing email: `org_id`, `key` (`agent_rate_request`, `client_enquiry_form`), `subject`, `body` (plain text with `{{placeholders}}`, blank line = paragraph); unique on `(org_id, key)`; no row = the built-in default in `lib/email-templates.ts` (which also holds the placeholders and `renderEmail`). Must keep `{{link}}`. `{{logo}}` puts the company logo in the signature (attached inline as `cid:logo` so it shows without allowing remote images; nothing shows if the company has no logo; the default templates include it). Owner / super admin edit on `/dashboard/admin/email-templates`. "Send to agent" has a Review step that previews the company template with the real shipment and lets the sender edit it for that send only (`subject` + `body` in the POST body); "Send to client" uses the company template as saved.
 
 #### Orders and money
 
@@ -346,7 +350,7 @@ All under `app/dashboard/<role>/`. Each role has its own tree.
 
 | Role | Pages |
 |---|---|
-| admin | (overview), accounts, control-panel (super admin only: imports + reverse, deployments, errors), agents, approvals, clients, clients/[id], companies, enquiries, orders, reports, salesmen, shipping-rates, tasks, users |
+| admin | (overview), accounts, locations (owner / super admin), email-templates (owner / super admin), control-panel (super admin only: imports + reverse, deployments, errors), agents, approvals, clients, clients/[id], companies, enquiries, orders, reports, salesmen, shipping-rates, tasks, users |
 | manager | (team overview), my-overview, team, team/[salesmanId], tasks, my-clients, clients, clients/[id], salesmen, enquiries, orders, shipping-rates, agents, approvals, reports |
 | salesman | dashboard-org, (overview), tasks, clients, clients/[id], enquiries, orders, orders/[id] |
 | accountant | (dashboard), enquiries, orders, shipping-rates, agents, approvals |
@@ -368,6 +372,9 @@ Data for dashboards is assembled in `lib/admin-dashboard.ts`, `manager-dashboard
 | Orders | `orders` (GET, POST), `orders/[id]` (GET, PATCH), `/status`, `/payments`, `/reminder`, `orders/stats` |
 | Tasks | `tasks` (GET; POST by every role. `category: "todo"` is a private personal task: always assigned to the creator and hidden from everyone else, including managers and owners; accountants and operations can only create to-dos. Owners and managers may pass `assigned_to_id` for other task types), `tasks/[id]` (PATCH, DELETE), `/follow-up`, `/outcome`, `/updates` |
 | Agents | `agents` (GET, POST), `agents/[id]` (PATCH, DELETE) |
+| Email jobs | `email-jobs` (GET status by ids; roles 2, 3) |
+| Email templates | `email-templates` (GET any user; PUT, DELETE owner / super admin) |
+| Locations | `locations` (GET any user; POST owner / super admin), `locations/[id]` (PATCH, DELETE owner / super admin) |
 | Shipping rates | `shipping-rates` (GET, POST), `shipping-rates/[id]` (PATCH, DELETE) |
 | Companies | `companies/[id]/documents` (POST), `/documents/[docId]`, `/documents/export`, `/logo` |
 | Team | `manager-org`, `manager-salesman` (POST, DELETE), `salesman-targets` (POST) |
@@ -389,6 +396,8 @@ Convention: handlers call `getSalesPalSession()`, return `401` when there is no 
 ## 9. Background work, caching and scheduled jobs
 
 **Reports (queue):** `POST /api/reports/jobs` inserts a `report_jobs` row and adds a job to the BullMQ queue `reports` (`lib/report-queue.ts`: 2 attempts, 3 s fixed backoff). `worker/index.mts` (concurrency 1, 120 s lock) builds the PDF with `buildCompanyReportPdf`, writes `reports/<id>.pdf`, and updates the row. It marks the row `failed` only after retries run out. Redis URL: `REDIS_URL` (default `redis://127.0.0.1:6379`). Redis is used for the queue only.
+
+**Emails (queue):** nothing sends mail inside a request. `queueEmail` (`lib/email-queue.ts`) stores the rendered message in `email_jobs` (`kind`, `to`, `subject`, `text`, `html`, `logo_path`, `status` queued|sent|failed|not_configured, `error`, `attempts`) and adds a job to the BullMQ queue `emails` (3 attempts, exponential backoff from 15 s). The worker's second `Worker` (concurrency 1, so SMTP never sees a burst) calls `deliverEmailJob`, which sends and attaches the company logo inline as `cid:logo`. Same Redis as reports. If Redis is unreachable when queueing, the email is sent directly in the request. The send dialogs get `email_job_id`s back and poll `GET /api/email-jobs?ids=` (`hooks/useEmailJobs.ts`). `not_configured` = no `SMTP_HOST`.
 
 **Caching:** `lib/cached-queries.ts` wraps heavy reads in `unstable_cache` with a `revalidate` time (15 s to 300 s) and tags such as `admin-dashboard`, `admin-companies`, `salesman-clients`, `order-stats`, `shipping-rates`. Writes call `revalidateTag` / `revalidatePath` (for example `revalidateTeamViews()`, `revalidateTaskViews()`). When you change the shape a cached query returns, change its cache key too, or the old shape is served for up to the revalidate time.
 
@@ -414,7 +423,7 @@ Convention: handlers call `getSalesPalSession()`, return `401` when there is no 
 
 ## 11. Deployment and operations
 
-- Two processes from the same repo: the web app (`npm run build`, `npm start`) and the worker (`npm run worker`, bundled with esbuild to `.worker/index.mjs`). The worker needs the same `DATABASE_URL`, `REDIS_URL` and the shared `uploads/` volume.
+- Two processes from the same repo: the web app (`npm run build`, `npm start`) and the worker (`npm run worker`, bundled with esbuild to `.worker/index.mjs`). The worker (reports and emails) needs the same `DATABASE_URL`, `REDIS_URL`, the `SMTP_*` / `MAIL_FROM` variables and the shared `uploads/` volume (report PDFs, company logos).
 - First deploy of a fresh database: `prisma db push`, then `npm run prisma:seed` and/or `npm run seed:super-admin`.
 - Default password for new logins: `salespal123` (`lib/roles.ts`); users should change it.
 - Versioning: `package.json` version, `CHANGELOG.md`, git tags `vX.Y.Z`. Version and commit show at the bottom of the sidebar.

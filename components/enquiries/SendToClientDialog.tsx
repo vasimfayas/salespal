@@ -7,8 +7,9 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Modal, ModalFooter, ModalHeader } from "@/components/ui/Modal";
 import { Select } from "@/components/ui/Select";
+import { useEmailJobs } from "@/hooks/useEmailJobs";
 
-type Result = { ref: string; url: string; emailed: boolean; emailError: string | null; email: string };
+type Result = { ref: string; url: string; jobId: number; email: string };
 
 /** Copies a link and briefly confirms it on the button. */
 export function CopyLinkButton({ url }: { url: string }) {
@@ -51,6 +52,7 @@ export function SendToClientDialog({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<Result | null>(null);
+  const emailState = useEmailJobs(result ? [result.jobId] : [])(result?.jobId ?? 0);
 
   function reset() {
     setClient(null);
@@ -88,7 +90,7 @@ export function SendToClientDialog({
       // A crashed request can come back with an empty / non-JSON body.
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data.url) throw new Error(data.error || `Couldn't send the form (server error ${res.status}). Please try again.`);
-      setResult({ ref: data.enquiry.ref, url: data.url, emailed: data.emailed, emailError: data.email_error, email });
+      setResult({ ref: data.enquiry.ref, url: data.url, jobId: data.email_job_id, email });
       onSent();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Couldn't send the form");
@@ -107,18 +109,22 @@ export function SendToClientDialog({
       {result ? (
         <div className="space-y-4">
           <ModalHeader
-            title={result.emailed ? "Enquiry form sent" : "Enquiry created — share the link"}
+            title={emailState === "sent" ? "Enquiry form sent" : emailState === "queued" ? "Sending the enquiry form…" : "Enquiry created — share the link"}
             onClose={close}
             description={`${result.ref} is waiting for the client as "Sent to client".`}
           />
-          {result.emailed ? (
+          {emailState === "queued" ? (
+            <p className="flex items-start gap-2 rounded-control bg-muted px-3 py-2.5 text-sm text-foreground" aria-live="polite">
+              <Loader2 size={16} className="mt-0.5 shrink-0 animate-spin" aria-hidden /> Sending to {result.email} in the background. You can close this.
+            </p>
+          ) : emailState === "sent" ? (
             <p className="flex items-start gap-2 rounded-control bg-success-soft px-3 py-2.5 text-sm text-success-foreground">
               <CheckCircle2 size={16} className="mt-0.5 shrink-0" aria-hidden /> Emailed to {result.email}.
             </p>
           ) : (
             <p className="flex items-start gap-2 rounded-control bg-warning-soft px-3 py-2.5 text-sm text-warning-foreground">
               <MailWarning size={16} className="mt-0.5 shrink-0" aria-hidden />
-              {result.emailError ?? "Email isn't set up yet, so nothing was sent."} Copy the link and send it to the client yourself.
+              {emailState === "failed" ? "The email couldn't be sent." : "Email isn't set up yet, so nothing was sent."} Copy the link and send it to the client yourself.
             </p>
           )}
           <div className="flex items-center gap-2">

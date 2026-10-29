@@ -10,7 +10,7 @@ export const mailConfigured = () => !!process.env.SMTP_HOST;
 
 let transport: Transporter | null = null;
 
-export async function sendMail(message: { to: string; subject: string; text: string; html: string; replyTo?: string }) {
+export async function sendMail(message: { to: string; subject: string; text: string; html: string; replyTo?: string; attachments?: { filename: string; content: Buffer; contentType: string; cid: string }[] }) {
   if (!mailConfigured()) return false;
   transport ??= nodemailer.createTransport({
     host: process.env.SMTP_HOST,

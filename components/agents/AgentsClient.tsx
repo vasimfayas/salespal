@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Download, Globe, Lock, LockOpen, Mail, Pencil, Phone, Plus, Trash2, Upload, UserRound, Users, X } from "lucide-react";
+import { Download, Globe, Lock, LockOpen, Mail, Pencil, Phone, Plus, RotateCcw, Star, Trash2, Upload, UserRound, Users, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -11,7 +11,7 @@ import { Modal, ModalFooter, ModalHeader } from "@/components/ui/Modal";
 import { labelClass } from "@/components/ui/field-styles";
 import { AGENT_COLUMNS, BulkImportAgentsModal } from "@/components/agents/BulkImportAgentsModal";
 import { downloadCsv } from "@/lib/csv";
-import { FREIGHT_LOCATIONS } from "@/lib/locations";
+import { useLocations } from "@/hooks/useLocations";
 import { cn, titleCase } from "@/lib/utils";
 import { orderModes } from "@/types/order";
 
@@ -28,10 +28,12 @@ export type AgentRow = {
   code: string | null;
   modes: string[];
   locked: boolean;
+  /** Flagged as a top (preferred) agent. */
+  is_top: boolean;
   requests: number;
 };
 
-const EMPTY = { name: "", contact_person: "", emails: [""], phones: [""], country: "", network: "", code: "", modes: [] as string[] };
+const EMPTY = { name: "", contact_person: "", emails: [""], phones: [""], country: "", network: "", code: "", modes: [] as string[], is_top: false };
 const toBody = (f: typeof EMPTY) => ({
   ...f,
   email: f.emails[0]?.trim() ?? "",
@@ -62,7 +64,8 @@ function MultiInput({ label, type, values, onChange, hint, required }: { label: 
     </div>
   );
 }
-const COUNTRIES = [...new Set(FREIGHT_LOCATIONS.map((l) => l.country))].sort();
+const selectClass =
+  "h-9 cursor-pointer rounded-control border border-input bg-card px-3 text-sm text-foreground shadow-xs outline-none hover:border-border-strong focus:border-ring focus:ring-3 focus:ring-ring/15";
 
 /**
  * The agents directory: add, edit and delete the agents enquiries are sent to for rates, and lock / unlock them.
@@ -70,11 +73,34 @@ const COUNTRIES = [...new Set(FREIGHT_LOCATIONS.map((l) => l.country))].sort();
  */
 export function AgentsClient({ agents, canEdit = true }: { agents: AgentRow[]; canEdit?: boolean }) {
   const router = useRouter();
+  const places = useLocations();
+  const COUNTRIES = useMemo(() => [...new Set((places ?? []).map((l) => l.country))].sort(), [places]);
   const [editing, setEditing] = useState<AgentRow | "new" | null>(null);
   const [form, setForm] = useState(EMPTY);
   const [importing, setImporting] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Filters over the loaded list (the directory is small, so no round trip).
+  const [modeFilter, setModeFilter] = useState("all");
+  const [countryFilter, setCountryFilter] = useState("all");
+  const [networkFilter, setNetworkFilter] = useState("all");
+  const [topOnly, setTopOnly] = useState(false);
+  const countries = useMemo(() => [...new Set(agents.map((a) => a.country).filter((c): c is string => !!c))].sort(), [agents]);
+  const networks = useMemo(() => [...new Set(agents.map((a) => a.network).filter((n): n is string => !!n))].sort(), [agents]);
+  const shown = agents.filter(
+    (a) =>
+      (modeFilter === "all" || a.modes.includes(modeFilter)) &&
+      (countryFilter === "all" || a.country === countryFilter) &&
+      (networkFilter === "all" || a.network === networkFilter) &&
+      (!topOnly || a.is_top),
+  );
+  const filtering = modeFilter !== "all" || countryFilter !== "all" || networkFilter !== "all" || topOnly;
+  function resetFilters() {
+    setModeFilter("all");
+    setCountryFilter("all");
+    setNetworkFilter("all");
+    setTopOnly(false);
+  }
 
   function open(agent: AgentRow | "new") {
     setEditing(agent);
@@ -91,6 +117,7 @@ export function AgentsClient({ agents, canEdit = true }: { agents: AgentRow[]; c
             network: agent.network ?? "",
             code: agent.code ?? "",
             modes: agent.modes,
+            is_top: agent.is_top,
           },
     );
   }
@@ -136,6 +163,18 @@ export function AgentsClient({ agents, canEdit = true }: { agents: AgentRow[]; c
     router.refresh();
   }
 
+  async function toggleTop(agent: AgentRow) {
+    const res = await fetch(`/api/agents/${agent.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ is_top: !agent.is_top }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) return toast.error(data.error || "Couldn't update the agent");
+    toast.success(agent.is_top ? `${agent.name} is no longer a top agent` : `${agent.name} is now a top agent`);
+    router.refresh();
+  }
+
   async function remove(agent: AgentRow) {
     if (!confirm(`Delete ${agent.name}?`)) return;
     const res = await fetch(`/api/agents/${agent.id}`, { method: "DELETE" });
@@ -166,20 +205,77 @@ export function AgentsClient({ agents, canEdit = true }: { agents: AgentRow[]; c
       </div>
       <BulkImportAgentsModal open={importing} onClose={() => setImporting(false)} onImported={() => router.refresh()} />
 
+      {agents.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2 rounded-card border border-border bg-card p-3 shadow-card">
+          <select aria-label="Filter by mode" value={modeFilter} onChange={(e) => setModeFilter(e.target.value)} className={selectClass}>
+            <option value="all">All modes</option>
+            {orderModes.map((m) => (
+              <option key={m} value={m}>
+                {titleCase(m)}
+              </option>
+            ))}
+          </select>
+          <select aria-label="Filter by country" value={countryFilter} onChange={(e) => setCountryFilter(e.target.value)} className={selectClass}>
+            <option value="all">All countries</option>
+            {countries.map((c) => (
+              <option key={c} value={c}>
+                {c}
+              </option>
+            ))}
+          </select>
+          <select aria-label="Filter by network" value={networkFilter} onChange={(e) => setNetworkFilter(e.target.value)} className={selectClass}>
+            <option value="all">All networks</option>
+            {networks.map((n) => (
+              <option key={n} value={n}>
+                {n}
+              </option>
+            ))}
+          </select>
+          <label className={cn("inline-flex h-9 cursor-pointer items-center gap-1.5 rounded-control border px-3 text-sm transition-colors has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring", topOnly ? "border-warning bg-warning-soft text-warning-foreground" : "border-input text-foreground hover:bg-muted")}>
+            <input type="checkbox" className="sr-only" checked={topOnly} onChange={(e) => setTopOnly(e.target.checked)} />
+            <Star size={14} className={topOnly ? "fill-current" : ""} aria-hidden /> Top agents
+          </label>
+          {filtering && (
+            <Button size="sm" variant="ghost" onClick={resetFilters}>
+              <RotateCcw /> Reset
+            </Button>
+          )}
+          <span className="ml-auto text-xs text-muted-foreground" aria-live="polite">
+            {shown.length} of {agents.length} agents
+          </span>
+        </div>
+      )}
+
       {agents.length === 0 ? (
         <EmptyState
           icon={Users}
           title="No agents yet"
           message={canEdit ? "Add the agents you ask for rates. Enquiries can then be sent to them by email." : "Managers add the agents enquiries are sent to."}
         />
+      ) : shown.length === 0 ? (
+        <EmptyState
+          icon={Users}
+          title="No agents match these filters"
+          message="Try a different mode, country or network."
+          action={
+            <Button size="sm" variant="secondary" onClick={resetFilters}>
+              <RotateCcw /> Reset filters
+            </Button>
+          }
+        />
       ) : (
         <ul className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-          {agents.map((a) => (
+          {shown.map((a) => (
             <li key={a.id} className={cn("flex flex-col gap-3 rounded-card border border-border bg-card p-4 shadow-card", a.locked && "bg-muted/40")}>
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0">
                   <h3 className="flex items-center gap-2 font-semibold text-foreground">
                     <span className="truncate">{a.name}</span>
+                    {a.is_top && (
+                      <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-warning-soft px-2 py-0.5 text-[11px] font-semibold text-warning-foreground">
+                        <Star size={11} className="fill-current" aria-hidden /> Top
+                      </span>
+                    )}
                     {a.locked && (
                       <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-danger-soft px-2 py-0.5 text-[11px] font-semibold text-danger-foreground">
                         <Lock size={11} aria-hidden /> Locked
@@ -191,6 +287,18 @@ export function AgentsClient({ agents, canEdit = true }: { agents: AgentRow[]; c
                   </p>
                 </div>
                 <div className="flex shrink-0">
+                  {canEdit && (
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      onClick={() => toggleTop(a)}
+                      aria-label={`${a.is_top ? "Remove" : "Mark"} ${a.name} ${a.is_top ? "from" : "as a"} top agent${a.is_top ? "s" : ""}`}
+                      aria-pressed={a.is_top}
+                      title={a.is_top ? "Top agent: click to remove the flag" : "Mark as a top agent"}
+                    >
+                      <Star className={a.is_top ? "fill-warning text-warning" : ""} />
+                    </Button>
+                  )}
                   <Button
                     variant="ghost"
                     size="icon-sm"
@@ -294,6 +402,11 @@ export function AgentsClient({ agents, canEdit = true }: { agents: AgentRow[]; c
               })}
             </div>
           </fieldset>
+          <label className="flex cursor-pointer items-center gap-2 text-sm font-medium text-foreground">
+            <input type="checkbox" className="size-4 cursor-pointer accent-[var(--primary)]" checked={form.is_top} onChange={(e) => setForm({ ...form, is_top: e.target.checked })} />
+            <Star size={14} className={form.is_top ? "fill-warning text-warning" : "text-muted-foreground"} aria-hidden /> Top agent
+            <span className="font-normal text-muted-foreground">(shown first and starred when sending enquiries)</span>
+          </label>
           <div className="grid gap-3 sm:grid-cols-2">
             <Input label="Network (optional)" value={form.network} onChange={(e) => setForm({ ...form, network: e.target.value })} placeholder="e.g. WCA" />
             <Input label="Code (optional)" value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value })} />

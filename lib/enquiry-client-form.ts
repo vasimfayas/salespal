@@ -1,5 +1,6 @@
 import { randomBytes } from "node:crypto";
-import { escapeHtml, sendMail } from "@/lib/mailer";
+import { queueEmail } from "@/lib/email-queue";
+import { renderEmail, type EmailTemplate } from "@/lib/email-templates";
 import { publicBaseUrl } from "@/lib/public-url";
 
 /**
@@ -18,33 +19,8 @@ export const clientFormUrl = (token: string, request: Request) => new URL(client
 
 export const clientFormExpired = (sentAt: Date | null) => !sentAt || Date.now() - sentAt.getTime() > CLIENT_FORM_VALID_DAYS * 86_400_000;
 
-/** Emails the link. False when email isn't configured; throws when the SMTP server refuses it. */
-export function sendClientFormEmail(m: { to: string; contactName: string; companyName: string; senderName: string; ref: string; url: string }) {
-  const hello = m.contactName && m.contactName !== "-" ? `Dear ${m.contactName},` : "Hello,";
-  const text = [
-    hello,
-    "",
-    `${m.companyName} has sent you a freight enquiry form (${m.ref}). Fill in your shipment details and sign at the end:`,
-    m.url,
-    "",
-    `The link works for ${CLIENT_FORM_VALID_DAYS} days. We'll send you a quote once we receive it.`,
-    "",
-    `${m.senderName}`,
-    m.companyName,
-  ].join("\n");
-  const html = `
-    <div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.6;color:#1a1f29;max-width:560px">
-      <p>${escapeHtml(hello)}</p>
-      <p><strong>${escapeHtml(m.companyName)}</strong> has sent you a freight enquiry form (${escapeHtml(m.ref)}).
-         Fill in your shipment details and sign at the end.</p>
-      <p style="margin:24px 0">
-        <a href="${escapeHtml(m.url)}" style="background:#0f7370;color:#fff;text-decoration:none;padding:12px 20px;border-radius:8px;display:inline-block;font-weight:bold">
-          Fill in the enquiry form
-        </a>
-      </p>
-      <p style="color:#6b7280;font-size:12px">The link works for ${CLIENT_FORM_VALID_DAYS} days. If the button doesn't work, copy this address into your browser:<br>${escapeHtml(m.url)}</p>
-      <p>We'll send you a quote once we receive it.</p>
-      <p>${escapeHtml(m.senderName)}<br>${escapeHtml(m.companyName)}</p>
-    </div>`;
-  return sendMail({ to: m.to, subject: `Freight enquiry form ${m.ref} — ${m.companyName}`, text, html });
+/** Queues the form link email, worded by the company's template; returns the email job id. */
+export function sendClientFormEmail(m: { to: string; template: EmailTemplate; logoPath: string | null; contactName: string; companyName: string; senderName: string; ref: string; url: string }) {
+  const mail = renderEmail("client_enquiry_form", m.template, { logo_src: m.logoPath ? "cid:logo" : null, contact_name: m.contactName, company: m.companyName, ref: m.ref, sender: m.senderName, link: m.url, valid_days: CLIENT_FORM_VALID_DAYS });
+  return queueEmail({ kind: "client_enquiry_form", to: m.to, ...mail, logoPath: m.logoPath });
 }

@@ -580,6 +580,8 @@ model Agent {
   modes          String[]              @default([])
   /// Locked agents can't be sent enquiries (owner, managers and accounts toggle it).
   locked         Boolean               @default(false)
+  /// Flagged by owner / managers as a preferred agent; shown first and with a star when sending enquiries.
+  is_top         Boolean               @default(false)
   created_at     DateTime              @default(now())
   requests       EnquiryAgentRequest[]
 
@@ -782,4 +784,60 @@ model ErrorLog {
 
   @@index([status, last_seen])
   @@map("error_logs")
+}
+
+/// Master list of seaports, airports and road points that From / To pickers suggest. Edited by owner / super admin.
+model Location {
+  id           Int      @id @default(autoincrement())
+  name         String
+  /// UN/LOCODE for ports, IATA for airports.
+  code         String?
+  /// port | airport | land
+  kind         String
+  country      String
+  country_code String
+  /// Extra words people search with.
+  aliases      String[]
+  created_at   DateTime @default(now())
+
+  @@unique([kind, name, country])
+  @@index([country])
+  @@map("locations")
+}
+
+/// A company's own wording for an outgoing email (key: agent_rate_request | client_enquiry_form). No row = the built-in default.
+model EmailTemplate {
+  id            Int      @id @default(autoincrement())
+  org_id        Int
+  key           String
+  subject       String
+  /// Plain text with {{placeholders}}; blank lines separate paragraphs.
+  body          String
+  updated_at    DateTime @updatedAt
+  updated_by_id Int?
+
+  @@unique([org_id, key])
+  @@map("email_templates")
+}
+
+/// An email waiting for / handled by the background worker (npm run worker). The message is stored already rendered.
+model EmailJob {
+  id         Int       @id @default(autoincrement())
+  /// agent_rate_request | client_enquiry_form
+  kind       String
+  to         String
+  subject    String
+  text       String
+  html       String
+  /// Company logo file to attach inline as cid:logo.
+  logo_path  String?
+  /// queued | sent | failed | not_configured
+  status     String    @default("queued")
+  error      String?
+  attempts   Int       @default(0)
+  created_at DateTime  @default(now())
+  sent_at    DateTime?
+
+  @@index([status, created_at])
+  @@map("email_jobs")
 }

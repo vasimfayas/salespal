@@ -3,8 +3,9 @@ import { prisma } from "@/lib/prisma";
 import { REPORT_QUEUE, redisConnection } from "@/lib/report-queue";
 import { buildCompanyReportPdf } from "@/lib/report-pdf";
 import { writeStoredFile } from "@/lib/company-documents";
+import { EMAIL_ATTEMPTS, EMAIL_QUEUE, deliverEmailJob } from "@/lib/email-queue";
 
-/** Background worker: builds queued reports. Run with `npm run worker` (its own process / container). */
+/** Background worker: builds queued reports and sends queued emails. Run with `npm run worker` (its own process / container). */
 const worker = new Worker(
   REPORT_QUEUE,
   async (job) => {
@@ -31,7 +32,17 @@ worker.on("failed", async (job, err) => {
   }
 });
 worker.on("ready", () => console.log("report worker ready"));
+
+// Emails go out one at a time, so SMTP providers never see a burst; a refused one is retried with backoff.
+const emailWorker = new Worker(EMAIL_QUEUE, async (job) => deliverEmailJob((job.data as { emailJobId: number }).emailJobId), { connection: redisConnection(), concurrency: 1 });
+emailWorker.on("failed", async (job, err) => {
+  console.error("email job failed", job?.id, err.message);
+  if (job && job.attemptsMade >= (job.opts.attempts ?? EMAIL_ATTEMPTS)) {
+    await prisma.emailJob.update({ where: { id: job.data.emailJobId }, data: { status: "failed" } }).catch(() => {});
+  }
+});
+emailWorker.on("ready", () => console.log("email worker ready"));
 process.on("SIGTERM", async () => {
-  await worker.close();
+  await Promise.all([worker.close(), emailWorker.close()]);
   process.exit(0);
 });

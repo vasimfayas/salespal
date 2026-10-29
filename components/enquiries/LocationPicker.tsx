@@ -4,7 +4,8 @@ import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { MapPin, Plane, Ship, Truck, X, type LucideIcon } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { controlBase, labelClass } from "@/components/ui/field-styles";
-import { FREIGHT_LOCATIONS, KIND_FOR_MODE, locationLabel, type LocationKind } from "@/lib/locations";
+import { useLocations } from "@/hooks/useLocations";
+import { KIND_FOR_MODE, locationLabel, type LocationKind } from "@/lib/locations";
 import { cn } from "@/lib/utils";
 
 const KIND: Record<LocationKind, { icon: LucideIcon; label: string; tone: string }> = {
@@ -50,10 +51,11 @@ export function LocationPicker({
   const boxRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const preferred = KIND_FOR_MODE[mode] ?? "port";
+  const places = useLocations();
 
   const groups = useMemo(() => {
     const tokens = query.trim().toLowerCase().split(/[\s,]+/).filter(Boolean);
-    const matches = FREIGHT_LOCATIONS.filter((l) =>
+    const matches = (places ?? []).filter((l) =>
       tokens.length ? (!strict || l.kind === preferred) && tokens.every((t) => l.search.includes(t)) : l.kind === preferred,
     )
       // Preferred kind first, then the list's own order (Gulf first).
@@ -64,7 +66,7 @@ export function LocationPicker({
     const byCountry = new Map<string, typeof matches>();
     for (const m of matches) byCountry.set(m.country, [...(byCountry.get(m.country) ?? []), m]);
     return [...byCountry.entries()].map(([country, items]) => ({ country, code: items[0].countryCode, items }));
-  }, [query, preferred, strict]);
+  }, [places, query, preferred, strict]);
   const flat = useMemo(() => groups.flatMap((g) => g.items), [groups]);
   const typed = query.trim();
   const exact = flat.some((l) => locationLabel(l).toLowerCase() === typed.toLowerCase());

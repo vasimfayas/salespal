@@ -1,6 +1,7 @@
 import { randomBytes } from "node:crypto";
 import type { Prisma } from "@prisma/client";
-import { escapeHtml, sendMail } from "@/lib/mailer";
+import { queueEmail } from "@/lib/email-queue";
+import { renderEmail, type EmailTemplate } from "@/lib/email-templates";
 import { publicBaseUrl } from "@/lib/public-url";
 import { dimensionUnitLabels, readPackages, type DimensionUnit } from "@/lib/freight";
 import { equipmentLabel, formatTemp, incotermNames, jobRefNames, type Incoterm, type JobRef } from "@/types/enquiry";
@@ -78,41 +79,17 @@ export function agentShipmentRows(e: AgentEnquiry): [string, string][] {
   return rows.filter((r): r is [string, string] => !!r[1]);
 }
 
-/** Emails the agent their rate request. False when email isn't configured; throws when the SMTP server refuses it. */
-export function sendAgentRequestEmail(m: { to: string; contactName: string | null; ref: string; enquiry: AgentEnquiry; senderName: string; url: string }) {
-  const company = m.enquiry.organization.name;
-  const rows = agentShipmentRows(m.enquiry);
-  const hello = m.contactName ? `Dear ${m.contactName},` : "Hello,";
-  const text = [
-    hello,
-    "",
-    `${company} would like your rate for this shipment (${m.ref}):`,
-    "",
-    ...rows.map(([k, v]) => `${k}: ${v}`),
-    "",
-    `Add your cost here: ${m.url}`,
-    `The link works for ${AGENT_LINK_VALID_DAYS} days.`,
-    "",
-    m.senderName,
-    company,
-  ].join("\n");
-  const html = `
-    <div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.6;color:#1a1f29;max-width:600px">
-      <p>${escapeHtml(hello)}</p>
-      <p><strong>${escapeHtml(company)}</strong> would like your rate for this shipment (${escapeHtml(m.ref)}):</p>
-      <table cellpadding="6" style="border-collapse:collapse;width:100%;font-size:13px">
-        ${rows
-          .map(
-            ([k, v]) =>
-              `<tr><td style="border-bottom:1px solid #e5e7eb;color:#6b7280;width:38%;vertical-align:top">${escapeHtml(k)}</td><td style="border-bottom:1px solid #e5e7eb">${escapeHtml(v)}</td></tr>`,
-          )
-          .join("")}
-      </table>
-      <p style="margin:24px 0">
-        <a href="${escapeHtml(m.url)}" style="background:#0f7370;color:#fff;text-decoration:none;padding:12px 20px;border-radius:8px;display:inline-block;font-weight:bold">Add your cost</a>
-      </p>
-      <p style="color:#6b7280;font-size:12px">The link works for ${AGENT_LINK_VALID_DAYS} days. If the button doesn't work, copy this address into your browser:<br>${escapeHtml(m.url)}</p>
-      <p>${escapeHtml(m.senderName)}<br>${escapeHtml(company)}</p>
-    </div>`;
-  return sendMail({ to: m.to, subject: `Rate request ${m.ref} — ${company}`, text, html });
+/** Queues the agent's rate request email, worded by the template (the company's, or one edited for this send); returns the email job id. */
+export function sendAgentRequestEmail(m: { to: string; template: EmailTemplate; contactName: string | null; ref: string; enquiry: AgentEnquiry; senderName: string; url: string }) {
+  const mail = renderEmail("agent_rate_request", m.template, {
+    logo_src: m.enquiry.organization.logo_path ? "cid:logo" : null,
+    contact_name: m.contactName,
+    company: m.enquiry.organization.name,
+    ref: m.ref,
+    sender: m.senderName,
+    link: m.url,
+    valid_days: AGENT_LINK_VALID_DAYS,
+    shipment: agentShipmentRows(m.enquiry),
+  });
+  return queueEmail({ kind: "agent_rate_request", to: m.to, ...mail, logoPath: m.enquiry.organization.logo_path });
 }
