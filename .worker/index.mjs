@@ -23,6 +23,9 @@ function redisConnection() {
 import path3 from "node:path";
 import { renderToBuffer } from "@react-pdf/renderer";
 
+// lib/task-privacy.ts
+import { Prisma } from "@prisma/client";
+
 // lib/scoping.ts
 async function getManagerSalesmanIds(managerId) {
   const salesmen = await prisma.managerSalesman.findMany({ where: { manager_id: managerId }, select: { salesman_id: true }, distinct: ["salesman_id"] });
@@ -70,10 +73,10 @@ function readDocumentFile(relativePath) {
 }
 
 // lib/company-report.ts
-import { Prisma as Prisma2 } from "@prisma/client";
+import { Prisma as Prisma3 } from "@prisma/client";
 
 // lib/salesman-targets.ts
-import { Prisma } from "@prisma/client";
+import { Prisma as Prisma2 } from "@prisma/client";
 function todayUtc() {
   const now = /* @__PURE__ */ new Date();
   return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
@@ -92,7 +95,7 @@ function targetState(target, achieved, amount, today) {
 }
 async function getTargetAchievements(salesmanIds) {
   if (salesmanIds.length === 0) return /* @__PURE__ */ new Map();
-  const rows = await prisma.$queryRaw(Prisma.sql`
+  const rows = await prisma.$queryRaw(Prisma2.sql`
     SELECT t.id, COALESCE(SUM(o.amount), 0)::float8 AS achieved
     FROM salesman_targets t
     LEFT JOIN orders o
@@ -100,7 +103,7 @@ async function getTargetAchievements(salesmanIds) {
      AND o.status NOT IN ('cancelled', 'revision_requested')
      AND o.created_at >= t.period_start
      AND o.created_at < t.period_end + 1
-    WHERE t.salesman_id IN (${Prisma.join(salesmanIds)})
+    WHERE t.salesman_id IN (${Prisma2.join(salesmanIds)})
     GROUP BY t.id
   `);
   return new Map(rows.map((r) => [r.id, Number(r.achieved)]));
@@ -172,6 +175,188 @@ var lostReasonLabels = {
 };
 var isLostReason = (v) => typeof v === "string" && lostReasons.includes(v);
 
+// lib/agents.ts
+function placeCountry(place, places) {
+  if (place.includes(",")) return place.split(",").pop().trim().toLowerCase();
+  const name = place.replace(/\(.*?\)/g, "").trim().toLowerCase();
+  const code = place.match(/\(([A-Za-z]{3,5})\)/)?.[1]?.toLowerCase();
+  const hit = places.find((l) => l.name.toLowerCase() === name || !!code && l.code?.toLowerCase() === code || l.aliases?.some((x) => x.toLowerCase() === name));
+  return hit?.country.toLowerCase() ?? "";
+}
+
+// lib/report-parts.ts
+var reportParts = ["orders", "enquiries", "confirmed", "lost"];
+
+// lib/locations.ts
+var COUNTRIES = [
+  // ── Gulf & Middle East ──
+  {
+    country: "Qatar",
+    code: "QA",
+    ports: [["Hamad Port", "QAHMD", ["doha", "new port"]], ["Doha Port", "QADOH"], ["Mesaieed Port", "QAMES", ["umm said"]], ["Ras Laffan Port", "QARLF"]],
+    airports: [["Hamad International Airport", "DOH", ["doha"]]],
+    land: [["Abu Samra Border", ["salwa", "saudi border"]], ["Doha", ["doha city"]], ["Mesaieed Industrial City"], ["Ras Laffan Industrial City"]]
+  },
+  {
+    country: "United Arab Emirates",
+    code: "AE",
+    aliases: ["uae", "emirates"],
+    ports: [["Jebel Ali", "AEJEA", ["dubai"]], ["Port Rashid", "AEPRA", ["dubai"]], ["Khalifa Port", "AEKHL", ["abu dhabi"]], ["Mina Zayed", "AEMZD", ["abu dhabi"]], ["Port Khalid", "AESHJ", ["sharjah"]], ["Khor Fakkan", "AEKLF"], ["Fujairah", "AEFJR"]],
+    airports: [["Dubai International Airport", "DXB"], ["Dubai World Central", "DWC", ["al maktoum"]], ["Abu Dhabi International Airport", "AUH"], ["Sharjah International Airport", "SHJ"]],
+    land: [["Ghuwaifat Border", ["saudi border"]], ["Dubai"], ["Abu Dhabi"], ["Sharjah"]]
+  },
+  {
+    country: "Saudi Arabia",
+    code: "SA",
+    aliases: ["ksa"],
+    ports: [["Jeddah Islamic Port", "SAJED"], ["King Abdulaziz Port", "SADMM", ["dammam"]], ["Jubail Commercial Port", "SAJUB"], ["King Abdullah Port", "SAKAC", ["rabigh"]], ["Yanbu Commercial Port", "SAYNB"]],
+    airports: [["King Khalid International Airport", "RUH", ["riyadh"]], ["King Abdulaziz International Airport", "JED", ["jeddah"]], ["King Fahd International Airport", "DMM", ["dammam"]]],
+    land: [["Salwa Border", ["qatar border", "abu samra"]], ["Riyadh"], ["Dammam"], ["Jeddah"], ["King Fahd Causeway", ["bahrain"]]]
+  },
+  {
+    country: "Oman",
+    code: "OM",
+    ports: [["Sohar Port", "OMSOH"], ["Port of Salalah", "OMSLL"], ["Port Sultan Qaboos", "OMMCT", ["muscat"]], ["Port of Duqm", "OMDQM"]],
+    airports: [["Muscat International Airport", "MCT"]],
+    land: [["Muscat"], ["Sohar"]]
+  },
+  {
+    country: "Kuwait",
+    code: "KW",
+    ports: [["Shuwaikh Port", "KWSWK"], ["Shuaiba Port", "KWSAA"]],
+    airports: [["Kuwait International Airport", "KWI"]],
+    land: [["Kuwait City"]]
+  },
+  {
+    country: "Bahrain",
+    code: "BH",
+    ports: [["Khalifa Bin Salman Port", "BHKBS"]],
+    airports: [["Bahrain International Airport", "BAH"]],
+    land: [["Manama"]]
+  },
+  { country: "Iraq", code: "IQ", ports: [["Umm Qasr", "IQUQR"]], airports: [["Basra International Airport", "BSR"], ["Baghdad International Airport", "BGW"]] },
+  { country: "Jordan", code: "JO", ports: [["Aqaba", "JOAQJ"]], airports: [["Queen Alia International Airport", "AMM", ["amman"]]], land: [["Amman"]] },
+  {
+    country: "Egypt",
+    code: "EG",
+    ports: [["Port Said", "EGPSD"], ["Alexandria", "EGALY"], ["Ain Sokhna", "EGSOK"], ["Damietta", "EGDAM"]],
+    airports: [["Cairo International Airport", "CAI"]]
+  },
+  {
+    country: "Turkey",
+    code: "TR",
+    aliases: ["turkiye"],
+    ports: [["Mersin", "TRMER"], ["Ambarli", "TRAMR", ["istanbul"]], ["Izmir", "TRIZM"]],
+    airports: [["Istanbul Airport", "IST"]]
+  },
+  // ── South Asia ──
+  {
+    country: "India",
+    code: "IN",
+    ports: [["Nhava Sheva (JNPT)", "INNSA", ["jnpt", "mumbai", "jawaharlal nehru"]], ["Mundra", "INMUN"], ["Chennai", "INMAA", ["madras"]], ["Kolkata", "INCCU", ["calcutta"]], ["Cochin", "INCOK", ["kochi"]], ["Visakhapatnam", "INVTZ", ["vizag"]], ["Tuticorin", "INTUT"]],
+    airports: [["Mumbai Airport", "BOM"], ["Delhi Airport", "DEL", ["new delhi"]], ["Chennai Airport", "MAA"], ["Bengaluru Airport", "BLR", ["bangalore"]], ["Hyderabad Airport", "HYD"], ["Kochi Airport", "COK", ["cochin"]]]
+  },
+  {
+    country: "Pakistan",
+    code: "PK",
+    ports: [["Karachi", "PKKHI"], ["Port Qasim", "PKBQM"]],
+    airports: [["Karachi Airport", "KHI"], ["Lahore Airport", "LHE"]]
+  },
+  { country: "Sri Lanka", code: "LK", ports: [["Colombo", "LKCMB"]], airports: [["Colombo Airport", "CMB", ["bandaranaike"]]] },
+  { country: "Bangladesh", code: "BD", ports: [["Chittagong", "BDCGP", ["chattogram"]]], airports: [["Dhaka Airport", "DAC"]] },
+  // ── East & Southeast Asia ──
+  {
+    country: "China",
+    code: "CN",
+    ports: [["Shanghai", "CNSHA"], ["Ningbo", "CNNGB"], ["Yantian", "CNYTN", ["shenzhen"]], ["Shekou", "CNSHK", ["shenzhen"]], ["Nansha", "CNNSA", ["guangzhou"]], ["Qingdao", "CNTAO"], ["Tianjin (Xingang)", "CNTXG"], ["Xiamen", "CNXMN"], ["Dalian", "CNDLC"]],
+    airports: [["Shanghai Pudong Airport", "PVG"], ["Beijing Capital Airport", "PEK"], ["Guangzhou Baiyun Airport", "CAN"], ["Shenzhen Airport", "SZX"]]
+  },
+  { country: "Hong Kong", code: "HK", ports: [["Hong Kong", "HKHKG"]], airports: [["Hong Kong International Airport", "HKG"]] },
+  { country: "Taiwan", code: "TW", ports: [["Kaohsiung", "TWKHH"]], airports: [["Taoyuan International Airport", "TPE", ["taipei"]]] },
+  { country: "South Korea", code: "KR", aliases: ["korea"], ports: [["Busan", "KRPUS", ["pusan"]], ["Incheon", "KRINC"]], airports: [["Incheon International Airport", "ICN", ["seoul"]]] },
+  {
+    country: "Japan",
+    code: "JP",
+    ports: [["Tokyo", "JPTYO"], ["Yokohama", "JPYOK"], ["Kobe", "JPUKB"], ["Nagoya", "JPNGO"]],
+    airports: [["Narita International Airport", "NRT", ["tokyo"]], ["Kansai International Airport", "KIX", ["osaka"]]]
+  },
+  { country: "Singapore", code: "SG", ports: [["Singapore", "SGSIN"]], airports: [["Changi Airport", "SIN", ["singapore"]]] },
+  {
+    country: "Malaysia",
+    code: "MY",
+    ports: [["Port Klang", "MYPKG"], ["Tanjung Pelepas", "MYTPP"], ["Penang", "MYPEN"]],
+    airports: [["Kuala Lumpur International Airport", "KUL"]]
+  },
+  { country: "Thailand", code: "TH", ports: [["Laem Chabang", "THLCH"], ["Bangkok", "THBKK"]], airports: [["Suvarnabhumi Airport", "BKK", ["bangkok"]]] },
+  {
+    country: "Vietnam",
+    code: "VN",
+    aliases: ["viet nam"],
+    ports: [["Ho Chi Minh City (Cat Lai)", "VNSGN", ["saigon"]], ["Hai Phong", "VNHPH"]],
+    airports: [["Tan Son Nhat Airport", "SGN", ["ho chi minh"]], ["Noi Bai Airport", "HAN", ["hanoi"]]]
+  },
+  { country: "Indonesia", code: "ID", ports: [["Jakarta (Tanjung Priok)", "IDJKT"], ["Surabaya", "IDSUB"]], airports: [["Soekarno-Hatta Airport", "CGK", ["jakarta"]]] },
+  { country: "Philippines", code: "PH", ports: [["Manila", "PHMNL"]], airports: [["Ninoy Aquino Airport", "MNL", ["manila"]]] },
+  // ── Europe ──
+  { country: "Germany", code: "DE", ports: [["Hamburg", "DEHAM"], ["Bremerhaven", "DEBRV"]], airports: [["Frankfurt Airport", "FRA"]] },
+  { country: "Netherlands", code: "NL", aliases: ["holland"], ports: [["Rotterdam", "NLRTM"]], airports: [["Amsterdam Schiphol Airport", "AMS"]] },
+  { country: "Belgium", code: "BE", ports: [["Antwerp", "BEANR"]], airports: [["Brussels Airport", "BRU"], ["Li\xE8ge Airport", "LGG"]] },
+  {
+    country: "United Kingdom",
+    code: "GB",
+    aliases: ["uk", "england", "britain"],
+    ports: [["Felixstowe", "GBFXT"], ["Southampton", "GBSOU"], ["London Gateway", "GBLGP"]],
+    airports: [["London Heathrow Airport", "LHR"]]
+  },
+  { country: "France", code: "FR", ports: [["Le Havre", "FRLEH"], ["Marseille", "FRMRS"]], airports: [["Paris Charles de Gaulle Airport", "CDG"]] },
+  { country: "Spain", code: "ES", ports: [["Valencia", "ESVLC"], ["Algeciras", "ESALG"], ["Barcelona", "ESBCN"]], airports: [["Madrid Barajas Airport", "MAD"]] },
+  { country: "Italy", code: "IT", ports: [["Genoa", "ITGOA"], ["La Spezia", "ITSPE"], ["Gioia Tauro", "ITGIT"]], airports: [["Milan Malpensa Airport", "MXP"]] },
+  { country: "Greece", code: "GR", ports: [["Piraeus", "GRPIR"]], airports: [["Athens Airport", "ATH"]] },
+  // ── Africa ──
+  { country: "South Africa", code: "ZA", ports: [["Durban", "ZADUR"], ["Cape Town", "ZACPT"]], airports: [["Johannesburg O. R. Tambo Airport", "JNB"]] },
+  { country: "Kenya", code: "KE", ports: [["Mombasa", "KEMBA"]], airports: [["Nairobi Jomo Kenyatta Airport", "NBO"]] },
+  { country: "Tanzania", code: "TZ", ports: [["Dar es Salaam", "TZDAR"]] },
+  { country: "Djibouti", code: "DJ", ports: [["Djibouti", "DJJIB"]] },
+  { country: "Nigeria", code: "NG", ports: [["Lagos (Apapa)", "NGAPP"]], airports: [["Lagos Murtala Muhammed Airport", "LOS"]] },
+  { country: "Morocco", code: "MA", ports: [["Tanger Med", "MAPTM"]], airports: [["Casablanca Mohammed V Airport", "CMN"]] },
+  // ── Americas & Oceania ──
+  {
+    country: "United States",
+    code: "US",
+    aliases: ["usa", "america"],
+    ports: [["Los Angeles", "USLAX"], ["Long Beach", "USLGB"], ["New York / New Jersey", "USNYC"], ["Savannah", "USSAV"], ["Houston", "USHOU"]],
+    airports: [["New York JFK Airport", "JFK"], ["Los Angeles Airport", "LAX"], ["Chicago O'Hare Airport", "ORD"], ["Miami Airport", "MIA"]]
+  },
+  { country: "Canada", code: "CA", ports: [["Vancouver", "CAVAN"]], airports: [["Toronto Pearson Airport", "YYZ"]] },
+  { country: "Brazil", code: "BR", ports: [["Santos", "BRSSZ"]], airports: [["S\xE3o Paulo Guarulhos Airport", "GRU"]] },
+  { country: "Australia", code: "AU", ports: [["Melbourne", "AUMEL"], ["Sydney", "AUSYD"]], airports: [["Sydney Airport", "SYD"]] }
+];
+var SEED_LOCATIONS = COUNTRIES.flatMap((c) => {
+  const base = { country: c.country, countryCode: c.code };
+  const withCountryAliases = (aliases) => [...aliases ?? [], ...c.aliases ?? []];
+  return [
+    ...(c.ports ?? []).map(([name, code, aliases]) => ({ ...base, name, code, kind: "port", aliases: withCountryAliases(aliases) })),
+    ...(c.airports ?? []).map(([name, code, aliases]) => ({ ...base, name, code, kind: "airport", aliases: withCountryAliases(aliases) })),
+    ...(c.land ?? []).map(([name, aliases]) => ({ ...base, name, kind: "land", aliases: withCountryAliases(aliases) }))
+  ];
+});
+var placeSearch = (l) => [l.name, l.code, l.country, l.countryCode, ...l.aliases ?? []].filter(Boolean).join(" ").toLowerCase();
+
+// lib/locations-db.ts
+async function getLocations() {
+  if (await prisma.location.count() === 0) {
+    await prisma.location.createMany({
+      data: SEED_LOCATIONS.map((l) => ({ name: l.name, code: l.code ?? null, kind: l.kind, country: l.country, country_code: l.countryCode, aliases: l.aliases ?? [] })),
+      skipDuplicates: true
+    });
+  }
+  const rows = await prisma.location.findMany({ orderBy: [{ country: "asc" }, { kind: "asc" }, { name: "asc" }] });
+  return rows.map((r) => {
+    const l = { name: r.name, code: r.code ?? void 0, kind: r.kind, country: r.country, countryCode: r.country_code, aliases: r.aliases };
+    return { ...l, id: r.id, search: placeSearch(l) };
+  });
+}
+
 // lib/company-report.ts
 var DETAIL_LIMIT = 500;
 var n = (v) => Number(v ?? 0);
@@ -181,46 +366,72 @@ function parseRange(fromValue, toValue) {
   if (!from || !to || from > to) return null;
   return { from, to, end: new Date(to.getTime() + 864e5) };
 }
-async function getCompanyReport(orgId, range, viewer) {
+var DEFAULT_PARTS = ["orders", "enquiries", "lost"];
+var text = (v) => typeof v === "string" && v.trim() ? v.trim().slice(0, 80) : null;
+function parseFilters(body) {
+  const staff = Array.isArray(body.staff) ? [...new Set(body.staff.map(Number).filter((x) => Number.isInteger(x) && x > 0))].slice(0, 200) : [];
+  const parts = reportParts.filter((x) => Array.isArray(body.parts) && body.parts.includes(x));
+  return {
+    staff,
+    mode: ["sea", "air", "land"].includes(body.mode) ? body.mode : null,
+    fromCountry: text(body.from_country),
+    toCountry: text(body.to_country),
+    parts: parts.length ? parts : DEFAULT_PARTS
+  };
+}
+async function placesIn(country, orgId) {
+  const [rows, places] = await Promise.all([
+    prisma.$queryRaw(Prisma3.sql`
+      SELECT "from" AS v FROM enquiries WHERE org_id = ${orgId} UNION SELECT "to" FROM enquiries WHERE org_id = ${orgId}
+      UNION SELECT "from" FROM orders WHERE org_id = ${orgId} UNION SELECT "to" FROM orders WHERE org_id = ${orgId}`),
+    getLocations()
+  ]);
+  const want = country.toLowerCase();
+  return rows.map((r) => r.v).filter((v) => placeCountry(v, places) === want);
+}
+async function getCompanyReport(orgId, range, viewer, f = parseFilters({})) {
   const { from, end } = range;
-  const day = (d) => Prisma2.sql`${d.toISOString().slice(0, 10)}::date`;
+  const day = (d) => Prisma3.sql`${d.toISOString().slice(0, 10)}::date`;
   const [S, E] = [day(from), day(end)];
-  const voided = Prisma2.join([...VOID_ORDER_STATUSES]);
-  const [org, orderAgg, actualAgg, enquiryAgg, lostAgg, orders, enquiries, lostItems, sellers] = await Promise.all([
+  const voided = Prisma3.join([...VOID_ORDER_STATUSES]);
+  const [fromPlaces, toPlaces] = await Promise.all([f.fromCountry ? placesIn(f.fromCountry, orgId) : null, f.toCountry ? placesIn(f.toCountry, orgId) : null]);
+  const inList = (col, list) => list ? list.length ? Prisma3.sql`AND ${Prisma3.raw(col)} IN (${Prisma3.join(list)})` : Prisma3.sql`AND FALSE` : Prisma3.empty;
+  const fo = (a) => Prisma3.sql`${f.staff.length ? Prisma3.sql`AND ${Prisma3.raw(a)}.created_by_id IN (${Prisma3.join(f.staff)})` : Prisma3.empty} ${f.mode ? Prisma3.sql`AND ${Prisma3.raw(a)}.mode = ${f.mode}` : Prisma3.empty} ${inList(`${a}."from"`, fromPlaces)} ${inList(`${a}."to"`, toPlaces)}`;
+  const [org, orderAgg, actualAgg, enquiryAgg, lostAgg, orders, enquiries, lostItems, sellers, confirmedItems] = await Promise.all([
     prisma.organization.findUnique({ where: { id: orgId }, select: { name: true, prefix: true, logo_path: true, address: true, phone: true, email: true } }),
-    prisma.$queryRaw(Prisma2.sql`
+    prisma.$queryRaw(Prisma3.sql`
       SELECT o.created_by_id AS by,
              COUNT(*) FILTER (WHERE o.status NOT IN (${voided}))::int AS count,
              COALESCE(SUM(o.amount) FILTER (WHERE o.status NOT IN (${voided})), 0)::float8 AS value,
              COALESCE(SUM(e.provisional_profit) FILTER (WHERE o.status NOT IN (${voided})), 0)::float8 AS profit,
              COUNT(*) FILTER (WHERE o.status IN (${voided}))::int AS voided
       FROM orders o LEFT JOIN enquiries e ON e.id = o.enquiry_id
-      WHERE o.org_id = ${orgId} AND o.created_at >= ${S} AND o.created_at < ${E}
+      WHERE o.org_id = ${orgId} AND o.created_at >= ${S} AND o.created_at < ${E} ${fo("o")}
       GROUP BY 1`),
-    prisma.$queryRaw(Prisma2.sql`
+    prisma.$queryRaw(Prisma3.sql`
       SELECT o.created_by_id AS by, COUNT(*)::int AS count,
              COALESCE(SUM(e.actual_cost), 0)::float8 AS cost, COALESCE(SUM(e.actual_profit), 0)::float8 AS profit
       FROM orders o JOIN enquiries e ON e.id = o.enquiry_id
       WHERE o.org_id = ${orgId} AND o.status NOT IN (${voided}) AND e.actual_profit IS NOT NULL
-        AND o.invoice_date >= ${S} AND o.invoice_date < ${E}
+        AND o.invoice_date >= ${S} AND o.invoice_date < ${E} ${fo("o")}
       GROUP BY 1`),
-    prisma.$queryRaw(Prisma2.sql`
+    prisma.$queryRaw(Prisma3.sql`
       SELECT e.created_by_id AS by, COUNT(*)::int AS total,
              COUNT(*) FILTER (WHERE e.status = 'confirmed')::int AS confirmed,
              COUNT(*) FILTER (WHERE e.status = 'lost')::int AS lost,
              COALESCE(SUM(e.provisional_cost + e.provisional_profit), 0)::float8 AS quoted
       FROM enquiries e
-      WHERE e.org_id = ${orgId} AND e.enquiry_date >= ${S} AND e.enquiry_date < ${E}
+      WHERE e.org_id = ${orgId} AND e.enquiry_date >= ${S} AND e.enquiry_date < ${E} ${fo("e")}
       GROUP BY 1`),
     // A lost enquiry whose order was cancelled counts as a lost order.
-    prisma.$queryRaw(Prisma2.sql`
+    prisma.$queryRaw(Prisma3.sql`
       SELECT e.created_by_id AS by, COALESCE(e.lost_reason, '') AS reason,
              EXISTS (SELECT 1 FROM orders o WHERE o.origin_enquiry_id = e.id AND o.status = 'cancelled') AS is_order,
              COUNT(*)::int AS count, COALESCE(SUM(e.provisional_cost + e.provisional_profit), 0)::float8 AS value
       FROM enquiries e
-      WHERE e.org_id = ${orgId} AND e.status = 'lost' AND e.cancelled_at >= ${S} AND e.cancelled_at < ${E}
+      WHERE e.org_id = ${orgId} AND e.status = 'lost' AND e.cancelled_at >= ${S} AND e.cancelled_at < ${E} ${fo("e")}
       GROUP BY 1, 2, 3`),
-    prisma.$queryRaw(Prisma2.sql`
+    prisma.$queryRaw(Prisma3.sql`
       SELECT o.id, o.job_no, COALESCE(o.enquiry_id, o.origin_enquiry_id) AS enquiry_id, o.created_at, c.name AS client, u.name AS by,
              o.mode, o."from", o."to", o.status, o.amount::float8 AS amount, e.provisional_profit::float8 AS profit,
              e.actual_profit::float8 AS actual_profit
@@ -228,29 +439,38 @@ async function getCompanyReport(orgId, range, viewer) {
       JOIN clients c ON c.id = o.client_id
       JOIN users u ON u.id = o.created_by_id
       LEFT JOIN enquiries e ON e.id = o.enquiry_id
-      WHERE o.org_id = ${orgId} AND o.created_at >= ${S} AND o.created_at < ${E}
+      WHERE o.org_id = ${orgId} AND o.created_at >= ${S} AND o.created_at < ${E} ${fo("o")}
       ORDER BY o.created_at, o.id LIMIT ${DETAIL_LIMIT + 1}`),
-    prisma.$queryRaw(Prisma2.sql`
+    prisma.$queryRaw(Prisma3.sql`
       SELECT e.id, e.enquiry_date, c.name AS client, u.name AS by, e.mode, e."from", e."to", e.status,
              (e.provisional_cost + e.provisional_profit)::float8 AS quoted, e.provisional_profit::float8 AS profit
       FROM enquiries e
       JOIN clients c ON c.id = e.client_id
       JOIN users u ON u.id = e.created_by_id
-      WHERE e.org_id = ${orgId} AND e.enquiry_date >= ${S} AND e.enquiry_date < ${E}
+      WHERE e.org_id = ${orgId} AND e.enquiry_date >= ${S} AND e.enquiry_date < ${E} ${fo("e")}
       ORDER BY e.enquiry_date, e.id LIMIT ${DETAIL_LIMIT + 1}`),
-    prisma.$queryRaw(Prisma2.sql`
+    prisma.$queryRaw(Prisma3.sql`
       SELECT e.id, c.name AS client, u.name AS by, e."from", e."to", e.lost_reason AS reason, e.cancel_reason AS text,
              EXISTS (SELECT 1 FROM orders o WHERE o.origin_enquiry_id = e.id AND o.status = 'cancelled') AS is_order,
              e.cancelled_at AS lost_at, (e.provisional_cost + e.provisional_profit)::float8 AS value
       FROM enquiries e
       JOIN clients c ON c.id = e.client_id
       JOIN users u ON u.id = e.created_by_id
-      WHERE e.org_id = ${orgId} AND e.status = 'lost' AND e.cancelled_at >= ${S} AND e.cancelled_at < ${E}
+      WHERE e.org_id = ${orgId} AND e.status = 'lost' AND e.cancelled_at >= ${S} AND e.cancelled_at < ${E} ${fo("e")}
       ORDER BY e.cancelled_at, e.id LIMIT ${DETAIL_LIMIT + 1}`),
-    prisma.managerSalesman.findMany({ where: { org_id: orgId }, select: { salesman_id: true }, distinct: ["salesman_id"] })
+    prisma.managerSalesman.findMany({ where: { org_id: orgId }, select: { salesman_id: true }, distinct: ["salesman_id"] }),
+    prisma.$queryRaw(Prisma3.sql`
+      SELECT e.id, e.enquiry_date, c.name AS client, u.name AS by, e.mode, e."from", e."to", e.status,
+             (e.provisional_cost + e.provisional_profit)::float8 AS quoted, e.provisional_profit::float8 AS profit
+      FROM enquiries e
+      JOIN clients c ON c.id = e.client_id
+      JOIN users u ON u.id = e.created_by_id
+      WHERE e.org_id = ${orgId} AND e.status = 'confirmed' AND e.enquiry_date >= ${S} AND e.enquiry_date < ${E} ${fo("e")}
+      ORDER BY e.enquiry_date, e.id LIMIT ${DETAIL_LIMIT + 1}`)
   ]);
   if (!org) return null;
   let staffIds = [.../* @__PURE__ */ new Set([...sellers.map((x) => x.salesman_id), ...orderAgg.map((r) => r.by), ...actualAgg.map((r) => r.by), ...enquiryAgg.map((r) => r.by), ...lostAgg.map((r) => r.by)])];
+  if (f.staff.length) staffIds = staffIds.filter((id) => f.staff.includes(id));
   if (viewer.role_id === 2) {
     const team = /* @__PURE__ */ new Set([...await getManagerSalesmanIdsForOrg(viewer.id, orgId), ...await getManagerSalesmanIds(viewer.id)]);
     staffIds = staffIds.filter((id) => team.has(id));
@@ -289,7 +509,7 @@ async function getCompanyReport(orgId, range, viewer) {
       target
     };
   }).sort((a, b) => b.profit - a.profit || b.value - a.value || a.name.localeCompare(b.name));
-  const sum = (rows, f) => rows.reduce((a, r) => a + n(f(r)), 0);
+  const sum = (rows, f2) => rows.reduce((a, r) => a + n(f2(r)), 0);
   const lostCount = sum(lostAgg, (r) => r.count);
   const reasonKey = (r) => isLostReason(r) ? r : "";
   const reasons = [...lostReasons, ""].map((key) => {
@@ -328,8 +548,17 @@ async function getCompanyReport(orgId, range, viewer) {
       lostValue: sum(lostAgg, (r) => r.value),
       reasons
     },
+    filters: f,
+    // What the report was narrowed to, in words (shown under the title); empty for an unfiltered report.
+    filterNotes: [
+      f.staff.length ? `Staff: ${users.filter((u) => f.staff.includes(u.id)).map((u) => u.name).join(", ") || "none found"}` : null,
+      f.mode ? `Mode: ${f.mode}` : null,
+      f.fromCountry ? `From: ${f.fromCountry}` : null,
+      f.toCountry ? `To: ${f.toCountry}` : null
+    ].filter((x) => !!x),
     staff,
     details: {
+      confirmed: cut(confirmedItems.map((r) => ({ ...r, quoted: r.quoted === null ? null : n(r.quoted), profit: r.profit === null ? null : n(r.profit) }))),
       orders: cut(
         orders.map((r) => ({ ...r, amount: n(r.amount), profit: r.profit === null ? null : n(r.profit), actual_profit: r.actual_profit === null ? null : n(r.actual_profit) }))
       ),
@@ -464,6 +693,7 @@ function CompanyReportPdf({ report: r, logo }) {
   const reasonMax = Math.max(...t.reasons.map((x) => x.count), 1);
   const ref = (id) => id ? enquiryRef(id, r.org.prefix) : "\u2014";
   const range = `${date(r.from)} \u2013 ${date(r.to)}`;
+  const shown = r.filters.parts;
   return /* @__PURE__ */ jsxs2(Document, { title: `${r.org.name} \u2014 report ${range}`, author: "SalesPal", subject: "Company performance report", children: [
     /* @__PURE__ */ jsxs2(Page, { size: "A4", style: s.page, children: [
       /* @__PURE__ */ jsxs2(View2, { style: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }, children: [
@@ -473,7 +703,11 @@ function CompanyReportPdf({ report: r, logo }) {
       /* @__PURE__ */ jsx2(View2, { style: s.hero, children: /* @__PURE__ */ jsxs2(View2, { children: [
         /* @__PURE__ */ jsx2(Text2, { style: s.eyebrow, children: "Company report \xB7 Overall summary" }),
         /* @__PURE__ */ jsx2(Text2, { style: s.heroTitle, children: r.org.name }),
-        /* @__PURE__ */ jsx2(Text2, { style: s.heroSub, children: range })
+        /* @__PURE__ */ jsx2(Text2, { style: s.heroSub, children: range }),
+        r.filterNotes.length > 0 && /* @__PURE__ */ jsxs2(Text2, { style: [s.heroSub, { marginTop: 3 }], children: [
+          "Filtered \xB7 ",
+          r.filterNotes.join(" \xB7 ")
+        ] })
       ] }) }),
       /* @__PURE__ */ jsxs2(View2, { style: s.row, children: [
         /* @__PURE__ */ jsx2(Kpi, { label: "Total order value", value: compact(t.orderValue), accent: C.primary, foot: `${int(t.orders)} order${t.orders === 1 ? "" : "s"}` }),
@@ -572,7 +806,7 @@ function CompanyReportPdf({ report: r, logo }) {
       /* @__PURE__ */ jsx2(Footer, { r })
     ] }),
     /* @__PURE__ */ jsxs2(Page, { size: "A4", orientation: "landscape", style: s.page, children: [
-      /* @__PURE__ */ jsxs2(Section, { title: "Orders", note: `${int(t.orders)} counted \xB7 ${money(t.orderValue)} \xB7 prov. profit ${money(t.profit)}`, children: [
+      shown.includes("orders") && /* @__PURE__ */ jsxs2(Section, { breakBefore: shown.indexOf("orders") > 0, title: "Orders", note: `${int(t.orders)} counted \xB7 ${money(t.orderValue)} \xB7 prov. profit ${money(t.profit)}`, children: [
         /* @__PURE__ */ jsx2(
           Table,
           {
@@ -594,7 +828,7 @@ function CompanyReportPdf({ report: r, logo }) {
         ),
         /* @__PURE__ */ jsx2(Cut, { show: r.details.orders.truncated })
       ] }),
-      /* @__PURE__ */ jsxs2(Section, { title: "Enquiries", note: `${int(t.enquiries)} raised \xB7 ${int(t.confirmed)} confirmed`, breakBefore: true, children: [
+      shown.includes("enquiries") && /* @__PURE__ */ jsxs2(Section, { breakBefore: shown.indexOf("enquiries") > 0, title: "Enquiries", note: `${int(t.enquiries)} raised \xB7 ${int(t.confirmed)} confirmed`, children: [
         /* @__PURE__ */ jsx2(
           Table,
           {
@@ -614,7 +848,27 @@ function CompanyReportPdf({ report: r, logo }) {
         ),
         /* @__PURE__ */ jsx2(Cut, { show: r.details.enquiries.truncated })
       ] }),
-      /* @__PURE__ */ jsxs2(Section, { title: "Lost enquiries & orders", note: `${int(t.lost)} lost \xB7 ${money(t.lostValue)} quoted value`, breakBefore: true, children: [
+      shown.includes("confirmed") && /* @__PURE__ */ jsxs2(Section, { breakBefore: shown.indexOf("confirmed") > 0, title: "Confirmed enquiries", note: `${int(t.confirmed)} confirmed of ${int(t.enquiries)} raised`, children: [
+        /* @__PURE__ */ jsx2(
+          Table,
+          {
+            empty: "No confirmed enquiries in this period",
+            rows: r.details.confirmed.rows,
+            cols: [
+              { label: "Enquiry", width: "11%", strong: true, render: (x) => ref(x.id) },
+              { label: "Date", width: "9%", render: (x) => date(x.enquiry_date) },
+              { label: "Client", width: "18%", render: (x) => x.client },
+              { label: "Staff", width: "13%", render: (x) => x.by },
+              { label: "Route", width: "20%", render: (x) => `${title(x.mode)} \xB7 ${x.from} \u203A ${x.to}` },
+              { label: "Stage", width: "11%", render: (x) => enquiryStatusLabels[x.status] ?? title(x.status) },
+              { label: "Quoted", width: "9%", align: "right", render: (x) => x.quoted === null ? "\u2014" : money(x.quoted) },
+              { label: "Prov. profit", width: "9%", align: "right", render: (x) => x.profit === null ? "\u2014" : money(x.profit) }
+            ]
+          }
+        ),
+        /* @__PURE__ */ jsx2(Cut, { show: r.details.confirmed.truncated })
+      ] }),
+      shown.includes("lost") && /* @__PURE__ */ jsxs2(Section, { breakBefore: shown.indexOf("lost") > 0, title: "Lost enquiries & orders", note: `${int(t.lost)} lost \xB7 ${money(t.lostValue)} quoted value`, children: [
         /* @__PURE__ */ jsx2(
           Table,
           {
@@ -641,10 +895,10 @@ function CompanyReportPdf({ report: r, logo }) {
 
 // lib/report-pdf.tsx
 import { jsx as jsx3 } from "react/jsx-runtime";
-async function buildCompanyReportPdf(orgId, from, to, actor) {
+async function buildCompanyReportPdf(orgId, from, to, actor, filters) {
   const range = parseRange(from, to);
   if (!range) throw new Error("Invalid date range");
-  const report = await getCompanyReport(orgId, range, actor);
+  const report = await getCompanyReport(orgId, range, actor, filters);
   if (!report) return null;
   let logo = null;
   if (report.org.logo_path) {
@@ -652,8 +906,58 @@ async function buildCompanyReportPdf(orgId, from, to, actor) {
     logo = await readDocumentFile(report.org.logo_path).then((data) => ({ data, format: ext === "png" ? "png" : "jpg" })).catch(() => null);
   }
   const pdf = await renderToBuffer(/* @__PURE__ */ jsx3(CompanyReportPdf, { report, logo }));
-  const fileName = `${report.org.name} report ${from} to ${to}.pdf`.replace(/[\\/:*?"<>|]+/g, "-");
+  const fileName = `${report.org.name} report ${from} to ${to}${report.filterNotes.length ? " (filtered)" : ""}.pdf`.replace(/[\\/:*?"<>|]+/g, "-");
   return { pdf, fileName };
+}
+
+// lib/email-queue.ts
+import { Queue as Queue2 } from "bullmq";
+
+// lib/email-logo.ts
+import path4 from "node:path";
+var TYPES = { png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg" };
+async function emailLogo(org) {
+  if (!org.logo_path) return null;
+  try {
+    const ext = path4.extname(org.logo_path).slice(1).toLowerCase();
+    return { filename: `logo.${ext}`, content: await readDocumentFile(org.logo_path), contentType: TYPES[ext] ?? "image/png", cid: "logo" };
+  } catch {
+    return null;
+  }
+}
+
+// lib/mailer.ts
+import nodemailer from "nodemailer";
+var mailConfigured = () => !!process.env.SMTP_HOST;
+var transport = null;
+async function sendMail(message) {
+  if (!mailConfigured()) return false;
+  transport ??= nodemailer.createTransport({
+    host: process.env.SMTP_HOST,
+    port: Number(process.env.SMTP_PORT || 587),
+    secure: process.env.SMTP_SECURE === "true",
+    auth: process.env.SMTP_USER ? { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS } : void 0
+  });
+  await transport.sendMail({ from: process.env.MAIL_FROM || process.env.SMTP_USER, ...message });
+  return true;
+}
+
+// lib/email-queue.ts
+var EMAIL_QUEUE = "emails";
+var EMAIL_ATTEMPTS = 3;
+async function deliverEmailJob(id) {
+  const job = await prisma.emailJob.findUnique({ where: { id } });
+  if (!job || job.status === "sent") return;
+  await prisma.emailJob.update({ where: { id }, data: { attempts: { increment: 1 } } });
+  const logo = await emailLogo({ logo_path: job.logo_path });
+  let sent;
+  try {
+    sent = await sendMail({ to: job.to, subject: job.subject, text: job.text, html: job.html, attachments: logo ? [logo] : void 0 });
+  } catch (err) {
+    await prisma.emailJob.update({ where: { id }, data: { error: (err instanceof Error ? err.message : String(err)).slice(0, 500) } });
+    throw err;
+  }
+  await prisma.emailJob.update({ where: { id }, data: sent ? { status: "sent", sent_at: /* @__PURE__ */ new Date(), error: null } : { status: "not_configured" } });
 }
 
 // worker/index.mts
@@ -664,8 +968,8 @@ var worker = new Worker(
     const row = await prisma.reportJob.findUnique({ where: { id: reportJobId }, include: { requestedBy: { select: { id: true, role_id: true } } } });
     if (!row) return;
     await prisma.reportJob.update({ where: { id: row.id }, data: { status: "running" } });
-    const { org, from, to } = row.params;
-    const built = await buildCompanyReportPdf(org, from, to, { id: row.requestedBy.id, role_id: row.requestedBy.role_id });
+    const params = row.params;
+    const built = await buildCompanyReportPdf(params.org, params.from, params.to, { id: row.requestedBy.id, role_id: row.requestedBy.role_id }, parseFilters(params));
     if (!built) throw new Error("Company not found");
     const file_path = `reports/${row.id}.pdf`;
     await writeStoredFile(file_path, built.pdf);
@@ -682,7 +986,16 @@ worker.on("failed", async (job, err) => {
   }
 });
 worker.on("ready", () => console.log("report worker ready"));
+var emailWorker = new Worker(EMAIL_QUEUE, async (job) => deliverEmailJob(job.data.emailJobId), { connection: redisConnection(), concurrency: 1 });
+emailWorker.on("failed", async (job, err) => {
+  console.error("email job failed", job?.id, err.message);
+  if (job && job.attemptsMade >= (job.opts.attempts ?? EMAIL_ATTEMPTS)) {
+    await prisma.emailJob.update({ where: { id: job.data.emailJobId }, data: { status: "failed" } }).catch(() => {
+    });
+  }
+});
+emailWorker.on("ready", () => console.log("email worker ready"));
 process.on("SIGTERM", async () => {
-  await worker.close();
+  await Promise.all([worker.close(), emailWorker.close()]);
   process.exit(0);
 });
