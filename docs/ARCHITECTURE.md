@@ -332,6 +332,7 @@ Indexes: salesman, org, (org, status), (salesman, status), status, category, cre
 ### 5.5 Status flows (summary)
 
 Client status (`lib/client-status-flow.ts`):
+- Moving a client to `follow_up` by hand (same endpoint) requires `follow_up_date` (YYYY-MM-DD) and creates a `client_follow_up` task for the client's assigned salesman, due that date, in the same transaction. The clients list asks for the date (and any missing contact details) in one dialog.
 - Marking a client `lost` by hand (`PATCH /api/clients/[id]/status`) requires `lost_reason` (same list as enquiries) and an optional `lost_remark`; both go into the history line.
 - Raise an enquiry: `lead / contacted / follow_up / lost` becomes `enquiry`; `dormant` returns to `onboarded`.
 - First order: anything short of `onboarded` becomes `onboarded`.
@@ -366,7 +367,7 @@ Data for dashboards is assembled in `lib/admin-dashboard.ts`, `manager-dashboard
 |---|---|
 | Auth | `auth/[...nextauth]` |
 | Users | `users` (POST), `users/reset-password` (POST) |
-| Clients | `clients` (GET, POST), `clients/[id]` (GET, PATCH), `/status`, `/checklist`, `/contacts`, `/contacts/[contactId]`, `/documents`, `/documents/[docId]`, `/tasks`, `/tasks/[taskId]`, `clients/bulk-assign` |
+| Clients | `clients` (GET, POST), `clients/[id]` (GET, PATCH, DELETE: super admin only; refused while the client has orders or departments, otherwise removes its enquiries, tasks, history, contacts and uploaded files), `/status`, `/checklist`, `/contacts`, `/contacts/[contactId]`, `/documents`, `/documents/[docId]`, `/tasks`, `/tasks/[taskId]`, `clients/bulk-assign` |
 | Enquiries | `enquiries` (GET, POST), `enquiries/[id]` (PATCH), `/stage`, `/cancel`, `/follow-ups`, `/send-to-agent`, `/signature`, `enquiries/send-to-client`, `enquiries/follow-ups/sync` |
 | Public forms | `enquiry-form/[token]` (POST), `agent-quote/[token]` (POST) |
 | Orders | `orders` (GET, POST), `orders/[id]` (GET, PATCH), `/status`, `/payments`, `/reminder`, `orders/stats` |

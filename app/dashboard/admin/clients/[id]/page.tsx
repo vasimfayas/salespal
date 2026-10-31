@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import { getSalesPalSession } from "@/lib/auth";
-import { isOwnerRole } from "@/lib/roles";
+import { isOwnerRole, SUPER_ADMIN_ROLE } from "@/lib/roles";
+import { DeleteClientButton } from "@/components/clients/DeleteClientButton";
 import { prisma } from "@/lib/prisma";
 import { withCompanyCr } from "@/lib/clients-list";
 import { clientTasksWhere } from "@/lib/client-tasks";
@@ -103,6 +104,9 @@ async function ClientDetailContent({
       initialTasks={tasks}
       backLink="/dashboard/admin/clients"
       taskSalesmen={salesmen}
+      headerActions={
+        session.user.role_id === SUPER_ADMIN_ROLE ? <DeleteClientButton clientId={clientId} clientName={client.name} backLink="/dashboard/admin/clients" /> : undefined
+      }
       contacts={
         <ClientContactsCard
           clientId={clientId}

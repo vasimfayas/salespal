@@ -7,6 +7,8 @@ import { clientScopeWhere, hasRole } from "@/lib/scoping";
 import { clientCategoryLabels, isClientCategory, type ClientCategory } from "@/types/client";
 import { departmentTaken, normalizeCrNo, parseCrExpiryDate } from "@/lib/client-fields";
 import { applyClientStatus, canSetStatus, isClientStatus } from "@/lib/client-status-flow";
+import { SUPER_ADMIN_ROLE } from "@/lib/roles";
+import { removeDocumentFile } from "@/lib/company-documents";
 import { cleanText, contactRequiredMessage, missingContactFields, statusRequiresContact } from "@/lib/client-contact";
 
 export async function GET(request: NextRequest, context: { params: Promise<{ id: string }> }) {
@@ -167,4 +169,38 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
     console.error("Client update transaction error:", error);
     return NextResponse.json({ error: "Failed to update client" }, { status: 500 });
   }
+}
+
+/**
+ * Super admin only. Deletes the client with its enquiries, tasks, history, contacts and uploaded files.
+ * Refused while the client has orders (they hold payment records) or departments.
+ */
+export async function DELETE(request: NextRequest, context: { params: Promise<{ id: string }> }) {
+  const token = await getToken({ req: request, secret: process.env.NEXTAUTH_SECRET });
+  if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (Number(token.role_id) !== SUPER_ADMIN_ROLE) return NextResponse.json({ error: "Only the super admin can delete a client" }, { status: 403 });
+
+  const { id } = await context.params;
+  const clientId = Number(id);
+  if (!Number.isInteger(clientId)) return NextResponse.json({ error: "Invalid client" }, { status: 400 });
+
+  const client = await prisma.client.findUnique({
+    where: { id: clientId },
+    select: { id: true, name: true, _count: { select: { orders: true, departments: true } }, documents: { select: { file_path: true } } },
+  });
+  if (!client) return NextResponse.json({ error: "Client not found" }, { status: 404 });
+  if (client._count.orders > 0) {
+    return NextResponse.json({ error: `${client.name} has ${client._count.orders} order(s) with payment records, so it can't be deleted` }, { status: 409 });
+  }
+  if (client._count.departments > 0) {
+    return NextResponse.json({ error: `${client.name} has departments. Delete or move them first` }, { status: 409 });
+  }
+
+  await prisma.client.delete({ where: { id: clientId } });
+  await Promise.all(client.documents.map((d) => removeDocumentFile(d.file_path)));
+
+  for (const tag of ["salesman-dashboard", "salesman-clients", "admin-clients", "manager-dashboard", "manager-clients", "salesman-tasks", "manager-tasks"]) {
+    revalidateTag(tag, { expire: 0 });
+  }
+  return NextResponse.json({ ok: true });
 }

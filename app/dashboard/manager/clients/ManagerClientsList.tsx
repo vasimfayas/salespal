@@ -176,7 +176,9 @@ export function ManagerClientsList({
       return;
     }
 
-    if (statusRequiresContact(newStatus) && missingContactFields(clientToUpdate).length > 0) {
+    // Moving to Follow up also asks for the date, so a task can be created.
+    const needsFollowUpDate = newStatus === "follow_up" && clientToUpdate.status !== "follow_up";
+    if ((statusRequiresContact(newStatus) && missingContactFields(clientToUpdate).length > 0) || needsFollowUpDate) {
       setContactPrompt({ client: clientToUpdate, status: newStatus });
       return;
     }
@@ -670,7 +672,7 @@ export function ManagerClientsList({
                         )}
                       </td>
                       <td className="px-4 py-3 relative">
-                        <DropdownMenu>
+                        <DropdownMenu modal={false}>
                           <DropdownMenuTrigger asChild>
                             <button
                               type="button"

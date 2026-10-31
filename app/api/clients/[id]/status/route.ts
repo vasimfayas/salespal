@@ -52,6 +52,15 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
     if (duplicate) return NextResponse.json({ error: "Another client already has this phone number" }, { status: 409 });
   }
 
+  // Moving to Follow up needs a date; a task is created for it.
+  let followUpDue: Date | undefined;
+  if (body.status === "follow_up" && scoped.status !== "follow_up") {
+    followUpDue = typeof body.follow_up_date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(body.follow_up_date) ? new Date(body.follow_up_date) : undefined;
+    if (!followUpDue || Number.isNaN(followUpDue.getTime())) {
+      return NextResponse.json({ error: "Pick a follow-up date", code: "FOLLOW_UP_DATE_REQUIRED" }, { status: 422 });
+    }
+  }
+
   try {
     const client = await prisma.$transaction(async (tx) => {
       if (sentContact) {
@@ -68,6 +77,20 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
         });
       }
       await applyClientStatus(tx, scoped, body.status, Number(token.id), { source: "manual", reason: lostReason });
+      if (followUpDue) {
+        await tx.task.create({
+          data: {
+            client_id: scoped.id,
+            category: "client_follow_up",
+            assigned_to_id: scoped.assigned_salesman_id,
+            created_by_id: Number(token.id),
+            description: `Follow up with ${scoped.name}`,
+            due_date: followUpDue,
+            notification: true,
+            status: "pending",
+          },
+        });
+      }
       return tx.client.findUniqueOrThrow({ where: { id: scoped.id } });
     });
 
@@ -76,6 +99,10 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
     revalidateTag("admin-clients", { expire: 0 });
     revalidateTag("manager-dashboard", { expire: 0 });
     revalidateTag("manager-clients", { expire: 0 });
+    if (followUpDue) {
+      revalidateTag("salesman-tasks", { expire: 0 });
+      revalidateTag("manager-tasks", { expire: 0 });
+    }
     return NextResponse.json({ client });
   } catch (error) {
     console.error("Status update transaction error:", error);

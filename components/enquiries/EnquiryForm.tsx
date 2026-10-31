@@ -125,6 +125,7 @@ const JOB_REF_GROUPS: { mode: string; label: string; codes: JobRef[] }[] = [
   { mode: "land", label: "Road / land", codes: jobRefs.filter((c) => c.startsWith("R") || c.startsWith("L")) },
   { mode: "other", label: "Other", codes: jobRefs.filter((c) => !/^[ASRL]/.test(c)) },
 ];
+const jobRefGroupsFor = (mode: string) => JOB_REF_GROUPS.filter((g) => g.mode === mode || g.mode === "other");
 
 const PAYMENT_LABEL: Record<string, string> = { cash: "Cash", card: "Card", credit: "Credit" };
 
@@ -235,7 +236,8 @@ export function EnquiryForm({
   const cost = Number(form.provisional_cost);
   const profit = Number(form.provisional_profit);
   const quoted = form.provisional_cost !== "" && form.provisional_profit !== "" && Number.isFinite(cost) && Number.isFinite(profit) ? cost + profit : null;
-  const jobRefGroups = [...JOB_REF_GROUPS].sort((a, b) => (a.mode === form.mode ? -1 : b.mode === form.mode ? 1 : 0));
+  // Only the selected mode's job refs (plus mode-neutral ones like Warehouse Storage).
+  const jobRefGroups = jobRefGroupsFor(form.mode);
   const equipment =
     form.mode === "sea" && form.service_type
       ? seaServiceTypeCodes[form.service_type as SeaServiceType]
@@ -334,7 +336,7 @@ export function EnquiryForm({
                     checked ? "border-primary bg-primary-soft" : "border-border bg-card hover:border-border-strong hover:bg-subtle",
                   )}
                 >
-                  <input type="radio" name="enq-mode" value={m.value} checked={checked} onChange={() => patch({ mode: m.value })} className="sr-only" />
+                  <input type="radio" name="enq-mode" value={m.value} checked={checked} onChange={() => patch({ mode: m.value, job_ref: jobRefGroupsFor(m.value).some((g) => g.codes.includes(form.job_ref as JobRef)) ? form.job_ref : "" })} className="sr-only" />
                   <span
                     className={cn(
                       "flex size-9 shrink-0 items-center justify-center rounded-control",
@@ -355,7 +357,7 @@ export function EnquiryForm({
             <Select id="enq-job-ref" label="Job ref" required value={form.job_ref} onChange={(e) => patch({ job_ref: e.target.value })}>
               <option value="">Select job ref…</option>
               {jobRefGroups.map((g) => (
-                <optgroup key={g.mode} label={g.mode === form.mode ? `${g.label} (selected mode)` : g.label}>
+                <optgroup key={g.mode} label={g.label}>
                   {g.codes.map((code) => (
                     <option key={code} value={code}>
                       {code} — {jobRefNames[code]}

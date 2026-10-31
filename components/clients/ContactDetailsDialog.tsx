@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { Dialog, DialogBody, DialogContent, DialogFooter } from "@/components/ui/dialog";
 import { titleCase } from "@/lib/utils";
+import { missingContactFields } from "@/lib/client-contact";
 
 export type ContactPromptTarget = {
   client: {
@@ -36,8 +37,12 @@ export function ContactDetailsDialog({
     <Dialog open={!!target} onOpenChange={(open) => !open && onClose()}>
       {target && (
         <DialogContent
-          title="Add contact details"
-          description={`${target.client.name} is moving to ${titleCase(target.status)}. Add who you're talking to.`}
+          title={target.status === "follow_up" ? "Schedule a follow-up" : "Add contact details"}
+          description={
+            target.status === "follow_up"
+              ? `${target.client.name} is moving to Follow up. Pick the date to follow up; a task is created for it.`
+              : `${target.client.name} is moving to ${titleCase(target.status)}. Add who you're talking to.`
+          }
         >
           <ContactForm key={`${target.client.id}-${target.status}`} target={target} onClose={onClose} onSaved={onSaved} />
         </DialogContent>
@@ -53,6 +58,9 @@ function ContactForm({ target, onClose, onSaved }: { target: ContactPromptTarget
     contact_no: client.contact_no ?? "",
     contact_person_designation: client.contact_person_designation ?? "",
   });
+  const needsContact = missingContactFields(client).length > 0;
+  const needsDate = status === "follow_up";
+  const [followUpDate, setFollowUpDate] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -64,7 +72,7 @@ function ContactForm({ target, onClose, onSaved }: { target: ContactPromptTarget
       const res = await fetch(`/api/clients/${client.id}/status`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status, ...form }),
+        body: JSON.stringify({ status, ...(needsContact ? form : {}), ...(needsDate ? { follow_up_date: followUpDate } : {}) }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || "Failed to save contact details");
@@ -97,18 +105,36 @@ function ContactForm({ target, onClose, onSaved }: { target: ContactPromptTarget
             {error}
           </p>
         )}
-        {field("contact_person_name", "Contact person", { placeholder: "Full name", autoFocus: true, autoComplete: "off" })}
-        <div className="grid gap-4 sm:grid-cols-2">
-          {field("contact_no", "Phone number", { type: "tel", placeholder: "e.g. +97455556666" })}
-          {field("contact_person_designation", "Designation", { placeholder: "e.g. Logistics Manager" })}
-        </div>
+        {needsContact && (
+          <>
+            {field("contact_person_name", "Contact person", { placeholder: "Full name", autoFocus: true, autoComplete: "off" })}
+            <div className="grid gap-4 sm:grid-cols-2">
+              {field("contact_no", "Phone number", { type: "tel", placeholder: "e.g. +97455556666" })}
+              {field("contact_person_designation", "Designation", { placeholder: "e.g. Logistics Manager" })}
+            </div>
+          </>
+        )}
+        {needsDate && (
+          <label className="block space-y-1.5">
+            <span className="text-sm font-medium text-foreground">Follow-up date</span>
+            <input
+              required
+              type="date"
+              min={new Date().toLocaleDateString("en-CA")}
+              value={followUpDate}
+              onChange={(e) => setFollowUpDate(e.target.value)}
+              autoFocus={!needsContact}
+              className={fieldClass}
+            />
+          </label>
+        )}
       </DialogBody>
       <DialogFooter>
         <Button type="button" variant="secondary" onClick={onClose} disabled={saving}>
           Cancel
         </Button>
         <Button type="submit" loading={saving}>
-          Save & move to {titleCase(status)}
+          {needsDate ? "Save & schedule follow-up" : `Save & move to ${titleCase(status)}`}
         </Button>
       </DialogFooter>
     </form>

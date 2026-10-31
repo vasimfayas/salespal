@@ -90,9 +90,11 @@ interface ClientOverviewProps {
   documents?: React.ReactNode;
   /** Contacts card (main + extra contacts), rendered under the client information. */
   contacts?: React.ReactNode;
+  /** Extra header buttons (e.g. the super admin's Delete). */
+  headerActions?: React.ReactNode;
 }
 
-export function ClientOverview({ client: initialClient, initialTasks, backLink, teamOnly = false, taskSalesmen, history, documents, contacts }: ClientOverviewProps) {
+export function ClientOverview({ client: initialClient, initialTasks, backLink, teamOnly = false, taskSalesmen, history, documents, contacts, headerActions }: ClientOverviewProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
 
@@ -385,6 +387,7 @@ export function ClientOverview({ client: initialClient, initialTasks, backLink, 
             <ArrowLeft size={14} />
             <span>Back</span>
           </Link>
+          {headerActions}
           <button
             type="button"
             onClick={() => {
