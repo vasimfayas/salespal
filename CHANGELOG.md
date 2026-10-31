@@ -2,6 +2,21 @@
 
 Newest first. Types: Added, Changed, Fixed. Tag each release `vX.Y.Z` (fix = patch, feature = minor, breaking = major).
 
+## 1.9.0 - 2026-10-31
+
+### Added
+- Clients: moving a client to Follow up asks for a follow-up date (and any missing contact details) and creates a follow-up task for the client's salesman, due that day.
+- Clients: the super admin can delete a client from its page. Refused while the client has orders or departments.
+
+### Changed
+- Enquiry form: the Job ref list shows only the selected mode's codes (Sea, Air or Road), plus Warehouse Storage. Changing the mode clears a job ref that no longer fits.
+
+### Fixed
+- Clients list: after saving the contact details or lost reason dialog, the page no longer stays unclickable until a refresh.
+
+### Deploy note
+- No database changes. Rebuild and restart the web app (`npm run build`, `npm start`); the worker is unchanged.
+
 ## 1.8.0 - 2026-10-29
 
 ### Added
