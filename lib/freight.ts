@@ -4,12 +4,12 @@
  * what the server stores.
  */
 
-export const dimensionUnits = ["cm", "m", "ft", "in"] as const;
+export const dimensionUnits = ["mm", "cm", "m", "ft", "in"] as const;
 export type DimensionUnit = (typeof dimensionUnits)[number];
 export const DEFAULT_DIMENSION_UNIT: DimensionUnit = "m";
-export const dimensionUnitLabels: Record<DimensionUnit, string> = { cm: "cm", m: "m", ft: "ft", in: "inch" };
+export const dimensionUnitLabels: Record<DimensionUnit, string> = { mm: "mm", cm: "cm", m: "m", ft: "ft", in: "inch" };
 
-const CM_PER_UNIT: Record<DimensionUnit, number> = { cm: 1, m: 100, ft: 30.48, in: 2.54 };
+const CM_PER_UNIT: Record<DimensionUnit, number> = { mm: 0.1, cm: 1, m: 100, ft: 30.48, in: 2.54 };
 
 /**
  * Volumetric divisor per mode, in cm³ per kg: L × W × H (cm) / divisor = volumetric kg.

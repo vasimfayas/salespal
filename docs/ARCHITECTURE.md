@@ -86,8 +86,8 @@ Defined in `lib/roles.ts` (seed list in `prisma/add-roles.sql`).
 
 | id | Name | Home page | Sees |
 |---|---|---|---|
-| 1 | Owner | `/dashboard/admin` | Everything, all companies |
-| 6 | Super Admin | `/dashboard/admin` | Owner's menu plus Orders, Tasks, Shipping Rates; may act on any approval step |
+| 1 | Owner | `/dashboard/admin` | Everything, all companies. Can also work like a salesman: add clients under any company (My Clients = assigned to self), raise and work enquiries, own tasks |
+| 6 | Super Admin | `/dashboard/admin` | Owner's menu plus Orders, Shipping Rates; may act on any approval step |
 | 2 | Manager | `/dashboard/manager` | Companies assigned in `manager_org`; the team in `manager_salesman` |
 | 3 | Salesman | `/dashboard/salesman/dashboard-org` | Own clients, enquiries, orders, tasks |
 | 4 | Accountant | `/dashboard/accountant` | Orders and enquiries of companies in `accountant_org` |
@@ -103,15 +103,20 @@ Defined in `lib/roles.ts` (seed list in `prisma/add-roles.sql`).
 - JWT session lasts 8 hours. Every 5 minutes the role is re-read from `users`; a deleted user gets role `0` and is locked out.
 - Token carries `id`, `role_id`, `org_ids` (manager's companies) and `manager_ids` (salesman's managers) from login time. Treat these two as possibly stale; scoping code re-reads from the database instead.
 - Secret: `NEXTAUTH_SECRET`.
+- Passwords: at least 8 characters (`MIN_PASSWORD_LENGTH`, `lib/roles.ts`). New logins get a random 12-character password (`newTempPassword`, `lib/passwords.ts`), shown once to whoever created them (`showNewPassword` toast with Copy); there is no shared default. Changing your own password (`POST /api/users/reset-password`, account menu) needs the current password and is limited to 5 tries per 15 minutes.
+- Security headers on every response (`next.config.ts`): HSTS, `X-Frame-Options: SAMEORIGIN` + CSP `frame-ancestors 'self'`, `nosniff`, `Referrer-Policy`, `Permissions-Policy`; `X-Powered-By` is off.
 
 ### 4.3 Scoping (who sees which rows)
 
 `lib/scoping.ts` is the single place that turns a role into a Prisma `where`. It re-reads assignments on every request so owner changes apply without a re-login.
 
+**Leave cover.** While a manager or salesman is on leave (`UserLeave`, active = `start_date <= today <= end_date` and `returned_at` null, UTC dates), their cover acts for them. Nothing is reassigned: `getActingUserIds(user)` = the user plus everyone they cover today, and the helpers below use it, so access ends by itself when the leave does. A salesman cover sees the absent salesman's clients, enquiries, orders and tasks; a manager cover gets the absent manager's companies and team (`getManagerOrgIds` / `getManagerSalesmanIds`), their own clients, enquiries, tasks and approvals. Credit stays with whoever does the work (`created_by_id`); client ownership and dashboards / KPIs / Team page stay with the absent person. Private to-dos are never shared.
+
 | Helper | Returns |
 |---|---|
-| `clientScopeWhere` | Owner: all. Manager: clients in their companies. Salesman: `assigned_salesman_id = self`. Others: nothing |
-| `orderScopeWhere` | Owner: all. Accountant and manager: orders in their companies (`org_id`). Salesman: `created_by_id = self` |
+| `clientScopeWhere` | Owner: all. Manager: clients in their companies. Salesman: `assigned_salesman_id` in acting ids. Others: nothing |
+| `orderScopeWhere` | Owner: all. Accountant and manager: orders in their companies (`org_id`). Salesman: `created_by_id` in acting ids |
+| `activeLeaveWhere`, `getCoveredUserIds`, `getActingUserIds` | Leave cover (above) |
 | `taskScopeWhere` | Task visibility per role, plus the to-do rule from `lib/task-privacy.ts`: a `todo` task is only visible to its owner. Team counts and dashboards exclude to-dos (`notTodo`); the task list SQL and calendar use `todoPrivacySql` |
 | `getManagerOrgIds`, `getAccountantOrgIds`, `getOperationsOrgIds` | Company ids for those roles |
 | `getSalesmanOrgIds` | Companies a salesman works for (from `manager_salesman`) |
@@ -173,6 +178,7 @@ erDiagram
 
 - Only two Prisma migrations exist (`prisma/migrations`, June 2026 init). Later schema changes were applied with `npm run prisma:push` (`prisma db push`) and the one-off scripts in `prisma/*.sql` (backfills such as `backfill-paid-total.sql`, `backfill-client-status-events.sql`, and status migrations). So migrations do not reproduce the live schema; **`schema.prisma` is the source of truth** and a fresh database is created with `db push`.
 - Seeds: `prisma/seed.ts` (`npm run prisma:seed`, honours `SEED_SIZE`, `SEED_FORCE`), `prisma/seed-super-admin.ts` (`SUPER_ADMIN_EMAIL/NAME/PASSWORD`).
+- Extension `pg_trgm` (declared in the datasource, `postgresqlExtensions` preview feature; `db push` creates it). Trigram GIN indexes on `clients` `name`, `contact_person_name`, `contact_no`, `mail_id`, `cr_no`, `department` let the "contains" searches use an index. Keep every column in an OR search indexed and avoid relation filters inside that OR (a single unindexed branch makes Postgres scan the table): the client search looks up parent companies by CR first (`parentIdsWithCr`, `lib/clients-list.ts`).
 - Money is `Decimal(12,2)`; weights and volumes `Decimal(12,3)`. Dates that mean a calendar day are `@db.Date`.
 - Cascade rules: deleting a client cascades to its logs, contacts, documents, tasks, enquiries, orders and approvals. Deleting an organization is **not** cascaded to clients, enquiries or orders (no `onDelete`), so those block the delete.
 
@@ -276,7 +282,8 @@ Indexes: salesman, org, (org, status), (salesman, status), status, category, cre
 | Dangerous goods | `is_dg` (bool), `un_number?` (normalised `UN1203, UN1950`) |
 | Cargo | `packages?` (Json list of `{length,width,height,qty}`), `dimension_unit?` (`cm,m,ft,in`), `actual_weight?` (always kg), `weight_unit?` (`kg,lb`), `stackable?`, `chargeable_weight?` (kg), `cbm?` |
 | Service | `service_type?` (sea: `20dc,40dc,40hc,20ot,40ot,20fr,40fr,20rf,40rf,lcl,ro_ro,break_bulk`), `reefer_temp?` (deg C), `gauge?` (`ig,og`), `truck_type?` (land) |
-| Money | `provisional_cost?`, `provisional_profit?` (set when quoted), `actual_cost?`, `actual_profit?` (filled by accounts on the order) |
+| Containers | `containers?` (sea FCL counts `[{ type, qty, temps? }]`; reefers carry one °C per container in `temps`, so two reefers can run at different temperatures, and `reefer_temp` keeps the first; e.g. 2 × 20'DC + 1 × 40'HC, entered with +/− chips); `service_type` then holds `primaryContainer()` (a reefer, else an open top, else the first) so the reefer temperature / gauge rules and older screens keep working. Labels via `equipmentLabel` / `containersLabel` in `types/enquiry.ts` |
+| Money | `provisional_cost?`, `provisional_profit?` (set when quoted), `quote_lines?` (itemised quote `[{ label, cost, selling }]`; `selected_quote_option_id?` = the agent quote it came from; when set, cost = Σ cost and profit = Σ selling − Σ cost, `lib/quote-lines.ts`; older quotes have none), `actual_cost?`, `actual_profit?` (filled by accounts on the order) |
 | Status | `status` default `inquiry_received`: `sent_to_client, inquiry_received, with_agent, quoted, revision_requested, confirmed, lost` |
 | Lost | `cancel_reason?`, `lost_reason?` (`high_rate, late_quote, dispute, credit_terms, other`), `cancelled_at?`, `cancelled_by_id?` |
 | Client form | `client_form_token?` unique, `client_form_email?`, `client_form_sent_at?`, `client_signed_name?`, `client_signed_at?`, `client_signature_path?` |
@@ -292,6 +299,10 @@ Indexes: salesman, org, (org, status), (salesman, status), status, category, cre
 **EnquiryAgentRequest** [`enquiry_agent_requests`]: one "send to agent" rate request: `enquiry_id`, `agent_id`, `token` unique (link `/agent-quote/<token>`), `sent_by_id`, `sent_at`, reply fields `cost?`, `notes?`, `replied_at?`. "Send to agent" takes `agent_ids[]` (up to 25): one request/token/email each; the dialog preselects agents whose `modes` include the enquiry mode and whose `country` is the country of the enquiry's From (`agentMatchesRoute` in `lib/agents.ts`; the From place is resolved through the `locations` table).
 
 **Location** [`locations`]: master list of seaports, airports and road points the From / To pickers suggest: `name`, `code?` (UN/LOCODE or IATA), `kind` (`port, airport, land`), `country`, `country_code`, `aliases[]`; unique on `(kind, name, country)`. Seeded once from `SEED_LOCATIONS` in `lib/locations.ts` when the table is empty (`getLocations` in `lib/locations-db.ts`); afterwards the table is the source. Owner and super admin edit it on `/dashboard/admin/locations`. Enquiries and rates store the place as plain text, so edits never change them.
+
+**EnquiryQuoteOption** [`enquiry_quote_options`]: one agent's priced charges for an enquiry: `agent_id?` (set null if the agent is deleted), `agent_name` (snapshot), `lines` (`[{ label, cost, selling }]`), `cost`, `selling` (totals), `created_by_id`. Several per enquiry. Saved / edited / deleted through `enquiries/[id]/quote-options` (+ `/[optionId]`; sales roles and operations, enquiry still open); the Quote / Requote dialog (`components/enquiries/AgentQuotes.tsx`) lists them and "Use this quote" runs the quote / requote stage action with `option_id`, copying the lines into `quote_lines` and the totals into `provisional_cost` / `provisional_profit`. The option in use can't be deleted; editing it changes the enquiry only once it's used again.
+
+**UserLeave** [`user_leaves`]: a manager or salesman away: `user_id`, `cover_user_id` (same role, shares a company), `start_date`, `end_date` (last day away, `@db.Date`), `returned_at?` (back early), `created_by_id`. Set from the Users page (owner / super admin: managers and salesmen) and the manager's Team page (their salesmen) via `lib/actions/leave-actions.ts`. Blocked: overlapping leave for the same person, a cover who is on leave then, and a person who is covering someone else then. Days taken: `lib/leave.ts` (`leaveDaysTaken`, inclusive, up to today). Cancelling an upcoming leave deletes it; "Back today" sets `returned_at`; "Extend" moves `end_date` (`extendLeave`, same clash rules). The Users table tags people on leave and shows from – to, planned days and replacement; the Team page shows it in the row badge. A cover sees a banner (`components/layout/CoverBanner.tsx`).
 
 **EmailTemplate** [`email_templates`]: a company's own wording for an outgoing email: `org_id`, `key` (`agent_rate_request`, `client_enquiry_form`), `subject`, `body` (plain text with `{{placeholders}}`, blank line = paragraph); unique on `(org_id, key)`; no row = the built-in default in `lib/email-templates.ts` (which also holds the placeholders and `renderEmail`). Must keep `{{link}}`. `{{logo}}` puts the company logo in the signature (attached inline as `cid:logo` so it shows without allowing remote images; nothing shows if the company has no logo; the default templates include it). Owner / super admin edit on `/dashboard/admin/email-templates`. "Send to agent" has a Review step that previews the company template with the real shipment and lets the sender edit it for that send only (`subject` + `body` in the POST body); "Send to client" uses the company template as saved.
 
@@ -351,7 +362,7 @@ All under `app/dashboard/<role>/`. Each role has its own tree.
 
 | Role | Pages |
 |---|---|
-| admin | (overview), accounts, locations (owner / super admin), email-templates (owner / super admin), control-panel (super admin only: imports + reverse, deployments, errors), agents, approvals, clients, clients/[id], companies, enquiries, orders, reports, salesmen, shipping-rates, tasks, users |
+| admin | (overview), accounts, locations (owner / super admin), email-templates (owner / super admin), control-panel (super admin only: imports + reverse, deployments, errors), agents, approvals, clients, clients/[id], companies, enquiries, my-clients (owner / super admin's own clients), orders, reports, salesmen, shipping-rates, tasks (owner / super admin), users |
 | manager | (team overview), my-overview, team, team/[salesmanId], tasks, my-clients, clients, clients/[id], salesmen, enquiries, orders, shipping-rates, agents, approvals, reports |
 | salesman | dashboard-org, (overview), tasks, clients, clients/[id], enquiries, orders, orders/[id] |
 | accountant | (dashboard), enquiries, orders, shipping-rates, agents, approvals |
@@ -368,11 +379,11 @@ Data for dashboards is assembled in `lib/admin-dashboard.ts`, `manager-dashboard
 | Auth | `auth/[...nextauth]` |
 | Users | `users` (POST), `users/reset-password` (POST) |
 | Clients | `clients` (GET, POST), `clients/[id]` (GET, PATCH, DELETE: super admin only; refused while the client has orders or departments, otherwise removes its enquiries, tasks, history, contacts and uploaded files), `/status`, `/checklist`, `/contacts`, `/contacts/[contactId]`, `/documents`, `/documents/[docId]`, `/tasks`, `/tasks/[taskId]`, `clients/bulk-assign` |
-| Enquiries | `enquiries` (GET, POST), `enquiries/[id]` (PATCH), `/stage`, `/cancel`, `/follow-ups`, `/send-to-agent`, `/signature`, `enquiries/send-to-client`, `enquiries/follow-ups/sync` |
+| Enquiries | `enquiries` (GET, POST by salesman, manager, owner, super admin), `enquiries/[id]` (PATCH), `/stage`, `/cancel`, `/follow-ups`, `/send-to-agent`, `/signature`, `/quote-options` (POST), `/quote-options/[optionId]` (PATCH, DELETE), `enquiries/send-to-client`, `enquiries/follow-ups/sync` |
 | Public forms | `enquiry-form/[token]` (POST), `agent-quote/[token]` (POST) |
 | Orders | `orders` (GET, POST), `orders/[id]` (GET, PATCH), `/status`, `/payments`, `/reminder`, `orders/stats` |
 | Tasks | `tasks` (GET; POST by every role. `category: "todo"` is a private personal task: always assigned to the creator and hidden from everyone else, including managers and owners; accountants and operations can only create to-dos. Owners and managers may pass `assigned_to_id` for other task types), `tasks/[id]` (PATCH, DELETE), `/follow-up`, `/outcome`, `/updates` |
-| Agents | `agents` (GET, POST), `agents/[id]` (PATCH, DELETE) |
+| Agents | `agents` (GET incl. operations, POST), `agents/[id]` (PATCH, DELETE) |
 | Email jobs | `email-jobs` (GET status by ids; roles 2, 3) |
 | Email templates | `email-templates` (GET any user; PUT, DELETE owner / super admin) |
 | Locations | `locations` (GET any user; POST owner / super admin), `locations/[id]` (PATCH, DELETE owner / super admin) |
@@ -426,7 +437,8 @@ Convention: handlers call `getSalesPalSession()`, return `401` when there is no 
 
 - Two processes from the same repo: the web app (`npm run build`, `npm start`) and the worker (`npm run worker`, bundled with esbuild to `.worker/index.mjs`). The worker (reports and emails) needs the same `DATABASE_URL`, `REDIS_URL`, the `SMTP_*` / `MAIL_FROM` variables and the shared `uploads/` volume (report PDFs, company logos).
 - First deploy of a fresh database: `prisma db push`, then `npm run prisma:seed` and/or `npm run seed:super-admin`.
-- Default password for new logins: `salespal123` (`lib/roles.ts`); users should change it.
+- New logins get a random password shown once to their creator (section 4.2). Logins created before 2026-11-01 may still have the old shared default; ask those users to change it.
+- `nodemailer` is v10; `package.json` `overrides` points next-auth's optional nodemailer peer at the same version (next-auth only uses it for email sign-in, which is not used).
 - Versioning: `package.json` version, `CHANGELOG.md`, git tags `vX.Y.Z`. Version and commit show at the bottom of the sidebar.
 - Control Panel tables (`import_batches`, `deployments`, `error_logs`, `clients.import_batch_id`) come from `prisma/add-control-panel.sql`; run it once on a database that predates them. `shipping_rates.valid_until` comes from `prisma/add-rate-validity.sql`.
 - Tests: `npm test` runs `tests/*.test.ts` (payments, rate limit). Little else is covered.

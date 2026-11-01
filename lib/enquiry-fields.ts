@@ -1,7 +1,7 @@
 import { Prisma } from "@prisma/client";
 import { parseDateOnly } from "@/lib/salesman-targets";
 import { cargoTotals, DEFAULT_DIMENSION_UNIT, DEFAULT_WEIGHT_UNIT, isDimensionUnit, isWeightUnit, toKg, type WeightUnit, MAX_PACKAGE_LINES, round3, type CargoPackage, type DimensionUnit } from "@/lib/freight";
-import { enquiryModes, enquiryPaymentModes, gauges, incoterms, isOpenTop, jobRefs, needsReeferTemp, REEFER_TEMP_MAX, REEFER_TEMP_MIN, seaServiceTypes, truckTypes, type JobRef } from "@/types/enquiry";
+import { enquiryModes, enquiryPaymentModes, gauges, incoterms, jobRefs, needsGauge, MAX_CONTAINERS_PER_TYPE, needsReeferTemp, primaryContainer, readContainers, firstReeferTemp, isReefer, REEFER_TEMP_MAX, REEFER_TEMP_MIN, seaContainerTypes, seaServiceTypes, truckTypes, type ContainerCount, type JobRef } from "@/types/enquiry";
 
 /** The shipment details of an enquiry (everything but client, figures and status). Shared by create and edit. */
 export type EnquiryDetails = {
@@ -33,6 +33,8 @@ export type EnquiryDetails = {
   /** Computed from the packing list. */
   cbm: number | null;
   service_type: string | null;
+  /** Sea FCL: how many of each container type; null for other services / modes. */
+  containers: ContainerCount[] | null;
   /** °C, reefer containers / reefer trucks only. */
   reefer_temp: number | null;
   /** ig | og, open top containers only. */
@@ -46,6 +48,33 @@ function measurement(value: unknown): number | null | undefined {
   if (value === undefined || value === null || value === "") return null;
   const n = Number(value);
   return Number.isFinite(n) && n >= 0 ? Math.round(n * 1000) / 1000 : undefined;
+}
+
+/**
+ * Container counts from the body: [{ type, qty }] with known types and qty 1..MAX, plus `temps` ({ "40rf": ["-18", "4"] }):
+ * one °C per reefer container. Returns the counts, "temps" when a reefer temperature is missing / out of range, or
+ * undefined when the counts are invalid.
+ */
+function containerCounts(value: unknown, temps: unknown): ContainerCount[] | "temps" | undefined {
+  if (value === undefined || value === null) return [];
+  if (!Array.isArray(value) || value.length > seaContainerTypes.length) return undefined;
+  const byType = (temps && typeof temps === "object" ? temps : {}) as Record<string, unknown>;
+  const withTemps = [];
+  for (const c of value) {
+    const qty = Number(c?.qty);
+    if (!seaContainerTypes.includes(c?.type) || !Number.isInteger(qty) || qty < 1 || qty > MAX_CONTAINERS_PER_TYPE) return undefined;
+    if (!isReefer(c.type)) {
+      withTemps.push({ type: c.type, qty });
+      continue;
+    }
+    const raw = byType[c.type];
+    const list = Array.isArray(raw) ? raw : [];
+    if (list.length !== qty) return "temps";
+    const nums = list.map((t) => (t === "" || t === null ? NaN : Number(t)));
+    if (!nums.every((t) => Number.isFinite(t) && t >= REEFER_TEMP_MIN && t <= REEFER_TEMP_MAX)) return "temps";
+    withTemps.push({ type: c.type, qty, temps: nums.map((t) => Math.round(t * 10) / 10) });
+  }
+  return readContainers(withTemps);
 }
 
 /** Packing list lines: each needs length, width, height > 0 and a whole quantity ≥ 1; undefined when invalid. */
@@ -87,10 +116,15 @@ export function parseEnquiryDetails(body: Record<string, unknown>): { data: Enqu
   const actualWeight = enteredWeight == null || !isWeightUnit(weightUnit) ? enteredWeight : round3(toKg(enteredWeight, weightUnit));
   const isDg = Boolean(body.is_dg);
   const unNumber = isDg ? unNumbers(body.un_number) : null;
-  const serviceType = body.mode === "sea" ? String(body.service_type ?? "") : null;
-  const gauge = isOpenTop(serviceType) ? String(body.gauge ?? "") : null;
+  // Sea FCL: container counts; the primary one goes in service_type (reefer / open top rules key off it).
+  const parsedContainers = body.mode === "sea" ? containerCounts(body.containers, body.container_temps) : null;
+  const containerList = parsedContainers === "temps" ? [] : parsedContainers;
+  const serviceType = body.mode === "sea" ? (containerList?.length ? primaryContainer(containerList) : String(body.service_type ?? "")) : null;
+  // Reefer containers carry their own temperatures; reefer_temp keeps the first for older screens.
+  const containerTemp = containerList?.length ? firstReeferTemp(containerList) : null;
+  const gauge = body.mode === "sea" && needsGauge(serviceType, containerList) ? String(body.gauge ?? "") : null;
   const truckType = body.mode === "land" ? String(body.truck_type ?? "") : null;
-  const reeferTemp = needsReeferTemp(String(body.mode), serviceType, truckType) ? Number(body.reefer_temp) : null;
+  const reeferTemp = containerTemp ?? (needsReeferTemp(String(body.mode), serviceType, truckType) ? Number(body.reefer_temp) : null);
 
   if (!enquiryDate) return { error: "Invalid enquiry date" };
   if (!enquiryModes.includes(body.mode as never)) return { error: "Invalid mode of transport" };
@@ -105,8 +139,10 @@ export function parseEnquiryDetails(body: Record<string, unknown>): { data: Enqu
   if (!isDimensionUnit(unit)) return { error: "Invalid dimension unit" };
   if (!isWeightUnit(weightUnit)) return { error: "Invalid weight unit" };
   if (actualWeight === undefined) return { error: "Actual weight must be a number of 0 or more" };
+  if (containerList === undefined) return { error: `Container quantities must be whole numbers from 1 to ${MAX_CONTAINERS_PER_TYPE}` };
+  if (parsedContainers === "temps") return { error: `Enter the temperature for each reefer container in °C (${REEFER_TEMP_MIN} to +${REEFER_TEMP_MAX})` };
   if (serviceType !== null && !seaServiceTypes.includes(serviceType as never)) return { error: "Select a service type" };
-  if (reeferTemp !== null && (body.reefer_temp === "" || body.reefer_temp === null || body.reefer_temp === undefined || !Number.isFinite(reeferTemp) || reeferTemp < REEFER_TEMP_MIN || reeferTemp > REEFER_TEMP_MAX)) {
+  if (reeferTemp !== null && containerTemp === null && (body.reefer_temp === "" || body.reefer_temp === null || body.reefer_temp === undefined || !Number.isFinite(reeferTemp) || reeferTemp < REEFER_TEMP_MIN || reeferTemp > REEFER_TEMP_MAX)) {
     return { error: `Enter the reefer temperature in °C (${REEFER_TEMP_MIN} to +${REEFER_TEMP_MAX})` };
   }
   if (gauge !== null && !gauges.includes(gauge as never)) return { error: "Select in gauge (IG) or out of gauge (OG) for the open top container" };
@@ -136,6 +172,7 @@ export function parseEnquiryDetails(body: Record<string, unknown>): { data: Enqu
       chargeable_weight: totals.chargeableWeight,
       cbm: totals.cbm,
       service_type: serviceType,
+      containers: containerList?.length ? containerList : null,
       reefer_temp: reeferTemp === null ? null : Math.round(reeferTemp * 10) / 10,
       gauge,
       truck_type: truckType,
@@ -165,6 +202,7 @@ export const ENQUIRY_FIELD_LABELS: Record<keyof EnquiryDetails, string> = {
   chargeable_weight: "chargeable weight",
   cbm: "CBM",
   service_type: "service type",
+  containers: "containers",
   reefer_temp: "reefer temperature",
   gauge: "gauge",
   truck_type: "truck type",
@@ -173,5 +211,5 @@ export const ENQUIRY_FIELD_LABELS: Record<keyof EnquiryDetails, string> = {
 
 /** EnquiryDetails as Prisma write data (a null JSON column has to be written as DbNull). */
 export function enquiryDetailsData(details: EnquiryDetails) {
-  return { ...details, packages: details.packages ?? Prisma.DbNull };
+  return { ...details, packages: details.packages ?? Prisma.DbNull, containers: details.containers ?? Prisma.DbNull };
 }

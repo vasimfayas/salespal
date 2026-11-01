@@ -1,6 +1,8 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { getToken } from "next-auth/jwt";
 import bcrypt from "bcryptjs";
+import { newTempPassword } from "@/lib/passwords";
+import { MIN_PASSWORD_LENGTH } from "@/lib/roles";
 import { prisma } from "@/lib/prisma";
 import { getManagerOrgIds, isRole } from "@/lib/scoping";
 import { setSalesmanCompanies, TeamAssignmentError } from "@/lib/team-assignments";
@@ -26,7 +28,12 @@ export async function POST(request: NextRequest) {
   const orgIds: number[] = Array.isArray(body.org_ids) && body.org_ids.length ? body.org_ids.map(Number) : managerOrgs.length === 1 ? managerOrgs : [];
   if (orgIds.length === 0) return NextResponse.json({ error: "Pick at least one company (org_ids)" }, { status: 400 });
 
-  const password = await bcrypt.hash(body.password ?? "password123", 10);
+  // A typed password must meet the minimum; otherwise a random one is made and returned once.
+  if (body.password !== undefined && (typeof body.password !== "string" || body.password.length < MIN_PASSWORD_LENGTH)) {
+    return NextResponse.json({ error: `Password must be at least ${MIN_PASSWORD_LENGTH} characters` }, { status: 400 });
+  }
+  const plainPassword: string = body.password ?? newTempPassword();
+  const password = await bcrypt.hash(plainPassword, 10);
 
   try {
     const user = await prisma.$transaction(async (tx) => {
@@ -46,7 +53,7 @@ export async function POST(request: NextRequest) {
     });
 
     return NextResponse.json(
-      { user: { id: user.id, name: user.name, email: user.email, role_id: user.role_id } },
+      { user: { id: user.id, name: user.name, email: user.email, role_id: user.role_id }, ...(body.password === undefined ? { password: plainPassword } : {}) },
       { status: 201 }
     );
   } catch (error) {

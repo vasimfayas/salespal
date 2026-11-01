@@ -2,7 +2,7 @@ import { Suspense } from "react";
 import { getSalesPalSession } from "@/lib/auth";
 import { getClientsPage } from "@/lib/clients-list";
 import { prisma } from "@/lib/prisma";
-import { getSalesmanOrgIds } from "@/lib/scoping";
+import { getActingUserIds, getSalesmanOrgIds } from "@/lib/scoping";
 import type { SearchParams } from "@/lib/list-params";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { SalesmanClientsList } from "./SalesmanClientsList";
@@ -24,7 +24,8 @@ async function ClientsListSection({ params }: { params: SearchParams }) {
   const session = await getSalesPalSession();
   const salesmanId = Number(session!.user.id);
   const [clients, companies] = await Promise.all([
-    getClientsPage({ assigned_salesman_id: salesmanId }, params),
+    // Their own clients plus those of a salesman they're covering for.
+    getActingUserIds(salesmanId).then((ids) => getClientsPage({ assigned_salesman_id: { in: ids } }, params)),
     // Companies this salesman was given; new clients go under one of them.
     getSalesmanOrgIds(salesmanId).then((ids) =>
       prisma.organization.findMany({ where: { id: { in: ids } }, select: { id: true, name: true }, orderBy: { name: "asc" } })

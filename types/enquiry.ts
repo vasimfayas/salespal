@@ -1,3 +1,4 @@
+import type { QuoteLine } from "@/lib/quote-lines";
 import type { CargoPackage } from "@/lib/freight";
 
 export { orderModes as enquiryModes, orderPaymentModes as enquiryPaymentModes } from "@/types/order";
@@ -90,6 +91,60 @@ export const seaServiceTypeLabels: Record<SeaServiceType, string> = {
   break_bulk: "Break bulk",
 };
 
+/** True when the counts carry their own reefer temperatures (so the single reefer_temp line is redundant). */
+export const hasContainerTemps = (containers: unknown) => readContainers(containers).some((c) => c.temps?.length);
+
+/** FCL containers for an enquiry: how many of each type (e.g. 2 × 20'DC + 1 × 40'HC). */
+export type SeaContainerType = (typeof seaContainerTypes)[number];
+/** `temps`: reefers only, one °C per container (length = qty), so two reefers can run at different temperatures. */
+export type ContainerCount = { type: SeaContainerType; qty: number; temps?: number[] };
+export const MAX_CONTAINERS_PER_TYPE = 999;
+
+/** Stored JSON → counts, in the standard type order; anything malformed is dropped. */
+export function readContainers(value: unknown): ContainerCount[] {
+  if (!Array.isArray(value)) return [];
+  const qty = new Map<string, number>();
+  const temps = new Map<string, number[]>();
+  for (const c of value) {
+    const n = Number(c?.qty);
+    if (!seaContainerTypes.includes(c?.type) || !Number.isInteger(n) || n <= 0) continue;
+    qty.set(c.type, n);
+    const t = Array.isArray(c?.temps) ? c.temps.map(Number) : [];
+    if (isReefer(c.type) && t.length === n && t.every(Number.isFinite)) temps.set(c.type, t);
+  }
+  return seaContainerTypes.filter((t) => qty.has(t)).map((t) => ({ type: t, qty: qty.get(t)!, ...(temps.has(t) ? { temps: temps.get(t)! } : {}) }));
+}
+
+/**
+ * The single service_type kept alongside the counts, so the reefer temperature, gauge and older screens still work:
+ * a reefer if there is one, else an open top, else the first type.
+ */
+export function primaryContainer(containers: ContainerCount[]): SeaContainerType | null {
+  return (containers.find((c) => isReefer(c.type)) ?? containers.find((c) => isOpenTop(c.type)) ?? containers[0])?.type ?? null;
+}
+
+/** Any open top in the counts (or the single service type) needs a gauge, even next to a reefer. */
+export function needsGauge(serviceType: string | null | undefined, containers: { type: string }[] | null | undefined) {
+  return containers?.length ? containers.some((c) => isOpenTop(c.type)) : isOpenTop(serviceType);
+}
+
+/** "2 × 20'DC + 2 × 40'RF (−18 °C, +4 °C)": a reefer's temperatures, once if they're all the same. */
+export function containersLabel(containers: ContainerCount[]) {
+  return containers
+    .map((c) => {
+      const base = `${c.qty} × ${seaServiceTypeCodes[c.type]}`;
+      if (!c.temps?.length) return base;
+      const distinct = [...new Set(c.temps)];
+      return `${base} (${(distinct.length === 1 ? distinct : c.temps).map(formatTemp).join(", ")})`;
+    })
+    .join(" + ");
+}
+
+/** First reefer container temperature (kept in reefer_temp for older screens), or null. */
+export function firstReeferTemp(containers: ContainerCount[]): number | null {
+  return containers.find((c) => c.temps?.length)?.temps?.[0] ?? null;
+}
+
 /** Land freight truck types. */
 /** Land freight: a dedicated truck (FTL) by type, or LTL (shared truck, charged by volumetric / actual weight). */
 export const ftlTruckTypes = ["flatbed", "curtain_side", "closed_box", "reefer", "lowbed", "tipper", "light_truck", "pickup"] as const;
@@ -109,8 +164,10 @@ export const truckTypeLabels: Record<TruckType, string> = {
 };
 
 /** Sea service type or land truck type label for the mode, or null. `short` gives the sea code (40'HC). */
-export function equipmentLabel(e: { mode: string; service_type: string | null; truck_type: string | null }, short = false) {
+export function equipmentLabel(e: { mode: string; service_type: string | null; truck_type: string | null; containers?: unknown }, short = false) {
   if (e.mode === "sea") {
+    const containers = readContainers(e.containers);
+    if (containers.length) return containersLabel(containers);
     if (!e.service_type) return null;
     const type = e.service_type as SeaServiceType;
     return (short ? seaServiceTypeCodes[type] : seaServiceTypeLabels[type]) ?? e.service_type;
@@ -126,6 +183,7 @@ export function shipmentSpec(e: {
   cbm: number | null;
   service_type: string | null;
   truck_type: string | null;
+  containers?: unknown;
   reefer_temp?: number | null;
   gauge?: string | null;
   stackable?: boolean | null;
@@ -133,7 +191,8 @@ export function shipmentSpec(e: {
   const qty = (v: number) => new Intl.NumberFormat("en", { maximumFractionDigits: 3 }).format(v);
   const parts = [
     equipmentLabel(e, true),
-    e.reefer_temp != null ? formatTemp(e.reefer_temp) : null,
+    // Per-container reefer temperatures are already in the containers label.
+    e.reefer_temp != null && firstReeferTemp(readContainers(e.containers)) === null ? formatTemp(e.reefer_temp) : null,
     e.stackable === false ? "Non-stackable" : null,
     e.gauge ? gaugeCodes[e.gauge as Gauge] ?? e.gauge : null,
     e.chargeable_weight !== null ? `${qty(e.chargeable_weight)} kg chg` : null,
@@ -260,6 +319,10 @@ export type EnquiryListItem = {
   /** Null until quoted. */
   provisional_cost: number | null;
   provisional_profit: number | null;
+  /** Sea FCL container counts; empty for other services. */
+  containers: ContainerCount[];
+  /** Itemised quote; empty when quoted as a single cost / profit. */
+  quote_lines: QuoteLine[];
   actual_cost: number | null;
   actual_profit: number | null;
   notes: string | null;
@@ -280,7 +343,10 @@ export type EnquiryListItem = {
   /** "Send to client": where the fillable form link went, and its path (/enquiry-form/<token>). */
   client_form: { email: string | null; sent_at: string | null; path: string } | null;
   /** "Send to agent" rate requests, newest first: the agent's cost once they reply, and their link (/agent-quote/<token>). */
-  agent_requests: { id: number; agent: string; email: string; sent_at: string; cost: number | null; notes: string | null; replied_at: string | null; path: string }[];
+  /** Agent quote options saved for this enquiry (lib/quote-lines.ts); the chosen one is the current quote. */
+  quote_options: { id: number; agent_id: number | null; agent: string; lines: QuoteLine[]; cost: number; selling: number; updated_at: string }[];
+  selected_quote_option_id: number | null;
+  agent_requests: { id: number; agent_id: number; agent: string; email: string; sent_at: string; cost: number | null; notes: string | null; replied_at: string | null; path: string }[];
   /** Set once the client submitted the form: who signed, when, and the signature image. */
   client_signature: { name: string; at: string; url: string } | null;
 };

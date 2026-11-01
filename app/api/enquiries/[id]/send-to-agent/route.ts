@@ -23,7 +23,7 @@ const MAX_AGENTS = 25;
 export async function POST(request: NextRequest, context: { params: Promise<{ id: string }> }) {
   const token = await getToken({ req: request, secret: process.env.NEXTAUTH_SECRET });
   if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  if (!hasRole(token, [2, 3])) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (!hasRole(token, [1, 2, 3])) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   const body = await request.json().catch(() => ({}));
   const ids = [...new Set((Array.isArray(body.agent_ids) ? body.agent_ids : [body.agent_id]).map(Number).filter((n: number) => Number.isInteger(n) && n > 0))] as number[];

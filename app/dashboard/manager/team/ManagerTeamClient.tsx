@@ -6,10 +6,12 @@ import { Modal } from "@/components/ui/Modal";
 import { Input } from "@/components/ui/Input";
 import { Toast } from "@/components/ui/Toast";
 import { ArrowRightLeft, Building2, Plus, Trash2, X, Loader2, UserPlus, Users } from "lucide-react";
+import { showNewPassword } from "@/lib/show-new-password";
 import { createSalesmanAction, removeSalesmanAction, setSalesmanCompaniesAction } from "@/lib/actions/manager-actions";
 import { CompanyCheckboxes } from "@/components/salesmen/CompanyCheckboxes";
 import { SalesmenTargetsClient } from "@/components/salesmen/SalesmenTargetsClient";
 import { PerformanceReportButton } from "@/components/reports/PerformanceReportButton";
+import { LeaveButton, type LeaveBadge } from "@/components/users/LeaveButton";
 import type { SalesmanTargetRow } from "@/types/salesman-target";
 
 import { buttonVariants } from "@/components/ui/Button";
@@ -24,9 +26,11 @@ interface ManagerTeamClientProps {
   companies: { id: number; name: string }[];
   /** Salesman id → the manager's companies they work for. */
   salesmanCompanies: Record<number, number[]>;
+  /** Current / next leave per salesman id. */
+  leaveBadges?: Record<number, LeaveBadge>;
 }
 
-export function ManagerTeamClient({ performance, teamSize, targets, companies, salesmanCompanies }: ManagerTeamClientProps) {
+export function ManagerTeamClient({ performance, teamSize, targets, companies, salesmanCompanies, leaveBadges = {} }: ManagerTeamClientProps) {
   const multiCompany = companies.length > 1;
   const companyNames = (ids: number[] = []) => companies.filter((c) => ids.includes(c.id)).map((c) => c.name).join(", ");
   // New salesmen start with every company ticked; the manager unticks the ones they shouldn't have.
@@ -72,7 +76,8 @@ export function ManagerTeamClient({ performance, teamSize, targets, companies, s
         throw new Error(res.error || "Failed to create salesman");
       }
 
-      triggerToast("Salesman added to your team successfully!");
+      if (res.password) showNewPassword(name, res.password);
+      else triggerToast("Salesman added to your team successfully!");
       setName("");
       setEmail("");
       setPhone("");
@@ -187,6 +192,7 @@ export function ManagerTeamClient({ performance, teamSize, targets, companies, s
         renderActions={(row) => (
           <>
             <PerformanceReportButton salesmanId={row.id} salesmanName={row.name} compact />
+            <LeaveButton userId={row.id} name={row.name} badge={leaveBadges[row.id]} />
             {multiCompany && (
               <button
                 onClick={() => {
@@ -332,8 +338,7 @@ export function ManagerTeamClient({ performance, teamSize, targets, companies, s
             {multiCompany && <CompanyCheckboxes companies={companies} value={newCompanies} onChange={setNewCompanies} />}
 
             <div className="p-3 bg-subtle rounded-xl border border-border text-[11px] text-muted-foreground font-medium">
-              Note: The default password for the new account will be{" "}
-              <span className="font-semibold text-foreground">salespal123</span>.
+              Note: A random password is created for the new account and shown once after saving. Share it with them; they can change it from their account menu.
             </div>
 
             <div className="flex items-center justify-end gap-2 pt-3 border-t border-border">

@@ -4,7 +4,7 @@ import { queueEmail } from "@/lib/email-queue";
 import { renderEmail, type EmailTemplate } from "@/lib/email-templates";
 import { publicBaseUrl } from "@/lib/public-url";
 import { dimensionUnitLabels, readPackages, type DimensionUnit } from "@/lib/freight";
-import { equipmentLabel, formatTemp, incotermNames, jobRefNames, type Incoterm, type JobRef } from "@/types/enquiry";
+import { equipmentLabel, formatTemp, hasContainerTemps, incotermNames, jobRefNames, type Incoterm, type JobRef } from "@/types/enquiry";
 
 /**
  * "Send to agent": the agent gets an emailed link (/agent-quote/<token>) with the shipment details and gives their cost.
@@ -37,6 +37,7 @@ export const agentEnquirySelect = {
   chargeable_weight: true,
   cbm: true,
   service_type: true,
+  containers: true,
   reefer_temp: true,
   gauge: true,
   truck_type: true,
@@ -61,7 +62,7 @@ export function agentShipmentRows(e: AgentEnquiry): [string, string][] {
     ["Job type", e.job_ref ? `${e.job_ref} · ${jobRefNames[e.job_ref as JobRef] ?? ""}` : null],
     ["Incoterm", e.incoterm ? `${e.incoterm} · ${incotermNames[e.incoterm as Incoterm] ?? ""}` : null],
     ["Equipment", equipmentLabel(e)],
-    ["Reefer temperature", e.reefer_temp !== null ? formatTemp(e.reefer_temp.toNumber()) : null],
+    ["Reefer temperature", e.reefer_temp !== null && !hasContainerTemps(e.containers) ? formatTemp(e.reefer_temp.toNumber()) : null],
     [
       "Packages",
       packages.length

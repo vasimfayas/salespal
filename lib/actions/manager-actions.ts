@@ -3,6 +3,7 @@
 import { prisma } from "@/lib/prisma";
 import { revalidatePath, revalidateTag } from "next/cache";
 import bcrypt from "bcryptjs";
+import { newTempPassword } from "@/lib/passwords";
 import { getSalesPalSession } from "@/lib/auth";
 import { getManagerOrgIds } from "@/lib/scoping";
 import { revalidateTeamViews, setSalesmanCompanies, TeamAssignmentError } from "@/lib/team-assignments";
@@ -28,7 +29,8 @@ export async function createSalesmanAction(data: {
   const orgIds = data.orgIds?.length ? data.orgIds : managerOrgs.length === 1 ? managerOrgs : [];
   if (orgIds.length === 0) return { success: false, error: "Pick at least one company for the salesman." };
 
-  const defaultPasswordHash = bcrypt.hashSync("salespal123", 10);
+  const password = newTempPassword();
+  const passwordHash = await bcrypt.hash(password, 10);
 
   // Check duplicate email
   const existingUser = await prisma.user.findUnique({
@@ -47,7 +49,7 @@ export async function createSalesmanAction(data: {
           email: data.email.toLowerCase(),
           phone: data.phone || null,
           role_id: 3, // Salesman
-          password: defaultPasswordHash,
+          password: passwordHash,
         },
       });
 
@@ -63,7 +65,7 @@ export async function createSalesmanAction(data: {
     revalidateTag("manager-clients", { expire: 0 });
     revalidatePath("/dashboard/manager/team");
     revalidateTeamViews();
-    return { success: true, userId: result.id };
+    return { success: true, userId: result.id, password };
   } catch (error: any) {
     if (error instanceof TeamAssignmentError) return { success: false, error: error.message };
     return { success: false, error: error.message || "Failed to create salesman." };

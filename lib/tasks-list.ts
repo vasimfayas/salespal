@@ -24,8 +24,8 @@ export type UnifiedTaskRow = {
 type Scope =
   /** Manager view: tasks assigned to these salesmen, plus the manager's own (`alsoUser`). */
   | { assignedTo: number[]; alsoUser?: number }
-  /** Salesman view: tasks they created or that were assigned to them. */
-  | { userId: number };
+  /** Salesman view: tasks they created or that were assigned to them, plus those of anyone they cover for. */
+  | { userId: number; covering?: number[] };
 
 function scopeSql(scope: Scope, alias: string) {
   // A to-do is private: only its owner (the signed-in user) sees it, never a manager or owner reading a team list.
@@ -34,7 +34,10 @@ function scopeSql(scope: Scope, alias: string) {
 }
 
 function scopeRowsSql(scope: Scope, alias: string) {
-  if ("userId" in scope) return Prisma.sql`(${Prisma.raw(alias)}.created_by_id = ${scope.userId} OR ${Prisma.raw(alias)}.assigned_to_id = ${scope.userId})`;
+  if ("userId" in scope) {
+    const ids = [scope.userId, ...(scope.covering ?? [])];
+    return Prisma.sql`(${Prisma.raw(alias)}.created_by_id IN (${Prisma.join(ids)}) OR ${Prisma.raw(alias)}.assigned_to_id IN (${Prisma.join(ids)}))`;
+  }
   const own = scope.alsoUser ? Prisma.sql`${Prisma.raw(alias)}.created_by_id = ${scope.alsoUser} OR ${Prisma.raw(alias)}.assigned_to_id = ${scope.alsoUser}` : Prisma.sql`FALSE`;
   if (scope.assignedTo.length === 0) return Prisma.sql`(${own})`;
   return Prisma.sql`(${Prisma.raw(alias)}.assigned_to_id IN (${Prisma.join(scope.assignedTo)}) OR ${own})`;

@@ -37,18 +37,34 @@ export function withCompanyCr<T extends { cr_no: string | null; cr_expiry_date: 
   return c.parent ? { ...c, cr_no: c.cr_no ?? c.parent.cr_no, cr_expiry_date: c.cr_expiry_date ?? c.parent.cr_expiry_date } : c;
 }
 
+/**
+ * Companies whose CR matches q and that have departments (departments show their company's CR).
+ * Looked up first so the search stays a plain OR over indexed columns: a relation filter inside the OR
+ * makes Postgres scan the whole clients table instead of using the trigram indexes.
+ */
+export async function parentIdsWithCr(q: string) {
+  const parents = await prisma.client.findMany({
+    where: { cr_no: { contains: literal(q), mode: "insensitive" }, departments: { some: {} } },
+    select: { id: true },
+    // shortcut: departments of more than 500 matching companies are not matched by CR; narrow the query then.
+    take: 500,
+  });
+  return parents.map((p) => p.id);
+}
+
 /** Filters shared by the client tables: q, status, company, manager, salesman, date (+ day). */
-export function clientFilterWhere(params: SearchParams): Prisma.ClientWhereInput {
+export async function clientFilterWhere(params: SearchParams): Promise<Prisma.ClientWhereInput> {
   const and: Prisma.ClientWhereInput[] = [];
   const q = param(params, "q");
   if (q) {
+    const parentIds = await parentIdsWithCr(q);
     and.push({
       OR: [
         { name: { contains: literal(q), mode: "insensitive" } },
         { contact_person_name: { contains: literal(q), mode: "insensitive" } },
         { mail_id: { contains: literal(q), mode: "insensitive" } },
         { cr_no: { contains: literal(q), mode: "insensitive" } },
-        { parent: { cr_no: { contains: literal(q), mode: "insensitive" } } },
+        ...(parentIds.length ? [{ parent_client_id: { in: parentIds } }] : []),
         { department: { contains: literal(q), mode: "insensitive" } },
         { contact_no: { contains: literal(q) } },
       ],
@@ -84,7 +100,7 @@ function toListItem(row: ClientListRow): ClientListItem {
 export async function getClientsPage(scope: Prisma.ClientWhereInput, params: SearchParams): Promise<Paged<ClientListItem>> {
   const page = pageParam(params);
   const pageSize = sizeParam(params);
-  const where: Prisma.ClientWhereInput = { AND: [scope, clientFilterWhere(params)] };
+  const where: Prisma.ClientWhereInput = { AND: [scope, await clientFilterWhere(params)] };
   const [rows, total] = await Promise.all([
     prisma.client.findMany({ where, select: clientListSelect, orderBy: { id: "desc" }, ...paging(page, pageSize) }),
     prisma.client.count({ where }),

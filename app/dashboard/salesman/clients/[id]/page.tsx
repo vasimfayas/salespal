@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import { getSalesPalSession } from "@/lib/auth";
 import { getCachedClientDetail } from "@/lib/cached-queries";
+import { getActingUserIds } from "@/lib/scoping";
 import { getClientHistory } from "@/lib/client-history";
 import { ClientHistory } from "@/components/clients/ClientHistory";
 import { ClientHistorySkeleton } from "@/components/clients/ClientHistorySkeleton";
@@ -54,7 +55,7 @@ async function ClientDetailContent({
   if (!session) redirect("/login");
 
   const userId = session.user.id;
-  const { client, tasks } = await getCachedClientDetail(clientId, userId);
+  const { client, tasks } = await getCachedClientDetail(clientId, await getActingUserIds(Number(userId)));
 
   if (!client) {
     return (

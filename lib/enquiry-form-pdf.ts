@@ -4,17 +4,21 @@ import { formatDate } from "@/lib/utils";
 import {
   enquiryModes,
   enquiryPaymentModes,
-  gaugeLabels,
+  gaugeCodes,
   gauges,
+  isOpenTop,
+  isReefer,
   incotermNames,
   incoterms,
   jobRefNames,
   jobRefs,
+  seaContainerTypes,
+  seaOtherServiceTypes,
   seaServiceTypeLabels,
-  seaServiceTypes,
   truckTypeLabels,
   truckTypes,
   type EnquiryListItem,
+  type SeaContainerType,
 } from "@/types/enquiry";
 
 /**
@@ -217,18 +221,80 @@ export async function buildEnquiryFormPdf(enquiry: EnquiryListItem | null): Prom
   }
 
   // ── Equipment ───────────────────────────────────────────────────────────
-  section("Equipment", 90);
-  checks("sea_service", "Sea — service type", seaServiceTypes.map((t) => ({ value: t, text: seaServiceTypeLabels[t] })), e?.service_type, 3);
+  // Sea FCL as a table: one row per container type with how many, a temperature per reefer container and the open top gauge.
+  section("Equipment", 200);
+  {
+    // Older enquiries hold one service type (and one temperature) instead of counts.
+    const containers =
+      e?.containers.length
+        ? e.containers
+        : e && seaContainerTypes.includes(e.service_type as SeaContainerType)
+          ? [{ type: e.service_type as SeaContainerType, qty: 1, temps: isReefer(e.service_type) && e.reefer_temp != null ? [e.reefer_temp] : undefined }]
+          : [];
+    const byType = new Map(containers.map((c) => [c.type as string, c]));
+    const rowH = 17;
+    const gap = 8;
+    const cols = { type: 180, qty: 64, temp: 170 };
+    const xQty = M + cols.type + gap;
+    const xTemp = xQty + cols.qty + gap;
+    const xGauge = xTemp + cols.temp + gap;
+    ensure(seaContainerTypes.length * (rowH + 1) + 40);
+    label("Sea — FCL containers", M, y - 7);
+    y -= 14;
+    label("Container type", M + 4, y - 7);
+    label("No. of containers", xQty, y - 7);
+    label("Temperature, °C (reefer, per container)", xTemp, y - 7);
+    label("Gauge (open top)", xGauge, y - 7);
+    y -= 11;
+    seaContainerTypes.forEach((t, i) => {
+      const c = byType.get(t);
+      const top = y;
+      const mid = top - rowH / 2;
+      // Taken types stand out; the rest are striped so a row reads across.
+      if (c) page.drawRectangle({ x: M, y: top - rowH, width: CW, height: rowH, color: rgb(0.88, 0.95, 0.94) });
+      else if (i % 2) page.drawRectangle({ x: M, y: top - rowH, width: CW, height: rowH, color: rgb(0.975, 0.98, 0.985) });
+      label(fit(seaServiceTypeLabels[t], cols.type - 8, 8), M + 4, mid - 3, 8, c ? bold : font, INK);
+      const field = (name: string, x: number, width: number, value: string) => {
+        const f = form.createTextField(name);
+        if (value) f.setText(safe(value));
+        f.addToPage(page, { x, y: top - rowH + 1.5, width, height: rowH - 3, font, borderColor: LINE, borderWidth: 0.6, backgroundColor: rgb(1, 1, 1) });
+        f.setFontSize(8.5);
+      };
+      field(`sea.${t}.qty`, xQty, cols.qty, c ? String(c.qty) : "");
+      if (isReefer(t)) {
+        const temps = c?.temps ?? [];
+        // One value when every container runs at the same temperature; otherwise one per container in order.
+        field(`sea.${t}.temp`, xTemp, cols.temp, new Set(temps).size === 1 ? num(temps[0]) : temps.map(num).join(", "));
+      }
+      if (isOpenTop(t)) {
+        gauges.forEach((g, gi) => {
+          const gx = xGauge + gi * 40;
+          checkbox(`sea.${t}.gauge.${g}`, gx, mid - 4.5, !!c && e?.gauge === g);
+          label(gaugeCodes[g], gx + 13, mid - 3, 8, font, INK);
+        });
+      }
+      y -= rowH + 1;
+    });
+    y -= 3;
+    label("Reefers at different temperatures: one value per container, in order (e.g. -18, 4). IG = in gauge, OG = out of gauge.", M, y - 6, 6.5);
+    y -= 16;
+  }
+  checks(
+    "sea_service",
+    "Sea — other service",
+    seaOtherServiceTypes.map((t) => ({ value: t, text: seaServiceTypeLabels[t] })),
+    e?.service_type,
+    3,
+  );
+  fieldRow([{ name: "cargo.commodity", title: "Commodity / cargo description" }]);
   {
     const top = y;
-    checks("gauge", "Open top (20'OT / 40'OT) — gauge", gauges.map((g) => ({ value: g, text: gaugeLabels[g] })), e?.gauge, 2, M, CW / 2 - 5);
+    checks("truck_type", "Road — truck type", truckTypes.map((t) => ({ value: t, text: truckTypeLabels[t] })), e?.truck_type, 2, M, CW * 0.62);
     const after = y;
     y = top;
-    textField("sea.reefer_temp", "Reefer temperature, °C (reefer container / truck)", M + CW / 2 + 5, CW / 2 - 5, num(e?.reefer_temp), 15);
+    textField("land.reefer_temp", "Reefer truck temperature, °C", M + CW * 0.66, CW * 0.34, e?.mode === "land" ? num(e.reefer_temp) : "", 15);
     y = Math.min(after, top - 32);
   }
-  fieldRow([{ name: "cargo.commodity", title: "Commodity / cargo description" }]);
-  checks("truck_type", "Road — truck type", truckTypes.map((t) => ({ value: t, text: truckTypeLabels[t] })), e?.truck_type, 3);
 
   // ── Cargo ───────────────────────────────────────────────────────────────
   const unit = e && isDimensionUnit(e.dimension_unit) ? e.dimension_unit : DEFAULT_DIMENSION_UNIT;

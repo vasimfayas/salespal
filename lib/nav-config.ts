@@ -16,9 +16,11 @@ export const navConfig: Record<number, NavLink[]> = {
     { label: "Users", href: "/dashboard/admin/users" },
     { label: "Salesmen", href: "/dashboard/admin/salesmen" },
     { label: "Clients", href: "/dashboard/admin/clients" },
+    { label: "My Clients", href: "/dashboard/admin/my-clients" },
     { label: "Premium Clients", href: "/dashboard/admin/clients?category=premium" },
     { label: "Blacklist", href: "/dashboard/admin/clients?status=blacklisted" },
     { label: "Enquiries", href: "/dashboard/admin/enquiries" },
+    { label: "Tasks", href: "/dashboard/admin/tasks" },
     { label: "Agents", href: "/dashboard/admin/agents" },
     { label: "Locations", href: "/dashboard/admin/locations" },
     { label: "Email templates", href: "/dashboard/admin/email-templates" },
@@ -66,12 +68,12 @@ export const navConfig: Record<number, NavLink[]> = {
   ],
 };
 
-/** Super admin: the owner's menu plus the operational screens only it has (orders, rates, tasks). */
+/** Super admin: the owner's menu plus the operational screens only it has (orders, rates). */
 navConfig[6] = [
-  ...navConfig[1].slice(0, 8),
+  ...navConfig[1].slice(0, 9), // through Enquiries
   { label: "Orders", href: "/dashboard/admin/orders" },
-  { label: "Tasks", href: "/dashboard/admin/tasks" },
+  navConfig[1][9], // Tasks
   { label: "Shipping Rates", href: "/dashboard/admin/shipping-rates" },
-  ...navConfig[1].slice(8),
+  ...navConfig[1].slice(10),
   { label: "Control Panel", href: "/dashboard/admin/control-panel" },
 ];

@@ -8,7 +8,8 @@ import { AGENT_EDITOR_ROLES, parseAgent } from "@/lib/agents";
 /** Unlocked agents, by name (for the "Send to agent" picker). */
 export async function GET(request: NextRequest) {
   const token = await getToken({ req: request, secret: process.env.NEXTAUTH_SECRET });
-  if (!token || !hasRole(token, [1, 2, 3])) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  // Operations too: they quote enquiries and pick the agent per quote line.
+  if (!token || !hasRole(token, [1, 2, 3, 5])) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const agents = await prisma.agent.findMany({ where: { locked: false }, orderBy: [{ is_top: "desc" }, { name: "asc" }] });
   return NextResponse.json({ agents });
 }

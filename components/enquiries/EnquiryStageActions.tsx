@@ -10,6 +10,7 @@ import { Dialog, DialogBody, DialogContent, DialogFooter } from "@/components/ui
 import { LostReasonDialog } from "@/components/shared/LostReasonDialog";
 import { formatAmount } from "@/lib/utils";
 import type { EnquiryListItem } from "@/types/enquiry";
+import { AgentQuotes } from "@/components/enquiries/AgentQuotes";
 
 export type Action = "send_agent" | "quote" | "requote" | "confirm" | "lose";
 
@@ -130,6 +131,7 @@ export function EnquiryStageActions({
           onDone(msg);
           router.refresh();
         }}
+        onChanged={() => router.refresh()}
       />
       <SendToAgentDialog
         enquiry={enquiry}
@@ -164,14 +166,24 @@ export function EnquiryStageActions({
   );
 }
 
-const fieldClass =
-  "h-10 w-full rounded-control border border-input bg-card px-3 text-sm text-foreground outline-none transition focus:border-primary focus:ring-3 focus:ring-primary/15";
-
-function FiguresDialog({ enquiry, mode, onClose, onSaved }: { enquiry: EnquiryListItem; mode: "quote" | "requote" | null; onClose: () => void; onSaved: (msg: string) => void }) {
+function FiguresDialog({
+  enquiry,
+  mode,
+  onClose,
+  onSaved,
+  onChanged,
+}: {
+  enquiry: EnquiryListItem;
+  mode: "quote" | "requote" | null;
+  onClose: () => void;
+  onSaved: (msg: string) => void;
+  onChanged: () => void;
+}) {
   return (
     <Dialog open={!!mode} onOpenChange={(o) => !o && onClose()}>
       {mode && (
         <DialogContent
+          size="lg"
           title={mode === "quote" ? `Quote ${enquiry.ref}` : `Requote ${enquiry.ref}`}
           description={
             mode === "quote"
@@ -179,82 +191,10 @@ function FiguresDialog({ enquiry, mode, onClose, onSaved }: { enquiry: EnquiryLi
               : `Current quote: cost ${formatAmount(enquiry.provisional_cost ?? 0)} · profit ${formatAmount(enquiry.provisional_profit ?? 0)}. The old figures are kept in the history.`
           }
         >
-          <FiguresForm key={`${enquiry.id}-${mode}`} enquiry={enquiry} mode={mode} onClose={onClose} onSaved={onSaved} />
+          <AgentQuotes key={`${enquiry.id}-${mode}`} enquiry={enquiry} mode={mode} onClose={onClose} onSaved={onSaved} onChanged={onChanged} />
         </DialogContent>
       )}
     </Dialog>
-  );
-}
-
-function FiguresForm({ enquiry, mode, onClose, onSaved }: { enquiry: EnquiryListItem; mode: "quote" | "requote"; onClose: () => void; onSaved: (msg: string) => void }) {
-  // Agents' replies (cheapest first); a new quote starts from the cheapest.
-  const replies = enquiry.agent_requests.filter((r) => r.cost !== null).sort((a, b) => a.cost! - b.cost!);
-  const [cost, setCost] = useState(mode === "requote" ? String(enquiry.provisional_cost ?? "") : replies[0] ? String(replies[0].cost) : "");
-  const [profit, setProfit] = useState(mode === "requote" ? String(enquiry.provisional_profit ?? "") : "");
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  return (
-    <form
-      onSubmit={async (e) => {
-        e.preventDefault();
-        setSaving(true);
-        setError(null);
-        try {
-          await stage(enquiry.id, { action: mode, cost: Number(cost), profit: Number(profit) });
-          onSaved(mode === "quote" ? `${enquiry.ref} quoted` : `${enquiry.ref} requoted`);
-        } catch (err) {
-          setError(err instanceof Error ? err.message : "Failed to save");
-        } finally {
-          setSaving(false);
-        }
-      }}
-    >
-      <DialogBody className="space-y-4">
-        {error && <p role="alert" className="rounded-control bg-danger-soft px-3 py-2 text-sm text-danger-foreground">{error}</p>}
-        {mode === "quote" && replies.length > 0 && (
-          <div className="rounded-control border border-border p-3">
-            <p className="mb-2 text-xs font-medium text-muted-foreground">Agent rates — pick one as the cost</p>
-            <ul className="space-y-1.5">
-              {replies.map((r) => (
-                <li key={r.id}>
-                  <button
-                    type="button"
-                    onClick={() => setCost(String(r.cost))}
-                    aria-pressed={cost === String(r.cost)}
-                    className="flex w-full cursor-pointer items-start justify-between gap-3 rounded-control px-2 py-1.5 text-left text-sm hover:bg-subtle aria-pressed:bg-primary-soft"
-                  >
-                    <span className="min-w-0">
-                      <span className="block font-medium text-foreground">{r.agent}</span>
-                      {r.notes && <span className="block truncate text-xs text-muted-foreground">{r.notes}</span>}
-                    </span>
-                    <span className="shrink-0 font-semibold tabular-nums text-foreground">{formatAmount(r.cost!)}</span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
-        <div className="grid gap-4 sm:grid-cols-2">
-          <label className="block space-y-1.5">
-            <span className="text-sm font-medium text-foreground">Provisional cost</span>
-            <input type="number" min="0" step="0.01" required autoFocus value={cost} onChange={(e) => setCost(e.target.value)} className={fieldClass} />
-          </label>
-          <label className="block space-y-1.5">
-            <span className="text-sm font-medium text-foreground">Provisional profit</span>
-            <input type="number" step="0.01" required value={profit} onChange={(e) => setProfit(e.target.value)} className={fieldClass} />
-          </label>
-        </div>
-        <div className="flex items-center justify-between rounded-control bg-subtle px-3 py-2.5 text-sm">
-          <span className="text-muted-foreground">Quote total (cost + profit)</span>
-          <span className="font-semibold tabular-nums text-foreground">{formatAmount((Number(cost) || 0) + (Number(profit) || 0))}</span>
-        </div>
-      </DialogBody>
-      <DialogFooter>
-        <Button type="button" variant="secondary" onClick={onClose} disabled={saving}>Cancel</Button>
-        <Button type="submit" loading={saving}>{mode === "quote" ? "Save quote" : "Save requote"}</Button>
-      </DialogFooter>
-    </form>
   );
 }
 

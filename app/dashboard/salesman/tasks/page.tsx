@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import { getSalesPalSession } from "@/lib/auth";
 import { getTasksPage } from "@/lib/tasks-list";
+import { getCoveredUserIds } from "@/lib/scoping";
 import type { SearchParams } from "@/lib/list-params";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { SalesmanTasksList } from "@/components/tasks/SalesmanTasksList";
@@ -23,7 +24,7 @@ export default async function SalesmanTasksPage({ searchParams }: { searchParams
 async function TasksListSection({ params }: { params: SearchParams }) {
   const session = await getSalesPalSession();
   const userId = Number(session!.user.id);
-  const data = await getTasksPage({ userId }, params);
+  const data = await getTasksPage({ userId, covering: await getCoveredUserIds(userId) }, params);
 
   return <SalesmanTasksList data={data} currentUserId={userId} />;
 }

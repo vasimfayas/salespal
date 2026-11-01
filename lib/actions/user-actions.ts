@@ -4,7 +4,8 @@ import bcrypt from "bcryptjs";
 import { revalidatePath, revalidateTag } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { getSalesPalSession } from "@/lib/auth";
-import { DEFAULT_PASSWORD, isOwnerRole, SUPER_ADMIN_ROLE } from "@/lib/roles";
+import { isOwnerRole, MIN_PASSWORD_LENGTH, SUPER_ADMIN_ROLE } from "@/lib/roles";
+import { newTempPassword } from "@/lib/passwords";
 
 type Result = { success: true } | { success: false; error: string };
 
@@ -24,7 +25,7 @@ function parseUser(data: { name?: unknown; email?: unknown; phone?: unknown; pas
   const password = typeof data.password === "string" ? data.password : "";
   if (!name) return { error: "Name is required" } as const;
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return { error: "Enter a valid email address" } as const;
-  if ((passwordRequired || password) && password.length < 6) return { error: "Password must be at least 6 characters" } as const;
+  if ((passwordRequired || password) && password.length < MIN_PASSWORD_LENGTH) return { error: `Password must be at least ${MIN_PASSWORD_LENGTH} characters` } as const;
   return { name, email, phone: text(data.phone, 40) || null, password } as const;
 }
 
@@ -33,10 +34,11 @@ function revalidateUsers() {
   revalidateTag("admin-companies", { expire: 0 });
 }
 
-export async function createUser(data: { name: string; email: string; phone?: string; role_id: number; password?: string }): Promise<Result> {
+/** Creates the login; `password` comes back so it can be shown once (a random one when none was typed). */
+export async function createUser(data: { name: string; email: string; phone?: string; role_id: number; password?: string }): Promise<Result & { password?: string }> {
   const admin = await verifyUserAdmin();
   if (!canManageRole(data.role_id, admin.isSuper)) return { success: false, error: "You can't create users with that role." };
-  const parsed = parseUser({ ...data, password: data.password || DEFAULT_PASSWORD }, true);
+  const parsed = parseUser({ ...data, password: data.password || newTempPassword() }, true);
   if ("error" in parsed) return { success: false, error: parsed.error! };
   if (await prisma.user.findUnique({ where: { email: parsed.email }, select: { id: true } })) {
     return { success: false, error: "A user with this email already exists." };
@@ -45,7 +47,7 @@ export async function createUser(data: { name: string; email: string; phone?: st
     data: { name: parsed.name, email: parsed.email, phone: parsed.phone, role_id: data.role_id, password: await bcrypt.hash(parsed.password, 10) },
   });
   revalidateUsers();
-  return { success: true };
+  return { success: true, password: parsed.password };
 }
 
 /** Name, email, phone and (optionally) a new password. The role is fixed: it ties the user to companies, teams and records. */

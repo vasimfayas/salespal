@@ -3,16 +3,18 @@ import { getSalesPalSession } from "@/lib/auth";
 import { SUPER_ADMIN_ROLE } from "@/lib/roles";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { UsersClient } from "./UsersClient";
+import { getLeaveBadges } from "@/lib/leave-badges";
 
 export default async function UsersPage() {
-  const [session, users] = await Promise.all([
+  const [session, leaveBadges, users] = await Promise.all([
     getSalesPalSession(),
+    getLeaveBadges(),
     prisma.user.findMany({ select: { id: true, name: true, email: true, phone: true, role_id: true }, orderBy: [{ role_id: "asc" }, { name: "asc" }] }),
   ]);
   return (
     <>
       <PageHeader title="Users" subtitle="Add, edit and remove logins for every role." />
-      <UsersClient users={users} currentUserId={Number(session!.user.id)} isSuper={session!.user.role_id === SUPER_ADMIN_ROLE} />
+      <UsersClient users={users} currentUserId={Number(session!.user.id)} isSuper={session!.user.role_id === SUPER_ADMIN_ROLE} leaveBadges={leaveBadges} />
     </>
   );
 }

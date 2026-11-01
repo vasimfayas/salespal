@@ -9,7 +9,7 @@ import { StatusBadge } from "@/components/shared/StatusBadge";
 import { Button } from "@/components/ui/Button";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { cn, formatAmount, formatDate, formatDateTime, formatQuantity, titleCase } from "@/lib/utils";
-import { enquiryStatusLabels, equipmentLabel, formatTemp, gaugeLabels, type Gauge, incotermNames, isActiveEnquiry, jobRefNames, type EnquiryEventItem, type EnquiryListItem, type EnquiryStatus, type Incoterm, type JobRef } from "@/types/enquiry";
+import { enquiryStatusLabels, equipmentLabel, formatTemp, gaugeLabels, hasContainerTemps, type Gauge, incotermNames, isActiveEnquiry, jobRefNames, type EnquiryEventItem, type EnquiryListItem, type EnquiryStatus, type Incoterm, type JobRef } from "@/types/enquiry";
 import { orderStatusLabel } from "@/types/order";
 import { cargoTotals, fromKg, dimensionUnitLabels, isDimensionUnit, lineCbm, volumetricRuleLabels, DEFAULT_DIMENSION_UNIT } from "@/lib/freight";
 
@@ -175,6 +175,47 @@ export function EnquiryDetailSheet({
                     </div>
                   </div>
                 )}
+                {quoted && e.quote_lines.length > 0 && (
+                  <div className="overflow-x-auto rounded-control border border-border">
+                    {e.selected_quote_option_id && (
+                      <p className="border-b border-border px-3 py-1.5 text-xs text-muted-foreground">
+                        Agent:{" "}
+                        <span className="font-medium text-foreground">
+                          {e.quote_options.find((o) => o.id === e.selected_quote_option_id)?.agent ?? "—"}
+                        </span>
+                        {e.quote_options.length > 1 && ` · ${e.quote_options.length} agent quotes saved`}
+                      </p>
+                    )}
+                    <table className="w-full text-sm">
+                      <thead className="bg-subtle text-xs text-muted-foreground">
+                        <tr>
+                          <th scope="col" className="px-3 py-1.5 text-left font-medium">Charge</th>
+                          <th scope="col" className="px-3 py-1.5 text-right font-medium">Cost</th>
+                          <th scope="col" className="px-3 py-1.5 text-right font-medium">Selling</th>
+                          <th scope="col" className="px-3 py-1.5 text-right font-medium">Profit</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-border tabular-nums">
+                        {e.quote_lines.map((l, i) => (
+                          <tr key={i}>
+                            <td className="px-3 py-1.5 text-foreground">{l.label}</td>
+                            <td className="px-3 py-1.5 text-right text-foreground">{formatAmount(l.cost)}</td>
+                            <td className="px-3 py-1.5 text-right text-foreground">{formatAmount(l.selling)}</td>
+                            <td className="px-3 py-1.5 text-right text-muted-foreground">{formatAmount(l.selling - l.cost)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                      <tfoot className="border-t border-border bg-subtle font-semibold tabular-nums">
+                        <tr>
+                          <td className="px-3 py-1.5 text-foreground">Total</td>
+                          <td className="px-3 py-1.5 text-right text-foreground">{formatAmount(e.provisional_cost!)}</td>
+                          <td className="px-3 py-1.5 text-right text-foreground">{formatAmount(e.provisional_cost! + e.provisional_profit!)}</td>
+                          <td className="px-3 py-1.5 text-right text-foreground">{formatAmount(e.provisional_profit!)}</td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+                )}
                 <dl className="grid grid-cols-2 gap-x-4 gap-y-3">
                   <Field label="Payment">
                     {titleCase(e.payment_mode)}
@@ -240,7 +281,7 @@ export function EnquiryDetailSheet({
                   {e.mode === "sea" && <Field label="Service type">{equipmentLabel(e) ?? dash}</Field>}
                   {e.gauge && <Field label="Gauge">{gaugeLabels[e.gauge as Gauge] ?? e.gauge}</Field>}
                   {e.mode === "land" && <Field label="Truck type">{equipmentLabel(e) ?? dash}</Field>}
-                  {e.reefer_temp !== null && (
+                  {e.reefer_temp !== null && !hasContainerTemps(e.containers) && (
                     <Field label="Reefer temperature">
                       <span className="tabular-nums">{formatTemp(e.reefer_temp)}</span>
                     </Field>

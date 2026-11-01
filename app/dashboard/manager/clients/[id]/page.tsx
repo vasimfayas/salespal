@@ -1,6 +1,6 @@
 import { Suspense } from "react";
 import { getSalesPalSession } from "@/lib/auth";
-import { getManagerSalesmanIds } from "@/lib/scoping";
+import { getActingUserIds, getManagerSalesmanIds } from "@/lib/scoping";
 import { prisma } from "@/lib/prisma";
 import { withCompanyCr } from "@/lib/clients-list";
 import { clientTasksWhere } from "@/lib/client-tasks";
@@ -57,11 +57,11 @@ async function ClientDetailContent({
   if (!session) redirect("/login");
 
   const managerId = session.user.id;
-  const salesmanIds = await getManagerSalesmanIds(managerId);
+  const [acting, salesmanIds] = await Promise.all([getActingUserIds(Number(managerId)), getManagerSalesmanIds(managerId)]);
 
   const found = await prisma.client.findFirst({
     // The manager's own clients and their salesmen's (same scope as the client list).
-    where: { id: clientId, assigned_salesman_id: { in: [Number(managerId), ...salesmanIds] } },
+    where: { id: clientId, assigned_salesman_id: { in: [...acting, ...salesmanIds] } },
     include: {
       logs: {
         include: { author: { select: { name: true } } },

@@ -1,6 +1,6 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { getManagerSalesmanIds } from "@/lib/scoping";
+import { getActingUserIds, getManagerSalesmanIds } from "@/lib/scoping";
 import { isOwnerRole } from "@/lib/roles";
 import { taskKindSql } from "@/lib/tasks-list";
 import { todoPrivacySql } from "@/lib/task-privacy";
@@ -37,7 +37,9 @@ async function scopeSql(viewer: Viewer) {
 
 async function roleScopeSql(viewer: Viewer) {
   if (isOwnerRole(viewer.role_id)) return Prisma.sql`TRUE`;
-  const mine = Prisma.sql`t.created_by_id = ${viewer.id} OR t.assigned_to_id = ${viewer.id}`;
+  // Includes anyone the viewer is covering for while they're on leave.
+  const acting = await getActingUserIds(viewer.id);
+  const mine = Prisma.sql`t.created_by_id IN (${Prisma.join(acting)}) OR t.assigned_to_id IN (${Prisma.join(acting)})`;
   if (viewer.role_id === 2) {
     const team = await getManagerSalesmanIds(viewer.id);
     return team.length ? Prisma.sql`(${mine} OR t.assigned_to_id IN (${Prisma.join(team)}))` : Prisma.sql`(${mine})`;

@@ -9,6 +9,7 @@ import { Avatar } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/Button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
+import { MIN_PASSWORD_LENGTH } from "@/lib/roles";
 
 /** Account popover: profile details, password reset, logout. */
 export function UserMenu() {
@@ -16,6 +17,7 @@ export function UserMenu() {
   const { isLoggingOut, logout } = useShell();
   const [isOpen, setIsOpen] = useState(false);
   const [resettingPassword, setResettingPassword] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [resetMessage, setResetMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [isResetSubmitting, setIsResetSubmitting] = useState(false);
@@ -25,8 +27,8 @@ export function UserMenu() {
 
   const handleResetPasswordSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newPassword || newPassword.length < 6) {
-      setResetMessage({ type: "error", text: "Password must be at least 6 characters long" });
+    if (!newPassword || newPassword.length < MIN_PASSWORD_LENGTH) {
+      setResetMessage({ type: "error", text: `Password must be at least ${MIN_PASSWORD_LENGTH} characters long` });
       return;
     }
     setIsResetSubmitting(true);
@@ -34,12 +36,13 @@ export function UserMenu() {
     try {
       const res = await fetch("/api/users/reset-password", {
         method: "POST",
-        body: JSON.stringify({ password: newPassword }),
+        body: JSON.stringify({ current_password: currentPassword, password: newPassword }),
         headers: { "Content-Type": "application/json" }
       });
       const data = await res.json();
       if (res.ok) {
-        setResetMessage({ type: "success", text: "Password reset successfully!" });
+        setResetMessage({ type: "success", text: "Password changed" });
+        setCurrentPassword("");
         setNewPassword("");
         setTimeout(() => {
           setResettingPassword(false);
@@ -107,6 +110,7 @@ export function UserMenu() {
               onClick={() => {
                 setResettingPassword(true);
                 setResetMessage(null);
+                setCurrentPassword("");
                 setNewPassword("");
               }}
               className="flex h-10 w-full cursor-pointer items-center justify-between rounded-control px-3 text-sm text-foreground transition-colors hover:bg-muted"
@@ -119,8 +123,8 @@ export function UserMenu() {
           ) : (
             <form onSubmit={handleResetPasswordSubmit} className="space-y-2.5 rounded-control border border-border bg-subtle p-3">
               <div className="flex items-center justify-between">
-                <label htmlFor="new-password" className="text-xs font-medium text-foreground">
-                  New password
+                <label htmlFor="current-password" className="text-xs font-medium text-foreground">
+                  Change password
                 </label>
                 <button
                   type="button"
@@ -131,11 +135,24 @@ export function UserMenu() {
                 </button>
               </div>
               <input
-                id="new-password"
+                id="current-password"
                 type="password"
                 required
                 autoFocus
-                placeholder="At least 6 characters"
+                autoComplete="current-password"
+                aria-label="Current password"
+                placeholder="Current password"
+                value={currentPassword}
+                onChange={(e) => setCurrentPassword(e.target.value)}
+                className="w-full rounded-control border border-input bg-card px-3 text-sm text-foreground shadow-xs outline-none transition-[border-color,box-shadow] duration-150 placeholder:text-muted-foreground/70 hover:border-border-strong focus:border-ring focus:ring-3 focus:ring-ring/15 disabled:cursor-not-allowed disabled:bg-muted disabled:opacity-70 h-9 w-full"
+              />
+              <input
+                id="new-password"
+                type="password"
+                required
+                autoComplete="new-password"
+                aria-label="New password"
+                placeholder={`New password, at least ${MIN_PASSWORD_LENGTH} characters`}
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
                 aria-invalid={resetMessage?.type === "error" || undefined}

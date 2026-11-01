@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { ManagerTeamClient } from "./ManagerTeamClient";
+import { getLeaveBadges } from "@/lib/leave-badges";
 
 export default function TeamPage() {
   return (
@@ -28,6 +29,8 @@ async function TeamSection() {
     prisma.managerSalesman.findMany({ where: { manager_id: managerId }, select: { salesman_id: true, org_id: true } }),
   ]);
 
+  const teamIds = new Set(team.map((s) => s.id));
+  const leaveBadges = await getLeaveBadges([...teamIds]);
   const performance = Object.fromEntries(team.map((s) => [s.id, s.perf]));
   // Which of this manager's companies each salesman works for.
   const salesmanCompanies: Record<number, number[]> = {};
@@ -37,7 +40,9 @@ async function TeamSection() {
     <ManagerTeamClient
       performance={performance}
       teamSize={team.length}
-      targets={targets}
+      // Own team only: salesmen of a manager this one is covering for keep their own manager's page.
+      targets={targets.filter((t) => teamIds.has(t.id))}
+      leaveBadges={leaveBadges}
       companies={managerOrgs.map((m) => m.org)}
       salesmanCompanies={salesmanCompanies}
     />

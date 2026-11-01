@@ -1,8 +1,8 @@
 /** Role ids that need special handling. Client-safe (no server imports). */
 export const SUPER_ADMIN_ROLE = 6;
 
-/** Password new logins start with (shown to whoever creates them). */
-export const DEFAULT_PASSWORD = "salespal123";
+/** Shortest password a user can set. New logins get a random one (lib/passwords.ts), shown once to whoever creates them. */
+export const MIN_PASSWORD_LENGTH = 8;
 
 /** Roles in the order they're listed, with what each one does. */
 export const ROLES: { id: number; name: string; hint: string }[] = [

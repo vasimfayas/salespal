@@ -13,6 +13,7 @@ import { EnquiryDetailSheet } from "@/components/enquiries/EnquiryDetailSheet";
 import { EnquiryPdfButton } from "@/components/enquiries/EnquiryPdfButton";
 import { packageLinesPayload } from "@/components/enquiries/CargoDimensionsField";
 import { EnquiryForm, emptyEnquiryForm, enquiryFormFrom } from "@/components/enquiries/EnquiryForm";
+import { quoteLinesPayload } from "@/components/enquiries/QuoteLinesField";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { Button, buttonVariants } from "@/components/ui/Button";
 import { SimpleTooltip } from "@/components/ui/tooltip";
@@ -167,9 +168,8 @@ export function EnquiriesClient({
       org_id: orgId ? Number(orgId) : null,
       packages: packageLinesPayload(form.packages),
       credit_days: form.payment_mode === "credit" ? Number(form.credit_days) : null,
-      // Both empty → "Inquiry received" (quote later); both filled → "Quoted".
-      provisional_cost: form.provisional_cost === "" ? null : Number(form.provisional_cost),
-      provisional_profit: form.provisional_profit === "" ? null : Number(form.provisional_profit),
+      // No lines → "Inquiry received" (quote later); lines → "Quoted" with cost / profit from them.
+      quote_lines: quoteLinesPayload(form.quote_lines),
     });
     if (!data) return;
     setCreateOpen(false);

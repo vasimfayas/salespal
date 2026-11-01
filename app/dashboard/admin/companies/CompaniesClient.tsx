@@ -26,6 +26,7 @@ import { CompanyAccountantsPanel } from "@/components/companies/CompanyAccountan
 import { CompanyDocumentsPanel } from "@/components/companies/CompanyDocumentsPanel";
 import { CompanyLogoEditor } from "@/components/companies/CompanyLogo";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { showNewPassword } from "@/lib/show-new-password";
 import { companyLogoUrl, type CompanyDocumentItem } from "@/types/company";
 import {
   assignManagerToOrg,
@@ -340,6 +341,7 @@ export function CompaniesClient({
           roleId: activeModal?.type === "add-user" ? activeModal.roleId : 3
         });
         if (res.success && res.userId) {
+          if (res.password) showNewPassword(name, res.password);
           setName("");
           setEmail("");
           setPhone("");
@@ -1062,7 +1064,7 @@ export function CompaniesClient({
                     </div>
 
                     <div className="p-3 bg-subtle rounded-xl border border-border text-[11px] text-muted-foreground font-medium">
-                      Note: Password defaults to <span className="font-semibold text-foreground">salespal123</span>.
+                      Note: A random password is created and shown once after saving. Share it with them; they can change it from their account menu.
                     </div>
                   </div>
 

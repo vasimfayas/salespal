@@ -59,10 +59,11 @@ export const getCachedSalesmanTasks = unstable_cache(
    ═══════════════════════════════════════════════════════ */
 
 export const getCachedClientDetail = unstable_cache(
-  async (clientId: number, userId: number) => {
+  /** userIds: the salesman plus anyone they're covering for (getActingUserIds). */
+  async (clientId: number, userIds: number[]) => {
     const [client, tasks] = await Promise.all([
       prisma.client.findFirst({
-        where: { id: clientId, assigned_salesman_id: userId },
+        where: { id: clientId, assigned_salesman_id: { in: userIds } },
         include: {
           logs: {
             include: { author: { select: { name: true } } },

@@ -1,6 +1,7 @@
 "use client";
 
-import { ArrowRight, Loader2, Plane, Ship, Truck, X, type LucideIcon } from "lucide-react";
+import { useState } from "react";
+import { ArrowRight, Loader2, Minus, Plane, Plus, Ship, Truck, X, type LucideIcon } from "lucide-react";
 import { ClientPicker } from "@/components/clients/ClientPicker";
 import { LocationPicker } from "@/components/enquiries/LocationPicker";
 import { CargoDimensionsField, emptyPackageLine, type PackageLineInput } from "@/components/enquiries/CargoDimensionsField";
@@ -9,6 +10,8 @@ import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { Switch } from "@/components/ui/Switch";
 import { Textarea } from "@/components/ui/Textarea";
+import { QuoteLinesField } from "@/components/enquiries/QuoteLinesField";
+import { emptyQuoteLine, type QuoteLineInput } from "@/lib/quote-lines";
 import {
   DEFAULT_DIMENSION_UNIT,
   DEFAULT_WEIGHT_UNIT,
@@ -18,15 +21,21 @@ import {
   type DimensionUnit,
   type WeightUnit,
 } from "@/lib/freight";
-import { cn, formatAmount } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 import {
+  containersLabel,
   enquiryPaymentModes,
+  MAX_CONTAINERS_PER_TYPE,
+  primaryContainer,
+  readContainers,
+  type ContainerCount,
+  type SeaContainerType,
   ftlTruckTypes,
   gaugeLabels,
   gauges,
   incotermNames,
   incoterms,
-  isOpenTop,
+  needsGauge,
   isReefer,
   jobRefNames,
   jobRefs,
@@ -67,11 +76,14 @@ export const emptyEnquiryForm = () => ({
   weight_unit: DEFAULT_WEIGHT_UNIT as WeightUnit,
   stackable: "true" as "" | "true" | "false",
   service_type: "",
+  /** Sea FCL counts; service_type follows primaryContainer() of these. */
+  containers: [] as ContainerCount[],
+  /** °C per reefer container, as typed: { "40rf": ["-18", "4"] } (one per container). */
+  container_temps: {} as Record<string, string[]>,
   reefer_temp: "",
   gauge: "",
   truck_type: "",
-  provisional_cost: "",
-  provisional_profit: "",
+  quote_lines: [emptyQuoteLine()] as QuoteLineInput[],
   notes: "",
 });
 
@@ -101,11 +113,24 @@ export const enquiryFormFrom = (e: EnquiryListItem): EnquiryFormState => ({
   weight_unit: isWeightUnit(e.weight_unit) ? e.weight_unit : DEFAULT_WEIGHT_UNIT,
   stackable: (e.stackable === null ? "" : String(e.stackable)) as "" | "true" | "false",
   service_type: e.service_type ?? "",
+  // Enquiries from before container counts had one container type: that's one container.
+  containers: e.containers.length
+    ? e.containers
+    : seaContainerTypes.includes(e.service_type as SeaContainerType)
+      ? [{ type: e.service_type as SeaContainerType, qty: 1 }]
+      : [],
+  container_temps: Object.fromEntries(
+    e.containers.length
+      ? e.containers.filter((c) => c.temps?.length).map((c) => [c.type, c.temps!.map(String)])
+      : // An older single reefer: its one temperature.
+        isReefer(e.service_type) && e.reefer_temp !== null
+        ? [[e.service_type!, [String(e.reefer_temp)]]]
+        : [],
+  ),
   reefer_temp: e.reefer_temp === null ? "" : String(e.reefer_temp),
   gauge: e.gauge ?? "",
   truck_type: e.truck_type ?? "",
-  provisional_cost: "",
-  provisional_profit: "",
+  quote_lines: [emptyQuoteLine()],
   notes: e.notes ?? "",
 });
 
@@ -190,6 +215,140 @@ function ChoiceChips({
   );
 }
 
+/** FCL container chips with a − qty + stepper each (tap a chip to add one). */
+function ContainerChips({ value, onChange }: { value: ContainerCount[]; onChange: (value: ContainerCount[]) => void }) {
+  const qtyOf = (t: SeaContainerType) => value.find((c) => c.type === t)?.qty ?? 0;
+  const setQty = (t: SeaContainerType, qty: number) => {
+    const n = Math.max(0, Math.min(MAX_CONTAINERS_PER_TYPE, qty));
+    onChange(readContainers([...value.filter((c) => c.type !== t), ...(n > 0 ? [{ type: t, qty: n }] : [])]));
+  };
+  const step = "press flex size-7 cursor-pointer items-center justify-center rounded-full border border-primary/40 bg-card text-primary hover:bg-primary-soft disabled:opacity-40";
+  return (
+    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+      {seaContainerTypes.map((t) => {
+        const qty = qtyOf(t);
+        const code = seaServiceTypeCodes[t];
+        const hint = seaServiceTypeLabels[t].split("— ")[1];
+        if (qty === 0) {
+          return (
+            <button
+              key={t}
+              type="button"
+              onClick={() => setQty(t, 1)}
+              aria-label={`Add a ${code} container`}
+              className="press flex cursor-pointer items-center justify-between gap-2 rounded-control border border-border bg-card px-3 py-2 text-left hover:border-border-strong hover:bg-subtle"
+            >
+              <span className="min-w-0">
+                <span className="block text-sm font-medium text-foreground">{code}</span>
+                <span className="block truncate text-xs text-muted-foreground">{hint}</span>
+              </span>
+              <span className="flex size-7 shrink-0 items-center justify-center rounded-full border border-border text-muted-foreground" aria-hidden>
+                <Plus className="size-3.5" />
+              </span>
+            </button>
+          );
+        }
+        return (
+          <div key={t} className="flex items-center justify-between gap-2 rounded-control border border-primary bg-primary-soft px-3 py-2">
+            <span className="min-w-0">
+              <span className="block text-sm font-medium text-primary-soft-foreground">{code}</span>
+              <span className="block truncate text-xs text-primary-soft-foreground/80">{hint}</span>
+            </span>
+            <span className="flex shrink-0 items-center gap-1.5">
+              <button type="button" className={step} onClick={() => setQty(t, qty - 1)} aria-label={`One less ${code}`}>
+                <Minus className="size-3.5" />
+              </button>
+              <input
+                aria-label={`Number of ${code} containers`}
+                inputMode="numeric"
+                value={qty}
+                onChange={(e) => setQty(t, Number(e.target.value.replace(/\D/g, "")) || 0)}
+                className="w-8 bg-transparent text-center text-sm font-semibold tabular-nums text-primary-soft-foreground outline-none"
+              />
+              <button type="button" className={step} onClick={() => setQty(t, qty + 1)} disabled={qty >= MAX_CONTAINERS_PER_TYPE} aria-label={`One more ${code}`}>
+                <Plus className="size-3.5" />
+              </button>
+            </span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+/** Keeps one temperature slot per reefer container when counts change (new ones copy the last temperature). */
+function resizeTemps(containers: ContainerCount[], temps: Record<string, string[]>) {
+  const next: Record<string, string[]> = {};
+  for (const c of containers) {
+    if (!isReefer(c.type)) continue;
+    const cur = temps[c.type] ?? [];
+    next[c.type] = Array.from({ length: c.qty }, (_, i) => cur[i] ?? cur[cur.length - 1] ?? "");
+  }
+  return next;
+}
+
+/** One °C field per reefer type, or one per container when they run at different temperatures. */
+function ReeferTemps({ containers, temps, onChange }: { containers: ContainerCount[]; temps: Record<string, string[]>; onChange: (temps: Record<string, string[]>) => void }) {
+  const reefers = containers.filter((c) => isReefer(c.type));
+  // Types switched to a field per container (on by default when the saved temperatures differ).
+  const [split, setSplit] = useState<Set<string>>(() => new Set(reefers.filter((c) => new Set(temps[c.type] ?? []).size > 1).map((c) => c.type)));
+  if (!reefers.length) return null;
+  const set = (type: string, values: string[]) => onChange({ ...temps, [type]: values });
+  const field = (id: string, label: string, value: string, onValue: (v: string) => void) => (
+    <Input
+      key={id}
+      id={id}
+      label={label}
+      type="number"
+      required
+      min={REEFER_TEMP_MIN}
+      max={REEFER_TEMP_MAX}
+      step="0.1"
+      inputMode="decimal"
+      value={value}
+      onChange={(e) => onValue(e.target.value)}
+      placeholder="e.g. -18 frozen, 4 chilled"
+    />
+  );
+  return (
+    <div className="animate-page-in space-y-3">
+      {reefers.map((c) => {
+        const code = seaServiceTypeCodes[c.type];
+        const values = temps[c.type] ?? Array(c.qty).fill("");
+        const perContainer = c.qty > 1 && split.has(c.type);
+        return (
+          <div key={c.type} className="rounded-control border border-border p-3">
+            <div className="grid gap-3 sm:grid-cols-3">
+              {perContainer
+                ? values.map((v, i) => field(`enq-temp-${c.type}-${i}`, `${code} #${i + 1}, °C`, v, (nv) => set(c.type, values.map((x, j) => (j === i ? nv : x)))))
+                : field(`enq-temp-${c.type}`, c.qty > 1 ? `${code} temperature (all ${c.qty}), °C` : `${code} temperature, °C`, values[0] ?? "", (nv) => set(c.type, Array(c.qty).fill(nv)))}
+            </div>
+            {c.qty > 1 && (
+              <label className="mt-2 flex cursor-pointer items-center gap-2 text-xs text-muted-foreground">
+                <input
+                  type="checkbox"
+                  checked={perContainer}
+                  onChange={(e) => {
+                    const next = new Set(split);
+                    if (e.target.checked) next.add(c.type);
+                    else {
+                      next.delete(c.type);
+                      set(c.type, Array(c.qty).fill(values[0] ?? ""));
+                    }
+                    setSplit(next);
+                  }}
+                  className="size-4 accent-primary"
+                />
+                Different temperature per container
+              </label>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function GroupLabel({ children }: { children: React.ReactNode }) {
   return <p className="mb-2 text-xs font-medium text-muted-foreground">{children}</p>;
 }
@@ -233,9 +392,6 @@ export function EnquiryForm({
 }) {
   const isClient = variant === "client";
   const patch = (p: Partial<EnquiryFormState>) => setForm({ ...form, ...p });
-  const cost = Number(form.provisional_cost);
-  const profit = Number(form.provisional_profit);
-  const quoted = form.provisional_cost !== "" && form.provisional_profit !== "" && Number.isFinite(cost) && Number.isFinite(profit) ? cost + profit : null;
   // Only the selected mode's job refs (plus mode-neutral ones like Warehouse Storage).
   const jobRefGroups = jobRefGroupsFor(form.mode);
   const equipment =
@@ -399,18 +555,25 @@ export function EnquiryForm({
         {form.mode === "sea" && (
           <Section title="Equipment" hint="Container or service needed for this sea shipment.">
             <div>
-              <GroupLabel>Containers (FCL)</GroupLabel>
-              <ChoiceChips
-                name="enq-service-type"
+              <GroupLabel>
+                Containers (FCL){form.containers.length > 0 && <span className="ml-1 font-semibold text-foreground">· {containersLabel(form.containers)}</span>}
+              </GroupLabel>
+              <ContainerChips
+                value={form.containers}
+                onChange={(containers) =>
+                  patch({ containers, service_type: primaryContainer(containers) ?? "", container_temps: resizeTemps(containers, form.container_temps) })
+                }
+              />
+              {/* Native "required" for the equipment choice: containers or one of the other services. */}
+              <input
+                tabIndex={-1}
+                aria-hidden
                 required
                 value={form.service_type}
-                onChange={(service_type) => patch({ service_type })}
-                columns="grid-cols-2 sm:grid-cols-3"
-                options={seaContainerTypes.map((t) => ({
-                  value: t,
-                  label: seaServiceTypeCodes[t],
-                  hint: seaServiceTypeLabels[t].split("— ")[1],
-                }))}
+                onChange={() => {}}
+                onInvalid={(e) => e.currentTarget.setCustomValidity("Add a container or pick another service")}
+                onInput={(e) => e.currentTarget.setCustomValidity("")}
+                className="pointer-events-none absolute h-0 w-0 opacity-0"
               />
             </div>
             <div>
@@ -418,13 +581,15 @@ export function EnquiryForm({
               <ChoiceChips
                 name="enq-service-type"
                 value={form.service_type}
-                onChange={(service_type) => patch({ service_type })}
+                onChange={(service_type) => patch({ service_type, containers: [] })}
                 columns="grid-cols-2 sm:grid-cols-3"
                 options={seaOtherServiceTypes.map((t) => ({ value: t, label: seaServiceTypeCodes[t], hint: t === "lcl" ? "Less than container load" : undefined }))}
               />
             </div>
-            {isReefer(form.service_type) && reeferTempField}
-            {isOpenTop(form.service_type) && (
+            {/* Reefer containers: a temperature each (two reefers can run at different temperatures). */}
+            <ReeferTemps containers={form.containers} temps={form.container_temps} onChange={(container_temps) => patch({ container_temps })} />
+            {isReefer(form.service_type) && !form.containers.length && reeferTempField}
+            {needsGauge(form.service_type, form.containers) && (
               <div className="animate-page-in">
                 <GroupLabel>Gauge</GroupLabel>
                 <ChoiceChips
@@ -575,34 +740,8 @@ export function EnquiryForm({
 
         {/* 8 · Quote (new internal enquiries only) */}
         {!editing && !isClient && (
-          <Section title="Quote (optional)" hint="Fill both to save it as Quoted, or leave both empty and quote later.">
-            <div className="grid gap-4 sm:grid-cols-3">
-              <Input
-                label="Provisional cost"
-                type="number"
-                min="0"
-                step="0.01"
-                inputMode="decimal"
-                required={form.provisional_profit !== ""}
-                value={form.provisional_cost}
-                onChange={(e) => patch({ provisional_cost: e.target.value })}
-              />
-              <Input
-                label="Provisional profit"
-                type="number"
-                step="0.01"
-                inputMode="decimal"
-                required={form.provisional_cost !== ""}
-                value={form.provisional_profit}
-                onChange={(e) => patch({ provisional_profit: e.target.value })}
-              />
-              <div>
-                <span className="mb-1.5 block text-sm font-medium text-foreground">Quoted price</span>
-                <p className="flex h-10 items-center rounded-control border border-dashed border-border-strong bg-subtle px-3 text-sm font-semibold tabular-nums text-foreground">
-                  {quoted === null ? <span className="font-normal text-muted-foreground">Cost + profit</span> : formatAmount(quoted)}
-                </p>
-              </div>
-            </div>
+          <Section title="Quote (optional)" hint="One line per charge with its cost and selling price; profit is selling − cost. Leave empty to quote later.">
+            <QuoteLinesField lines={form.quote_lines} onChange={(quote_lines) => patch({ quote_lines })} />
           </Section>
         )}
 

@@ -1,10 +1,11 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { getToken } from "next-auth/jwt";
 import { prisma } from "@/lib/prisma";
-import { getTokenUserId, isRole } from "@/lib/scoping";
+import { getTokenUserId, hasRole } from "@/lib/scoping";
 import { applyClientStatus, revalidateClientViews } from "@/lib/client-status-flow";
 import { getEnquiriesPage, resolveEnquiryClient, revalidateEnquiryPages } from "@/lib/enquiries";
 import { enquiryDetailsData, parseEnquiryDetails } from "@/lib/enquiry-fields";
+import { parseQuoteLines } from "@/lib/quote-lines";
 
 export async function GET(request: NextRequest) {
   const token = await getToken({ req: request, secret: process.env.NEXTAUTH_SECRET });
@@ -17,25 +18,28 @@ export async function GET(request: NextRequest) {
 
 
 /**
- * Salesmen and managers raise enquiries. Cost and profit are optional: with both the enquiry
+ * Salesmen, managers and the owner / super admin raise enquiries. Cost and profit are optional: with both the enquiry
  * starts as "quoted", otherwise as "inquiry_received" (quote it later).
  */
 export async function POST(request: NextRequest) {
   const token = await getToken({ req: request, secret: process.env.NEXTAUTH_SECRET });
   if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  if (!isRole(token, [2, 3])) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (!hasRole(token, [1, 2, 3])) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   const body = await request.json();
   const clientId = Number(body.client_id);
   const blank = (v: unknown) => v === undefined || v === null || v === "";
-  const hasQuote = !blank(body.provisional_cost) || !blank(body.provisional_profit);
-  const cost = hasQuote ? Number(body.provisional_cost) : null;
-  const profit = hasQuote ? Number(body.provisional_profit) : null;
+  // Itemised quote lines give the totals; otherwise the older single cost / profit pair.
+  const lines = Array.isArray(body.quote_lines) && body.quote_lines.length ? parseQuoteLines(body.quote_lines) : null;
+  if (lines && "error" in lines) return NextResponse.json({ error: lines.error }, { status: 400 });
+  const hasQuote = !!lines || !blank(body.provisional_cost) || !blank(body.provisional_profit);
+  const cost = lines ? lines.cost : hasQuote ? Number(body.provisional_cost) : null;
+  const profit = lines ? lines.profit : hasQuote ? Number(body.provisional_profit) : null;
 
   if (!Number.isInteger(clientId)) return NextResponse.json({ error: "Select a client" }, { status: 400 });
   const details = parseEnquiryDetails(body);
   if ("error" in details) return NextResponse.json({ error: details.error }, { status: 400 });
-  if (hasQuote) {
+  if (hasQuote && !lines) {
     if (blank(body.provisional_cost) || !Number.isFinite(cost) || cost! < 0) return NextResponse.json({ error: "Enter both cost and profit, or leave both empty" }, { status: 400 });
     if (blank(body.provisional_profit) || !Number.isFinite(profit)) return NextResponse.json({ error: "Enter both cost and profit, or leave both empty" }, { status: 400 });
   }
@@ -53,6 +57,7 @@ export async function POST(request: NextRequest) {
         needs_approval: body.needs_approval === true,
         provisional_cost: cost,
         provisional_profit: profit,
+        ...(lines ? { quote_lines: lines.lines } : {}),
         status: hasQuote ? "quoted" : "inquiry_received",
         created_by_id: getTokenUserId(token),
       },

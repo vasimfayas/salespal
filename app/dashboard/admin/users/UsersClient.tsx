@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Pencil, Plus, Search, Trash2, Users } from "lucide-react";
 import { toast } from "sonner";
+import { showNewPassword } from "@/lib/show-new-password";
 import { Button } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Input } from "@/components/ui/Input";
@@ -11,8 +12,9 @@ import { Select } from "@/components/ui/Select";
 import { Modal, ModalFooter, ModalHeader } from "@/components/ui/Modal";
 import { Pagination } from "@/components/ui/Pagination";
 import { createUser, deleteUser, updateUser } from "@/lib/actions/user-actions";
-import { DEFAULT_PASSWORD, isOwnerRole, ROLES } from "@/lib/roles";
-import { cn } from "@/lib/utils";
+import { isOwnerRole, MIN_PASSWORD_LENGTH, ROLES } from "@/lib/roles";
+import { cn, formatDate } from "@/lib/utils";
+import { LeaveButton, type LeaveBadge } from "@/components/users/LeaveButton";
 
 export type UserRow = { id: number; name: string; email: string; phone: string | null; role_id: number };
 
@@ -28,7 +30,18 @@ const ROLE_TONE: Record<number, string> = {
 };
 
 /** Users directory for the owner / super admin: add (any role they may manage), edit and delete. */
-export function UsersClient({ users, currentUserId, isSuper }: { users: UserRow[]; currentUserId: number; isSuper: boolean }) {
+export function UsersClient({
+  users,
+  currentUserId,
+  isSuper,
+  leaveBadges = {},
+}: {
+  users: UserRow[];
+  currentUserId: number;
+  isSuper: boolean;
+  /** Current / next leave per user id. */
+  leaveBadges?: Record<number, LeaveBadge>;
+}) {
   const router = useRouter();
   const [query, setQuery] = useState("");
   const [roleFilter, setRoleFilter] = useState("all");
@@ -69,7 +82,8 @@ export function UsersClient({ users, currentUserId, isSuper }: { users: UserRow[
       const isNew = editing === "new";
       const res = isNew ? await createUser(form) : await updateUser((editing as UserRow).id, form);
       if (!res.success) throw new Error(res.error);
-      toast.success(isNew ? `${roleName(form.role_id)} added — password: ${form.password || DEFAULT_PASSWORD}` : "User updated");
+      if (isNew) showNewPassword(roleName(form.role_id), (res as { password?: string }).password ?? form.password);
+      else toast.success("User updated");
       setEditing(null);
       router.refresh();
     } catch (err) {
@@ -132,24 +146,39 @@ export function UsersClient({ users, currentUserId, isSuper }: { users: UserRow[
         <>
           <Pagination page={current} pageSize={PAGE} total={filtered.length} noun="users" onPage={setPage} onSize={(n) => { setPAGE(n); setPage(1); }} />
           <div className="overflow-x-auto rounded-card border border-border bg-card shadow-card">
-            <table className="w-full min-w-[640px] text-left text-sm">
+            <table className="w-full min-w-[900px] text-left text-sm">
               <thead className="border-b border-border bg-subtle text-xs font-medium text-muted-foreground">
                 <tr>
                   <th scope="col" className="px-4 py-2.5">Name</th>
                   <th scope="col" className="px-4 py-2.5">Role</th>
                   <th scope="col" className="px-4 py-2.5">Email</th>
                   <th scope="col" className="px-4 py-2.5">Phone</th>
+                  <th scope="col" className="px-4 py-2.5">Leave (from – to)</th>
+                  <th scope="col" className="px-4 py-2.5 text-right">Days</th>
+                  <th scope="col" className="px-4 py-2.5">Replacement</th>
                   <th scope="col" className="px-4 py-2.5 text-right">
                     <span className="sr-only">Actions</span>
                   </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {rows.map((u) => (
+                {rows.map((u) => {
+                  const leave = leaveBadges[u.id];
+                  return (
                   <tr key={u.id} className="hover:bg-muted/40">
                     <td className="px-4 py-3 font-medium text-foreground">
                       {u.name}
                       {u.id === currentUserId && <span className="ml-2 text-xs font-normal text-muted-foreground">(you)</span>}
+                      {leave && (
+                        <span
+                          className={cn(
+                            "ml-2 inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold",
+                            leave.state === "active" ? "bg-warning-soft text-warning-foreground" : "bg-muted text-muted-foreground",
+                          )}
+                        >
+                          {leave.state === "active" ? "On leave" : "Leave soon"}
+                        </span>
+                      )}
                     </td>
                     <td className="px-4 py-3">
                       <span className={cn("inline-flex rounded-full px-2 py-0.5 text-xs font-semibold", ROLE_TONE[u.role_id] ?? "bg-muted text-foreground")}>
@@ -158,9 +187,15 @@ export function UsersClient({ users, currentUserId, isSuper }: { users: UserRow[
                     </td>
                     <td className="px-4 py-3 text-foreground">{u.email}</td>
                     <td className="px-4 py-3 text-muted-foreground">{u.phone ?? "—"}</td>
+                    <td className="whitespace-nowrap px-4 py-3 text-foreground">
+                      {leave ? `${formatDate(leave.start)} – ${formatDate(leave.end)}` : <span className="text-muted-foreground">—</span>}
+                    </td>
+                    <td className="px-4 py-3 text-right tabular-nums text-foreground">{leave ? leave.days : <span className="text-muted-foreground">—</span>}</td>
+                    <td className="px-4 py-3 text-foreground">{leave ? leave.coverName : <span className="text-muted-foreground">—</span>}</td>
                     <td className="px-4 py-2 text-right">
                       {(canManage(u) || u.id === currentUserId) && (
-                        <div className="inline-flex">
+                        <div className="inline-flex items-center">
+                          {(u.role_id === 2 || u.role_id === 3) && <LeaveButton userId={u.id} name={u.name} />}
                           <Button variant="ghost" size="icon-sm" onClick={() => open(u)} aria-label={`Edit ${u.name}`} title="Edit">
                             <Pencil />
                           </Button>
@@ -180,7 +215,8 @@ export function UsersClient({ users, currentUserId, isSuper }: { users: UserRow[
                       )}
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -222,7 +258,7 @@ export function UsersClient({ users, currentUserId, isSuper }: { users: UserRow[
             minLength={6}
             value={form.password}
             onChange={(e) => setForm({ ...form, password: e.target.value })}
-            hint={editing === "new" ? `Leave empty to use the default: ${DEFAULT_PASSWORD}` : "Leave empty to keep the current password."}
+            hint={editing === "new" ? `At least ${MIN_PASSWORD_LENGTH} characters. Leave empty to generate a random one (shown after saving).` : "Leave empty to keep the current password."}
           />
           <ModalFooter>
             <Button type="button" variant="secondary" onClick={() => setEditing(null)}>

@@ -11,6 +11,7 @@ import { REVISION_TASK_CATEGORY } from "@/types/task";
 import type { OrderStatus } from "@/types/order";
 
 import { num } from "@/lib/decimal";
+import { parseQuoteLines, quoteTotals, readQuoteLines } from "@/lib/quote-lines";
 import { SUPER_ADMIN_ROLE } from "@/lib/roles";
 import { enquiryNeedsApproval, submitApproval } from "@/lib/approvals";
 /**
@@ -105,13 +106,13 @@ const ACTION_VERB: Record<EnquiryAction, string> = {
 export async function applyEnquiryAction(
   enquiryId: number,
   action: EnquiryAction,
-  body: { cost?: unknown; profit?: unknown; reason?: unknown; remark?: unknown },
+  body: { cost?: unknown; profit?: unknown; lines?: unknown; option_id?: unknown; reason?: unknown; remark?: unknown },
   actor: Actor,
 ) {
-  const sales = actor.role_id === ROLE.salesman || actor.role_id === ROLE.manager || actor.role_id === ROLE.superAdmin;
+  const sales = actor.role_id === ROLE.salesman || actor.role_id === ROLE.manager || actor.role_id === ROLE.admin || actor.role_id === ROLE.superAdmin;
   if (!sales && !(actor.role_id === ROLE.operations && OPERATIONS_ACTIONS.includes(action))) {
     throw new FlowError(
-      actor.role_id === ROLE.operations ? "Operations can only quote enquiries" : "Only salesmen and managers can move an enquiry through its stages",
+      actor.role_id === ROLE.operations ? "Operations can only quote enquiries" : "Only salesmen, managers and the owner can move an enquiry through its stages",
       403,
     );
   }
@@ -145,18 +146,39 @@ export async function applyEnquiryAction(
     const base = { enquiry_id: enquiry.id, from_status: from, created_by_id: actor.id };
 
     if (action === "quote" || action === "requote") {
-      const cost = money(body.cost, "cost");
-      const profit = money(body.profit, "profit", { allowNegative: true });
+      // A chosen agent quote, or itemised lines (cost + selling each), give the totals; a plain cost / profit is still accepted.
+      let cost: number, profit: number;
+      let quoteLines: Prisma.InputJsonValue | typeof Prisma.DbNull = Prisma.DbNull;
+      let optionId: number | null = null;
+      let note: string | null = null;
+      if (body.option_id !== undefined) {
+        const option = await tx.enquiryQuoteOption.findFirst({ where: { id: Number(body.option_id), enquiry_id: enquiry.id } });
+        if (!option) throw new FlowError("That agent quote no longer exists", 404);
+        const lines = readQuoteLines(option.lines);
+        if (!lines.length) throw new FlowError("That agent quote has no lines", 400);
+        ({ cost, profit } = quoteTotals(lines));
+        quoteLines = lines;
+        optionId = option.id;
+        note = `Quote from ${option.agent_name}`;
+      } else if (body.lines !== undefined) {
+        const parsed = parseQuoteLines(body.lines);
+        if ("error" in parsed) throw new FlowError(parsed.error, 400);
+        ({ cost, profit } = parsed);
+        quoteLines = parsed.lines;
+      } else {
+        cost = money(body.cost, "cost");
+        profit = money(body.profit, "profit", { allowNegative: true });
+      }
       const to: EnquiryStatus = "quoted";
       // Moving the enquiry on restarts the 30-day clock; its follow-up task stays open until the order is created.
       await tx.enquiry.update({
         where: { id: enquiry.id },
         // A quote that needs approval goes to the manager; confirming waits for it.
-        data: { status: to, provisional_cost: cost, provisional_profit: profit, next_follow_up_at: nextFollowUpDate(), approval_status: needsApproval ? "pending" : null },
+        data: { status: to, provisional_cost: cost, provisional_profit: profit, quote_lines: quoteLines, selected_quote_option_id: optionId, next_follow_up_at: nextFollowUpDate(), approval_status: needsApproval ? "pending" : null },
       });
       if (needsApproval) await askApproval(cost, profit);
       // A requote keeps the previous figures in the history (prev_cost / prev_profit).
-      await logEvent(tx, { ...base, action: action === "quote" ? "quoted" : "requoted", to_status: to, prev_cost: prevCost, prev_profit: prevProfit, cost, profit });
+      await logEvent(tx, { ...base, action: action === "quote" ? "quoted" : "requoted", to_status: to, prev_cost: prevCost, prev_profit: prevProfit, cost, profit, note });
       await noteFollowUpTasks(tx, enquiry.id, { action: "enquiry_stage", note: action === "quote" ? "Quoted" : "Requoted", by: actor.id });
       // An order sent back for revision is done once the enquiry is requoted.
       if (action === "requote") await closeFollowUpTasks(tx, enquiry.id, "achieved", { action: "enquiry_stage", note: "Requoted", by: actor.id }, "revision");

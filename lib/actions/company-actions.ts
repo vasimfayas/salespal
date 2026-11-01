@@ -3,6 +3,7 @@
 import { prisma } from "@/lib/prisma";
 import { revalidatePath, revalidateTag } from "next/cache";
 import bcrypt from "bcryptjs";
+import { newTempPassword } from "@/lib/passwords";
 import { getSalesPalSession } from "@/lib/auth";
 import { removeDocumentFile } from "@/lib/company-documents";
 import { assignSalesmanToCompany, revalidateTeamViews, unassignSalesman } from "@/lib/team-assignments";
@@ -78,7 +79,7 @@ export async function createUserAction(data: {
 }) {
   await verifyAdmin();
 
-  const defaultPasswordHash = bcrypt.hashSync("salespal123", 10);
+  const password = newTempPassword();
 
   const newUser = await prisma.user.create({
     data: {
@@ -86,13 +87,13 @@ export async function createUserAction(data: {
       email: data.email.toLowerCase(),
       phone: data.phone || null,
       role_id: data.roleId,
-      password: defaultPasswordHash,
+      password: await bcrypt.hash(password, 10),
     },
   });
 
   revalidateTag("admin-companies", { expire: 0 });
   revalidatePath("/dashboard/admin/companies");
-  return { success: true, userId: newUser.id };
+  return { success: true, userId: newUser.id, password };
 }
 
 function revalidateCompanies() {

@@ -1,6 +1,6 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { getAccountantOrgIds, getManagerOrgIds, getManagerSalesmanIds } from "@/lib/scoping";
+import { getActingUserIds, getAccountantOrgIds, getManagerOrgIds, getManagerSalesmanIds } from "@/lib/scoping";
 import { SUPER_ADMIN_ROLE } from "@/lib/roles";
 import { APPROVAL_FLOWS, STEP_LABELS, type ApprovalType, type StepKey } from "@/types/approval";
 
@@ -33,8 +33,9 @@ export async function approvalScopeWhere(user: Approver): Promise<Prisma.Approva
   if (user.role_id === SUPER_ADMIN_ROLE || user.role_id === STEP_ROLE.management) return {};
   if (user.role_id === STEP_ROLE.accounts) return { org_id: { in: await getAccountantOrgIds(user.id) } };
   if (user.role_id === STEP_ROLE.manager) {
-    const [orgIds, salesmanIds] = await Promise.all([getManagerOrgIds(user.id), getManagerSalesmanIds(user.id)]);
-    return { org_id: { in: orgIds }, client: { assigned_salesman_id: { in: [user.id, ...salesmanIds] } } };
+    const [orgIds, acting, salesmanIds] = await Promise.all([getManagerOrgIds(user.id), getActingUserIds(user.id), getManagerSalesmanIds(user.id)]);
+    // Plus clients the owner holds in these companies: their enquiries still need a manager's approval.
+    return { org_id: { in: orgIds }, client: { OR: [{ assigned_salesman_id: { in: [...acting, ...salesmanIds] } }, { assignedSalesman: { role_id: STEP_ROLE.management } }] } };
   }
   return { id: -1 };
 }

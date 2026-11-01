@@ -5,11 +5,12 @@ import { clientFormPath } from "@/lib/enquiry-client-form";
 import { agentQuotePath } from "@/lib/enquiry-agent";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { clientScopeWhere, getAccountantOrgIds, getOperationsOrgIds, getManagerOrgIds, getManagerSalesmanIds, getSalesmanOrgIds, getTokenUserId, type ScopedToken } from "@/lib/scoping";
+import { clientScopeWhere, getActingUserIds, getAccountantOrgIds, getOperationsOrgIds, getManagerOrgIds, getManagerSalesmanIds, getSalesmanOrgIds, getTokenUserId, type ScopedToken } from "@/lib/scoping";
 import { BLACKLISTED_ERROR, statusAfterEnquiry } from "@/lib/client-status-flow";
 import { CONTACT_FIELD_LABELS, missingContactFields } from "@/lib/client-contact";
-import { enquiryRef, enquiryStatuses, parseEnquiryRef, type EnquiryListItem, type EnquiryStatus } from "@/types/enquiry";
+import { enquiryRef, enquiryStatuses, parseEnquiryRef, readContainers, type EnquiryListItem, type EnquiryStatus } from "@/types/enquiry";
 import { DEFAULT_DIMENSION_UNIT, readPackages } from "@/lib/freight";
+import { readQuoteLines } from "@/lib/quote-lines";
 import { intParam, literal, pageParam, paging, param, sizeParam, type Paged, type SearchParams } from "@/lib/list-params";
 import { isOwnerRole } from "@/lib/roles";
 import { enquiryNeedsApproval } from "@/lib/approvals";
@@ -21,10 +22,10 @@ export async function enquiryScopeWhere(token: ScopedToken): Promise<Prisma.Enqu
   if (token.role_id === 4) return { org_id: { in: await getAccountantOrgIds(userId) } };
   if (token.role_id === 5) return { org_id: { in: await getOperationsOrgIds(userId) } };
   if (token.role_id === 2) {
-    const salesmanIds = await getManagerSalesmanIds(userId);
-    return { created_by_id: { in: [userId, ...salesmanIds] } };
+    const [acting, salesmanIds] = await Promise.all([getActingUserIds(userId), getManagerSalesmanIds(userId)]);
+    return { created_by_id: { in: [...acting, ...salesmanIds] } };
   }
-  if (token.role_id === 3) return { created_by_id: userId };
+  if (token.role_id === 3) return { created_by_id: { in: await getActingUserIds(userId) } };
   return { id: -1 };
 }
 
@@ -38,6 +39,7 @@ const enquiryListInclude = {
   followUps: { include: { createdBy: { select: { name: true } } }, orderBy: { created_at: "desc" } },
   followUpTasks: { where: { status: { in: ["pending", "in_process"] } }, select: { id: true } },
   agentRequests: { include: { agent: { select: { name: true, email: true } } }, orderBy: { sent_at: "desc" } },
+  quoteOptions: { orderBy: { created_at: "asc" } },
 } satisfies Prisma.EnquiryInclude;
 
 type EnquiryWithList = Prisma.EnquiryGetPayload<{ include: typeof enquiryListInclude }>;
@@ -80,6 +82,8 @@ function toListItem(e: EnquiryWithList): EnquiryListItem {
     truck_type: e.truck_type,
     provisional_cost: e.provisional_cost?.toNumber() ?? null,
     provisional_profit: e.provisional_profit?.toNumber() ?? null,
+    quote_lines: readQuoteLines(e.quote_lines),
+    containers: readContainers(e.containers),
     actual_cost: e.actual_cost?.toNumber() ?? null,
     actual_profit: e.actual_profit?.toNumber() ?? null,
     notes: e.notes,
@@ -110,6 +114,7 @@ function toListItem(e: EnquiryWithList): EnquiryListItem {
       : null,
     agent_requests: e.agentRequests.map((r) => ({
       id: r.id,
+      agent_id: r.agent_id,
       agent: r.agent.name,
       email: r.agent.email,
       sent_at: r.sent_at.toISOString(),
@@ -117,6 +122,16 @@ function toListItem(e: EnquiryWithList): EnquiryListItem {
       notes: r.notes,
       replied_at: r.replied_at?.toISOString() ?? null,
       path: agentQuotePath(r.token),
+    })),
+    selected_quote_option_id: e.selected_quote_option_id,
+    quote_options: e.quoteOptions.map((o) => ({
+      id: o.id,
+      agent_id: o.agent_id,
+      agent: o.agent_name,
+      lines: readQuoteLines(o.lines),
+      cost: o.cost.toNumber(),
+      selling: o.selling.toNumber(),
+      updated_at: o.updated_at.toISOString(),
     })),
     client_signature:
       e.client_signed_name && e.client_signed_at
@@ -191,7 +206,7 @@ export async function resolveEnquiryClient(token: ScopedToken, clientId: number,
   if (client.status === "blacklisted") return { error: BLACKLISTED_ERROR, status: 403 } as const;
 
   const orgId = rawOrgId === undefined || rawOrgId === null || rawOrgId === "" ? client.org_id : Number(rawOrgId);
-  if (orgId !== client.org_id) {
+  if (orgId !== client.org_id && !isOwnerRole(token.role_id)) {
     const allowed = token.role_id === 3 ? await getSalesmanOrgIds(getTokenUserId(token)) : await getManagerOrgIds(getTokenUserId(token));
     if (!allowed.includes(orgId)) return { error: "You don't work for that company", status: 403 } as const;
   }

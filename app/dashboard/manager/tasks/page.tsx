@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import { getSalesPalSession } from "@/lib/auth";
 import { getTasksPage } from "@/lib/tasks-list";
+import { getCoveredUserIds, getManagerSalesmanIds } from "@/lib/scoping";
 import { prisma } from "@/lib/prisma";
 import type { SearchParams } from "@/lib/list-params";
 import { PageHeader } from "@/components/layout/PageHeader";
@@ -27,12 +28,14 @@ export default async function ManagerTasksPage({ searchParams }: { searchParams:
 async function ManagerTasksSection({ params }: { params: SearchParams }) {
   const session = await getSalesPalSession();
   const managerId = Number(session!.user.id);
+  // Team includes the salesmen of a manager this one is covering for; the covered manager's own tasks too.
+  const [teamIds, covered] = await Promise.all([getManagerSalesmanIds(managerId), getCoveredUserIds(managerId)]);
   const salesmen = await prisma.user.findMany({
-    where: { salesmanManager: { some: { manager_id: managerId } } },
+    where: { id: { in: teamIds } },
     select: { id: true, name: true },
     orderBy: { name: "asc" },
   });
-  const data = await getTasksPage({ assignedTo: salesmen.map((s) => s.id), alsoUser: managerId }, params);
+  const data = await getTasksPage({ assignedTo: [...salesmen.map((s) => s.id), ...covered], alsoUser: managerId }, params);
 
   return <ManagerTasksList data={data} salesmen={salesmen} currentUser={{ id: managerId, name: session!.user.name ?? "Me" }} />;
 }

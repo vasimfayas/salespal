@@ -70,6 +70,10 @@ interface ManagerClientsListProps {
   pageSize: number;
   salesmen: SalesmanItem[];
   companies: { id: number; name: string }[];
+  /** Where a client row links to. Defaults to the manager's client page. */
+  clientHrefBase?: string;
+  /** Bulk-assign checkboxes (manager only; the API rejects other roles). */
+  canBulkAssign?: boolean;
 }
 
 
@@ -95,6 +99,8 @@ export function ManagerClientsList({
   pageSize,
   salesmen,
   companies,
+  clientHrefBase = "/dashboard/manager/clients",
+  canBulkAssign = true,
 }: ManagerClientsListProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -496,7 +502,7 @@ export function ManagerClientsList({
       </div>
 
       {/* Bulk assign bar */}
-      {selectedIds.size > 0 && (
+      {canBulkAssign && selectedIds.size > 0 && (
         <div className="sticky top-2 z-20 flex flex-wrap items-center gap-3 rounded-xl border border-primary/30 bg-primary-soft px-4 py-3 shadow-sm">
           <span className="text-xs font-semibold text-primary">{selectedIds.size} selected</span>
           <select
@@ -554,7 +560,7 @@ export function ManagerClientsList({
           <table className="w-full text-left text-sm">
             <thead className="border-border border-b text-muted-foreground text-[13px]">
               <tr>
-                <th className="w-10 pl-4 py-3">
+                {canBulkAssign && <th className="w-10 pl-4 py-3">
                   <input
                     type="checkbox"
                     aria-label="Select all visible clients"
@@ -562,7 +568,7 @@ export function ManagerClientsList({
                     onChange={toggleAllVisible}
                     className="h-4 w-4 cursor-pointer rounded border-border-strong accent-primary"
                   />
-                </th>
+                </th>}
                 <th className="w-10 px-2 py-3 sm:hidden"></th>
                 <th className="px-4 py-3">Client</th>
                 <th className="hidden px-4 py-3 sm:table-cell">Contact</th>
@@ -586,7 +592,7 @@ export function ManagerClientsList({
                         "bg-card hover:bg-subtle/70"
                       )}
                     >
-                      <td className="w-10 pl-4 py-3">
+                      {canBulkAssign && <td className="w-10 pl-4 py-3">
                         <input
                           type="checkbox"
                           aria-label={`Select ${client.name}`}
@@ -594,7 +600,7 @@ export function ManagerClientsList({
                           onChange={() => toggleSelected(client.id)}
                           className="h-4 w-4 cursor-pointer rounded border-border-strong accent-primary"
                         />
-                      </td>
+                      </td>}
                       <td
                         className="w-10 px-2 py-3 text-center sm:hidden"
                         onClick={(e) => {
@@ -622,7 +628,7 @@ export function ManagerClientsList({
                       <td className="px-4 py-3">
                         <span className="flex items-center gap-1">
                           <Link
-                            href={`/dashboard/manager/clients/${client.id}`}
+                            href={`${clientHrefBase}/${client.id}`}
                             onClick={(e) => e.stopPropagation()}
                             className="font-semibold text-foreground hover:text-primary transition"
                           >

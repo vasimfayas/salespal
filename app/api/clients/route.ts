@@ -4,6 +4,7 @@ import { getToken } from "next-auth/jwt";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { literal } from "@/lib/list-params";
+import { parentIdsWithCr } from "@/lib/clients-list";
 import { clientScopeWhere, getManagerOrgIds, getManagerSalesmanIds, getManagerSalesmanIdsForOrg, getSalesmanOrgIds, getTokenUserId, isRole, hasRole } from "@/lib/scoping";
 import { normalizeCrNo, parseCrExpiryDate } from "@/lib/client-fields";
 import { canSetStatus, isClientStatus } from "@/lib/client-status-flow";
@@ -11,6 +12,7 @@ import { cleanText, contactRequiredMessage, missingContactFields, statusRequires
 import { departmentTaken } from "@/lib/client-fields";
 import { MAX_EXTRA_CONTACTS, parseContact } from "@/lib/client-contacts";
 import { clientLabel } from "@/types/client";
+import { isOwnerRole } from "@/lib/roles";
 
 import { createLeadTasks } from "@/lib/lead-tasks";
 import { revalidateTaskViews } from "@/lib/enquiry-follow-ups";
@@ -39,7 +41,7 @@ export async function GET(request: NextRequest) {
       },
     });
     if (!main) return NextResponse.json({ company: null });
-    const allowedOrgIds = token.role_id === 3 ? await getSalesmanOrgIds(getTokenUserId(token)) : token.role_id === 2 ? await getManagerOrgIds(getTokenUserId(token)) : [];
+    const allowedOrgIds = await allowedOrgIdsFor(token);
     return NextResponse.json({
       company: {
         id: main.id,
@@ -55,13 +57,14 @@ export async function GET(request: NextRequest) {
   // Lightweight search for pickers: ?q=&limit= (max 50) → [{ id, name }]. Never returns the whole table.
   const q = url.searchParams.get("q")?.trim() ?? "";
   const limit = Math.min(Math.max(Number(url.searchParams.get("limit")) || 20, 1), 50);
+  const parentIds = q ? await parentIdsWithCr(q) : [];
   const search: Prisma.ClientWhereInput = q
     ? {
         OR: [
           { name: { contains: literal(q), mode: "insensitive" } },
           { cr_no: { contains: literal(q), mode: "insensitive" } },
           // Departments have no CR of their own: match their company's.
-          { parent: { cr_no: { contains: literal(q), mode: "insensitive" } } },
+          ...(parentIds.length ? [{ parent_client_id: { in: parentIds } }] : []),
           { department: { contains: literal(q), mode: "insensitive" } },
           { contact_no: { contains: literal(q) } },
         ],
@@ -82,6 +85,14 @@ export async function GET(request: NextRequest) {
   });
   // Departments of one company read "Company · Department" so they can be told apart.
   return NextResponse.json({ clients: clients.map(({ department, ...c }) => ({ ...c, name: clientLabel({ name: c.name, department }) })) });
+}
+
+/** Companies the user can add clients under: a salesman's, a manager's, or (owner / super admin) every company. */
+async function allowedOrgIdsFor(token: { id?: unknown; role_id?: unknown }) {
+  const role = Number(token.role_id);
+  if (isOwnerRole(role)) return (await prisma.organization.findMany({ select: { id: true } })).map((o) => o.id);
+  const userId = getTokenUserId(token as { id?: number });
+  return role === 3 ? getSalesmanOrgIds(userId) : role === 2 ? getManagerOrgIds(userId) : [];
 }
 
 export async function POST(request: NextRequest) {
@@ -155,7 +166,7 @@ export async function POST(request: NextRequest) {
 
   // The company must be one the user works for: a salesman's assigned companies, a manager's companies.
   // With a single company it's picked automatically; with several the form has to say which.
-  const allowedOrgIds = token.role_id === 3 ? await getSalesmanOrgIds(getTokenUserId(token)) : token.role_id === 2 ? await getManagerOrgIds(getTokenUserId(token)) : [];
+  const allowedOrgIds = await allowedOrgIdsFor(token);
   let orgId = parent ? parent.org_id : body.org_id ? Number(body.org_id) : null;
   if (!orgId && allowedOrgIds.length === 1) orgId = allowedOrgIds[0];
   if (!orgId) {
@@ -174,6 +185,14 @@ export async function POST(request: NextRequest) {
     if (!(await getManagerSalesmanIdsForOrg(getTokenUserId(token), orgId)).includes(assignedSalesmanId)) {
       return NextResponse.json({ error: "That salesman doesn't work for this company on your team" }, { status: 403 });
     }
+  }
+  // The owner keeps a client for themselves or hands it to a manager / salesman of that company.
+  if (isOwnerRole(Number(token.role_id)) && assignedSalesmanId !== getTokenUserId(token)) {
+    const worksThere = await prisma.user.findFirst({
+      where: { id: assignedSalesmanId, OR: [{ managerOrgs: { some: { org_id: orgId } } }, { salesmanManager: { some: { org_id: orgId } } }] },
+      select: { id: true },
+    });
+    if (!worksThere) return NextResponse.json({ error: "That person doesn't work for this company" }, { status: 403 });
   }
 
   // Part of a bulk import: it must be the caller's own, still-running batch.
