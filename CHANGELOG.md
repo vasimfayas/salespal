@@ -2,6 +2,29 @@
 
 Newest first. Types: Added, Changed, Fixed. Tag each release `vX.Y.Z` (fix = patch, feature = minor, breaking = major).
 
+## 1.10.0 - 2026-11-01
+
+### Added
+- Owner: add enquiries on their own behalf; My Clients and Tasks in the owner menu.
+- Staff leave: owner (or a manager, for their salesmen) marks a manager or salesman on leave with from/to dates and a replacement of the same role. The replacement sees and handles their work and gets the credit; overlapping leave and replacements who are away are blocked. Extend, cancel or "back today". Staff tables tag who is on leave and show from–to, days and the replacement.
+- Quotes: itemised lines (charge, cost, selling) with profit below. Save one quote per agent, then "Use this quote" for the enquiry. The agent list puts agents for the enquiry's mode in the origin country first (★ top agents first), like Send to agent.
+- Enquiries: container counts with + / − per type (e.g. 2 × 20'DC + 1 × 40'RF), a temperature per reefer container, and the open top gauge whenever an open top is selected.
+- Enquiry export form: container table with counts, per-container reefer temperatures and IG/OG per open top; reefer truck temperature has its own field.
+- "mm" dimension unit.
+
+### Changed
+- New logins get a random password shown once to whoever creates them (no shared default). Changing your password needs the current one and at least 8 characters.
+- Security headers on every response (HSTS, no framing by other sites, nosniff, referrer and permissions policy).
+- Faster client search (trigram indexes); new indexes for approvals, enquiry events and import batches.
+- Next.js 16.4.3, next-auth 4.24.15, nodemailer 10 and other security updates.
+
+### Fixed
+- Open top gauge disappeared when a reefer was also selected.
+
+### Deploy note
+- Database changes (additive): after deploying run `npx prisma db push --skip-generate` in the app container. If it reports dropping `client_tasks_old` (the backup from 1.x's client-task merge), check its rows are in `tasks`, then add `--accept-data-loss`.
+- Logins created before this release may still use the old default password; ask those users to change it.
+
 ## 1.9.0 - 2026-10-31
 
 ### Added

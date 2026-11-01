@@ -7,11 +7,14 @@ import { DialogBody, DialogFooter } from "@/components/ui/dialog";
 import { controlBase, controlHeight, labelClass } from "@/components/ui/field-styles";
 import { QuoteLinesField, quoteLinesPayload } from "@/components/enquiries/QuoteLinesField";
 import { emptyQuoteLine, filledQuoteLines, quoteTotals, type QuoteLine, type QuoteLineInput } from "@/lib/quote-lines";
-import { cn, formatAmount } from "@/lib/utils";
+import { cn, formatAmount, titleCase } from "@/lib/utils";
+import { agentMatchesRoute } from "@/lib/agents";
+import { useLocations } from "@/hooks/useLocations";
 import type { EnquiryListItem } from "@/types/enquiry";
 
 type Option = EnquiryListItem["quote_options"][number];
 type Draft = { id: number | null; agentId: string; lines: QuoteLineInput[] };
+type AgentOption = { id: number; name: string; country: string | null; modes: string[]; is_top: boolean };
 
 const sameLines = (a: QuoteLine[], b: QuoteLine[]) =>
   a.length === b.length && a.every((l, i) => l.label === b[i].label && l.cost === b[i].cost && l.selling === b[i].selling);
@@ -43,7 +46,9 @@ export function AgentQuotes({
   onChanged: () => void;
 }) {
   const [options, setOptions] = useState<Option[]>(enquiry.quote_options);
-  const [agents, setAgents] = useState<{ id: number; name: string }[] | null>(null);
+  // Top agents first, then by name (the API's order).
+  const [agents, setAgents] = useState<AgentOption[] | null>(null);
+  const places = useLocations();
   const [draft, setDraft] = useState<Draft | null>(() => (enquiry.quote_options.length ? null : { id: null, agentId: "", lines: [emptyQuoteLine()] }));
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -52,7 +57,7 @@ export function AgentQuotes({
     let live = true;
     fetch("/api/agents")
       .then((res) => (res.ok ? res.json() : { agents: [] }))
-      .then((data) => live && setAgents((data.agents ?? []).map((a: { id: number; name: string }) => ({ id: a.id, name: a.name }))))
+      .then((data) => live && setAgents(data.agents ?? []))
       .catch(() => live && setAgents([]));
     return () => {
       live = false;
@@ -126,6 +131,22 @@ export function AgentQuotes({
     }
   }
 
+  // Same split as "Send to agent": agents for this mode in the origin country first, then everyone else.
+  const suggested = places ? (agents ?? []).filter((a) => agentMatchesRoute(a, enquiry, places)) : [];
+  const others = (agents ?? []).filter((a) => !suggested.includes(a));
+  const agentOption = (a: AgentOption) => {
+    const cost = replyCost(String(a.id));
+    return (
+      <option key={a.id} value={a.id}>
+        {a.is_top ? "★ " : ""}
+        {a.name}
+        {a.country ? ` · ${a.country}` : ""}
+        {cost !== null ? ` · replied ${formatAmount(cost)}` : ""}
+      </option>
+    );
+  };
+  const route = `${titleCase(enquiry.mode)} · ${enquiry.from}`;
+
   const inUse = (o: Option) => enquiry.selected_quote_option_id === o.id && sameLines(o.lines, enquiry.quote_lines);
   const draftTotals = draft ? filledQuoteLines(draft.lines).length > 0 : false;
 
@@ -141,15 +162,14 @@ export function AgentQuotes({
               {draft.agentId && agents && !agents.some((a) => String(a.id) === draft.agentId) && (
                 <option value={draft.agentId}>{options.find((o) => o.id === draft.id)?.agent ?? "Previous agent"}</option>
               )}
-              {(agents ?? []).map((a) => {
-                const cost = replyCost(String(a.id));
-                return (
-                  <option key={a.id} value={a.id}>
-                    {a.name}
-                    {cost !== null ? ` · replied ${formatAmount(cost)}` : ""}
-                  </option>
-                );
-              })}
+              {suggested.length > 0 ? (
+                <>
+                  <optgroup label={`Suggested for ${route}`}>{suggested.map(agentOption)}</optgroup>
+                  {others.length > 0 && <optgroup label="Other agents">{others.map(agentOption)}</optgroup>}
+                </>
+              ) : (
+                others.map(agentOption)
+              )}
             </select>
           </label>
           <QuoteLinesField lines={draft.lines} onChange={(lines) => setDraft({ ...draft, lines })} required />

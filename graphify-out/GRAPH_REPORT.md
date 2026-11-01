@@ -1,82 +1,82 @@
 # Graph Report - salespal  (2026-11-01)
 
 ## Corpus Check
-- 456 files · ~268,970 words
+- 456 files · ~269,418 words
 - Verdict: corpus is large enough that graph structure adds value.
 - Unclassified: 6 file(s) not represented in the graph (top: .css 2, (none) 1, .ico 1)
 
 ## Summary
-- 2481 nodes · 9374 edges · 108 communities (101 shown, 7 thin omitted)
+- 2487 nodes · 9388 edges · 96 communities (91 shown, 5 thin omitted)
 - Extraction: 99% EXTRACTED · 1% INFERRED · 0% AMBIGUOUS · INFERRED: 75 edges (avg confidence: 0.9)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `768aba54`
+- Built from commit: `cde13107`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
 ## Community Hubs (Navigation)
-- manager-actions.ts
+- ShippingRateTable
 - CompaniesClient.tsx
 - ManagerClientsList.tsx
-- Modal
-- isOwnerRole
+- Button
+- report-pdf.tsx
 - accountant/page.tsx
 - admin-drilldown.ts
-- formatAmount
-- roles.ts
-- clients/route.ts
-- getTokenUserId
-- Skeleton
-- Input.tsx
-- freight.ts
-- ClientOverview
-- buttonVariants
 - TaskCalendar.tsx
+- nav-meta.ts
+- clients/route.ts
+- jobs/route.ts
+- Skeleton
+- LocationsClient.tsx
+- freight.ts
+- 5.4 Tables and columns
+- formatDate
+- Topbar.tsx
 - seed.ts
-- prisma.ts
+- leave-badges.ts
 - enquiry-flow.ts
 - AdminDashboardSections.tsx
-- company.ts
-- enquiry-agent.ts
+- client.ts
+- TaskOverview.tsx
 - ShippingRateTable.tsx
 - ManagerDashboardSections.tsx
-- formatDate
-- MonthlyTrendChart.tsx
+- TaskCard.tsx
+- formatAmount
 - Changelog
-- AgentsClient.tsx
+- BulkImportClientsModal.tsx
 - enquiryRef
 - SalesPal Architecture
 - dependencies
-- approvals.ts
+- scoping.ts
 - package.json
 - cn
 - compilerOptions
 - index.mjs
-- types/auth.ts
+- ShellContext.tsx
 - leave-actions.ts
-- send-to-client/route.ts
-- next-auth
+- dashboard-org/page.tsx
+- task.ts
 - PageSkeleton
 - ApprovalsView.tsx
 - cached-queries.ts
-- revalidateEnquiryPages
+- prisma
 - CompanyReportForm.tsx
 - email-queue.ts
-- enquiries.ts
+- list-params.ts
 - admin/layout.tsx
 - getSalesPalSession
-- SendToAgentDialog.tsx
-- manager/tasks/page.tsx
-- ClientHistory.tsx
+- enquiry-agent.ts
+- tasks-list.ts
+- admin/clients/[id]/page.tsx
 - enquiry.ts
 - devDependencies
-- clientStatusLabel
+- 3. Folder map
 - company-report.ts
 - my-overview/page.tsx
 - scripts
 - next
-- react
+- utils.ts
 - Frontend Design
 - buildEnquiryFormPdf
 - clients/[id]/documents/[docId]/route.ts
@@ -87,40 +87,28 @@
 - AGENTS.md
 - bench.sh
 - salesman/page.tsx
-- OrderList.tsx
-- EnquiryForm.tsx
+- UserMenu.tsx
+- EnquiryForm
 - postcss.config.mjs
 - check-errors.sh
 - Outlook mailbox integration — spec for Claude Code
 - SalesmenTargetsClient.tsx
 - EnquiriesClient.tsx
-- company-documents.ts
+- prisma.ts
 - Sidebar.tsx
 - Bug log
-- enquiry-form/[token]/route.ts
-- client-status-flow.ts
-- client.ts
+- agent-quote/[token]/route.ts
+- instrumentation.ts
+- sendMail
 - AgentQuotes.tsx
-- email-templates/route.ts
+- eslint.config.mjs
 - error-log.ts
-- enquiry-follow-ups.ts
-- admin/clients/[id]/page.tsx
+- getTokenUserId
 - EnquiryDetailSheet.tsx
-- Input
-- @prisma/client
+- admin-dashboard.ts
 - orders/[id]/page.tsx
 - hasRole
-- client-history.ts
-- main
-- client-documents.ts
-- agent-quote/[token]/page.tsx
-- salesman/clients/[id]/page.tsx
-- ClientContactsCard.tsx
-- BulkImportClientsModal
-- admin/clients/page.tsx
-- LocationsClient
-- cleanup-tasks/route.ts
-- manager/clients/page.tsx
+- [salesmanId]/page.tsx
 - next.config.ts
 - overrides
 
@@ -137,8 +125,8 @@
 10. `formatDate()` - 81 edges
 
 ## Surprising Connections (you probably didn't know these)
-- `3. Folder map` --references--> `useTasks()`  [INFERRED]
-  docs/ARCHITECTURE.md → hooks/useTasks.ts
+- `3. Folder map` --references--> `useShippingRates()`  [INFERRED]
+  docs/ARCHITECTURE.md → hooks/useShippingRates.ts
 - `2. System overview` --references--> `getSalesPalSession()`  [INFERRED]
   docs/ARCHITECTURE.md → lib/auth.ts
 - `7. API routes (`app/api`)` --references--> `getSalesPalSession()`  [INFERRED]
@@ -151,143 +139,147 @@
 ## Import Cycles
 - None detected.
 
-## Communities (108 total, 7 thin omitted)
+## Communities (96 total, 5 thin omitted)
 
-### Community 0 - "manager-actions.ts"
-Cohesion: 0.20
-Nodes (18): DELETE(), POST(), POST(), ManagerTeamClient(), handleAddSubmit(), handleRemove(), saveCompanies(), createSalesmanAction() (+10 more)
+### Community 0 - "ShippingRateTable"
+Cohesion: 0.19
+Nodes (18): AccountantShippingRatesPage(), ShippingRatesSection(), ShippingRatesSkeleton(), AdminShippingRatesPage(), ManagerShippingRatesPage(), ShippingRatesSection(), ShippingRatesSkeleton(), OperationsShippingRatesPage() (+10 more)
 
 ### Community 1 - "CompaniesClient.tsx"
-Cohesion: 0.15
-Nodes (29): ClientCountRow, CompaniesClient(), ManagerSalesmanRow, User, CompanyAccountantsPanel(), initials(), KINDS, Person (+21 more)
+Cohesion: 0.07
+Nodes (59): DELETE(), POST(), ClientCountRow, CompaniesClient(), ManagerSalesmanRow, User, remove(), ManagerTeamClient() (+51 more)
 
 ### Community 2 - "ManagerClientsList.tsx"
-Cohesion: 0.07
-Nodes (50): Client, dropdownItemColors, ManagerClientsList(), handleAddSubmit(), ManagerClientsListProps, SalesmanItem, Client, ClientOverviewProps (+42 more)
+Cohesion: 0.05
+Nodes (74): Client, dropdownItemColors, ManagerClientsList(), handleAddSubmit(), handleReset(), handleStatusChange(), ManagerClientsListProps, SalesmanItem (+66 more)
 
-### Community 3 - "Modal"
-Cohesion: 0.13
-Nodes (29): EMPTY, ROLE_TONE, roleName(), UserRow, UsersClient(), save(), CreditRequestPanel(), submit() (+21 more)
+### Community 3 - "Button"
+Cohesion: 0.08
+Nodes (47): EMPTY, ROLE_TONE, roleName(), UserRow, UsersClient(), save(), AgentsClient(), save() (+39 more)
 
-### Community 4 - "isOwnerRole"
-Cohesion: 0.25
-Nodes (14): GET(), runtime, GET(), POST(), runtime, select, PdfLogo, filterParams() (+6 more)
+### Community 4 - "report-pdf.tsx"
+Cohesion: 0.36
+Nodes (8): GET(), runtime, PdfLogo, parseRange(), ReportFilters, buildCompanyReportPdf(), canReportOn(), ReportActor
 
 ### Community 5 - "accountant/page.tsx"
-Cohesion: 0.17
-Nodes (23): AccountantEnquiriesPage(), AccountantOrdersPage(), AccountantOrdersSection(), OrdersListSkeleton(), AccountantDashboardPage(), dynamic, orderNo(), OperationsEnquiriesPage() (+15 more)
+Cohesion: 0.16
+Nodes (24): GET(), AccountantEnquiriesPage(), AccountantOrdersPage(), AccountantOrdersSection(), OrdersListSkeleton(), AccountantDashboardPage(), dynamic, orderNo() (+16 more)
 
 ### Community 6 - "admin-drilldown.ts"
 Cohesion: 0.15
-Nodes (22): ClientLink(), copy, Kind, KINDS, OverviewDrilldownPage(), DrilldownPager(), clientsEntering(), countLostEnquiries() (+14 more)
+Nodes (23): ClientLink(), copy, Kind, KINDS, OverviewDrilldownPage(), clientsEntering(), countLostEnquiries(), DrillClient (+15 more)
 
-### Community 7 - "formatAmount"
-Cohesion: 0.14
-Nodes (33): TaskForm(), DocumentDialog(), ContactDetailsDialog(), ContactForm(), ContactPromptTarget, DeleteClientButton(), availableActions(), ConfirmDialog() (+25 more)
+### Community 7 - "TaskCalendar.tsx"
+Cohesion: 0.06
+Nodes (73): OrderDetail(), addDays(), addMonths(), AddTaskDialog(), CalendarPerson, Chip(), DayPanel(), fmt() (+65 more)
 
-### Community 8 - "roles.ts"
-Cohesion: 0.17
-Nodes (15): remove(), canManageRole(), createUser(), deleteUser(), parseUser(), Result, revalidateUsers(), updateUser() (+7 more)
+### Community 8 - "nav-meta.ts"
+Cohesion: 0.19
+Nodes (10): DashboardIndex(), GROUPS, ICONS, isShortcutActive(), NavGroup, NavItem, ROLE_LABELS, navConfig (+2 more)
 
 ### Community 9 - "clients/route.ts"
-Cohesion: 0.22
-Nodes (23): PATCH(), PATCH(), allowedOrgIdsFor(), GET(), POST(), handleStatusChange(), handleStatusChange(), cleanText() (+15 more)
+Cohesion: 0.19
+Nodes (25): GET(), labelMap, PATCH(), GET(), PATCH(), PATCH(), allowedOrgIdsFor(), GET() (+17 more)
 
-### Community 10 - "getTokenUserId"
-Cohesion: 0.26
-Nodes (13): POST(), POST(), GET(), PATCH(), ACTIONS, POST(), updateOrderDetails(), orderPaymentsInclude (+5 more)
+### Community 10 - "jobs/route.ts"
+Cohesion: 0.27
+Nodes (9): GET(), POST(), runtime, select, 9. Background work, caching and scheduled jobs, filterParams(), parseFilters(), text() (+1 more)
 
 ### Community 11 - "Skeleton"
-Cohesion: 0.07
-Nodes (32): Loading(), Loading(), Loading(), Loading(), Loading(), Loading(), Loading(), Loading() (+24 more)
+Cohesion: 0.08
+Nodes (25): Loading(), Loading(), Loading(), Loading(), Loading(), Loading(), Loading(), Loading() (+17 more)
 
-### Community 12 - "Input.tsx"
+### Community 12 - "LocationsClient.tsx"
 Cohesion: 0.15
-Nodes (20): KIND, LocationPicker(), choose(), EMPTY, KINDS, controlBase, controlHeight, errorClass (+12 more)
+Nodes (18): KIND, LocationPicker(), choose(), EMPTY, KINDS, LocationsClient(), changed(), remove() (+10 more)
 
 ### Community 13 - "freight.ts"
-Cohesion: 0.17
-Nodes (21): CargoDimensionsField(), DIMENSIONS, isBlank(), Summary(), validLines(), CargoPackage, cargoTotals, CM_PER_UNIT (+13 more)
-
-### Community 15 - "buttonVariants"
 Cohesion: 0.12
-Nodes (31): FollowUpsSection(), NotFound(), ClientPicker(), Option, ManagerTasksList(), ManagerTasksListProps, SalesmanItem, UnifiedTask (+23 more)
+Nodes (29): CargoDimensionsField(), DIMENSIONS, emptyPackageLine(), isBlank(), Summary(), validLines(), openEdit(), enquiryFormFrom() (+21 more)
 
-### Community 16 - "TaskCalendar.tsx"
-Cohesion: 0.11
-Nodes (36): GET(), addDays(), addMonths(), AddTaskDialog(), CalendarPerson, Chip(), DayPanel(), fmt() (+28 more)
+### Community 14 - "5.4 Tables and columns"
+Cohesion: 0.20
+Nodes (10): 5.1 Connection, 5.2 Entity relationship diagram, 5.3 Schema management, 5.4 Tables and columns, 5.5 Status flows (summary), 5. Database, Orders and money, Roles, companies, people (+2 more)
+
+### Community 15 - "formatDate"
+Cohesion: 0.06
+Nodes (62): FollowUpsSection(), NotFound(), orderNo(), overdueClass(), PastDueTable(), flash(), remindSalesman(), ReminderActions() (+54 more)
+
+### Community 16 - "Topbar.tsx"
+Cohesion: 0.39
+Nodes (7): getBreadcrumbs(), Topbar(), SimpleTooltip(), Tooltip, TooltipContent, TooltipTrigger, @radix-ui/react-tooltip
 
 ### Community 17 - "seed.ts"
-Cohesion: 0.09
-Nodes (22): AIR_ORIGINS, CANCEL_REASONS, CLIENT_PREFIX, CLIENT_SECTOR, DESIGNATIONS, FIRST, FOLLOW_UP_COMMENTS, JOB_REFS_BY_MODE (+14 more)
+Cohesion: 0.08
+Nodes (36): AIR_ORIGINS, between(), CANCEL_REASONS, chance(), CLIENT_PREFIX, CLIENT_SECTOR, dateOnly(), daysAgo() (+28 more)
 
-### Community 18 - "prisma.ts"
-Cohesion: 0.10
-Nodes (24): labelMap, DELETE(), Params, PATCH(), GET(), POST(), GET(), runtime (+16 more)
+### Community 18 - "leave-badges.ts"
+Cohesion: 0.27
+Nodes (8): DashboardLayout(), CoverBanner(), clean(), NavigationContext, NavigationContextType, NavigationProvider(), getCoveringFor(), getLeaveBadges()
 
 ### Community 19 - "enquiry-flow.ts"
-Cohesion: 0.12
-Nodes (25): ACTIONS, enquiryNeedsApproval(), toListItem(), ACTION_VERB, Actor, applyEnquiryAction(), applyOrderAction(), EnquiryAction (+17 more)
+Cohesion: 0.11
+Nodes (28): POST(), ACTIONS, POST(), ACTIONS, POST(), ACTION_VERB, Actor, applyEnquiryAction() (+20 more)
 
 ### Community 20 - "AdminDashboardSections.tsx"
 Cohesion: 0.11
-Nodes (37): dynamic, OwnerAccountsPage(), PERIOD_LABEL, PeriodKey, AdminDashboardPage(), PeriodKey, BottomSkeleton(), CardSkeleton() (+29 more)
+Nodes (35): AdminDashboardPage(), PeriodKey, CardSkeleton(), CardSmallSkeleton(), CompanyHeroSection(), DeltaBadge(), getTimeAgo(), HeroSkeleton() (+27 more)
 
-### Community 21 - "company.ts"
-Cohesion: 0.16
-Nodes (21): Org, CompanyDocumentsPanel(), DocumentForm(), DocumentFormModal(), fileUrl(), ModalState, CompanyInfoCard(), docUrl() (+13 more)
+### Community 21 - "client.ts"
+Cohesion: 0.05
+Nodes (53): Org, ClientEnquiryFormPage(), metadata, Notice(), DialogState, CompanyDocumentsPanel(), DocumentForm(), DocumentFormModal() (+45 more)
 
-### Community 22 - "enquiry-agent.ts"
-Cohesion: 0.12
-Nodes (21): PATCH(), Enquiries and quotes, AgentEnquiry, agentShipmentRows(), MODE, qty(), ENQUIRY_FIELD_LABELS, EnquiryDetails (+13 more)
+### Community 22 - "TaskOverview.tsx"
+Cohesion: 0.36
+Nodes (6): getDueDateColor(), STATUS_PRIORITY, TaskItem, TaskOverview(), TasksSection(), TasksSkeleton()
 
 ### Community 23 - "ShippingRateTable.tsx"
-Cohesion: 0.07
-Nodes (52): AccountantShippingRatesPage(), ShippingRatesSection(), ShippingRatesSkeleton(), AdminShippingRatesPage(), ManagerShippingRatesPage(), ShippingRatesSection(), ShippingRatesSkeleton(), OperationsShippingRatesPage() (+44 more)
+Cohesion: 0.09
+Nodes (30): Badge(), BadgeProps, BadgeVariant, VARIANT_CLASS, BADGE_MAP, MODE_ICON, RateCard(), RateCardBadge (+22 more)
 
 ### Community 24 - "ManagerDashboardSections.tsx"
-Cohesion: 0.12
-Nodes (35): ManagerDashboardPage(), PeriodKey, PeriodSelector(), ACTION_ICON_MAP, AVATAR_COLORS, FunnelAndTasksSection(), getActionIcon(), getAvatarColor() (+27 more)
+Cohesion: 0.15
+Nodes (29): ManagerDashboardPage(), PeriodKey, PeriodSelector(), ACTION_ICON_MAP, AVATAR_COLORS, FunnelAndTasksSection(), getActionIcon(), getAvatarColor() (+21 more)
 
-### Community 25 - "formatDate"
-Cohesion: 0.19
-Nodes (16): OrderDetail(), orderNo(), overdueClass(), PastDueTable(), flash(), remindSalesman(), ReminderActions(), reminderText() (+8 more)
+### Community 25 - "TaskCard.tsx"
+Cohesion: 0.43
+Nodes (5): getDueDateColor(), Task, TaskCard(), Task, TaskList()
 
-### Community 26 - "MonthlyTrendChart.tsx"
-Cohesion: 0.31
-Nodes (6): COLORS, compactMoney, fullMoney, TrendPoint, TrendSeries, MonthlyTrendChartLazy
+### Community 26 - "formatAmount"
+Cohesion: 0.13
+Nodes (17): dynamic, OwnerAccountsPage(), PERIOD_LABEL, PeriodKey, DashboardFilters(), COLORS, compactMoney, fullMoney (+9 more)
 
 ### Community 27 - "Changelog"
-Cohesion: 0.05
-Nodes (42): 1.0.0 - 2026-10-28, 1.1.0 - 2026-10-28, 1.1.1 - 2026-10-28, 1.1.2 - 2026-10-28, 1.2.0 - 2026-10-28, 1.3.0 - 2026-10-28, 1.4.0 - 2026-10-28, 1.4.1 - 2026-10-28 (+34 more)
+Cohesion: 0.04
+Nodes (47): 1.0.0 - 2026-10-28, 1.10.0 - 2026-11-01, 1.1.0 - 2026-10-28, 1.1.1 - 2026-10-28, 1.1.2 - 2026-10-28, 1.2.0 - 2026-10-28, 1.3.0 - 2026-10-28, 1.4.0 - 2026-10-28 (+39 more)
 
-### Community 28 - "AgentsClient.tsx"
-Cohesion: 0.09
-Nodes (28): AgentsPage(), AgentsPage(), AgentsPage(), AgentRow, AgentsClient(), exportAgents(), save(), EMPTY (+20 more)
+### Community 28 - "BulkImportClientsModal.tsx"
+Cohesion: 0.18
+Nodes (12): exportAgents(), downloadAgentTemplate(), downloadTemplate(), REQUIRED, Row, RowResult, SalesmanItem, TEMPLATE_EXAMPLE (+4 more)
 
 ### Community 29 - "enquiryRef"
-Cohesion: 0.12
-Nodes (41): GET(), runtime, submit(), CompanyReportPdf(), Cut(), Footer(), TARGET_STATE, Bar() (+33 more)
+Cohesion: 0.13
+Nodes (39): GET(), runtime, submit(), CompanyReportPdf(), Cut(), Footer(), TARGET_STATE, Bar() (+31 more)
 
 ### Community 30 - "SalesPal Architecture"
-Cohesion: 0.07
-Nodes (26): 10. Environment variables, 11. Deployment and operations, 12. Known limits worth remembering, 1. Stack, 2. System overview, 3. Folder map, 4.1 Roles, 4.2 Sign-in (+18 more)
+Cohesion: 0.15
+Nodes (12): 10. Environment variables, 11. Deployment and operations, 12. Known limits worth remembering, 1. Stack, 2. System overview, 4.1 Roles, 4.2 Sign-in, 4. Roles, authentication and data scoping (+4 more)
 
 ### Community 31 - "dependencies"
 Cohesion: 0.06
 Nodes (31): dependencies, bcryptjs, bullmq, class-variance-authority, clsx, fflate, @fontsource/inter, ioredis (+23 more)
 
-### Community 32 - "approvals.ts"
-Cohesion: 0.14
-Nodes (24): ClientsListSection(), ClientsTableSkeleton(), SalesmanClientsPage(), 4.3 Scoping (who sees which rows), createCreditRequest(), CreditRequestInput, Result, applyOutcome() (+16 more)
+### Community 32 - "scoping.ts"
+Cohesion: 0.12
+Nodes (34): GET(), CalendarPage(), decide(), 4.3 Scoping (who sees which rows), createCreditRequest(), CreditRequestInput, decideApprovalAction(), Result (+26 more)
 
 ### Community 33 - "package.json"
-Cohesion: 0.06
-Nodes (30): eslintConfig, name, prisma, seed, private, version, class-variance-authority, clsx (+22 more)
+Cohesion: 0.08
+Nodes (25): name, prisma, seed, private, version, class-variance-authority, clsx, @fontsource/inter (+17 more)
 
 ### Community 34 - "cn"
-Cohesion: 0.11
-Nodes (23): AuthLayout(), KpiCardProps, SmartAlertBanner(), getDueDateColor(), STATUS_PRIORITY, TaskItem, TaskOverview(), CompanyCheckboxes() (+15 more)
+Cohesion: 0.15
+Nodes (19): AuthLayout(), LoginForm(), LoginPage(), SmartAlertBanner(), subscribe(), ThemeToggle(), useMounted(), DropdownMenuCheckboxItem (+11 more)
 
 ### Community 35 - "compilerOptions"
 Cohesion: 0.11
@@ -297,97 +289,101 @@ Nodes (18): compilerOptions, allowJs, esModuleInterop, incremental, isolatedModu
 Cohesion: 0.12
 Nodes (26): Bar(), buildCompanyReportPdf(), CompanyReportPdf(), deliverEmailJob(), emailLogo(), enquiryRef(), Footer(), getCompanyReport() (+18 more)
 
-### Community 37 - "types/auth.ts"
-Cohesion: 0.22
-Nodes (7): JWT, next-auth, next-auth/jwt, SalesPalJwt, SalesPalSessionUser, Session, User
+### Community 37 - "ShellContext.tsx"
+Cohesion: 0.38
+Nodes (6): readSidebar(), ShellContext, ShellContextValue, ShellProvider(), sidebarListeners, subscribeSidebar()
 
 ### Community 38 - "leave-actions.ts"
-Cohesion: 0.16
-Nodes (23): end(), load(), save(), saveExtend(), authorize(), coverCandidates(), endLeave(), extendLeave() (+15 more)
+Cohesion: 0.20
+Nodes (19): authorize(), coverCandidates(), endLeave(), extendLeave(), getLeaveInfo(), iso(), leaveClash(), LeaveInfo (+11 more)
 
-### Community 39 - "send-to-client/route.ts"
-Cohesion: 0.38
-Nodes (7): POST(), CLIENT_FORM_VALID_DAYS, clientFormPath(), clientFormUrl(), newClientFormToken(), sendClientFormEmail(), publicBaseUrl()
+### Community 39 - "dashboard-org/page.tsx"
+Cohesion: 0.60
+Nodes (5): CompanySection(), CompanySkeleton(), SalesmanDashboardOrgPage(), ShippingRatesSkeleton(), getCompanyProfiles()
 
-### Community 40 - "next-auth"
-Cohesion: 0.09
-Nodes (33): GET(), POST(), PATCH(), GET(), GET(), POST(), DELETE(), PATCH() (+25 more)
+### Community 40 - "task.ts"
+Cohesion: 0.07
+Nodes (35): GET(), POST(), DELETE(), PATCH(), DELETE(), PATCH(), GET(), GET() (+27 more)
 
 ### Community 41 - "PageSkeleton"
 Cohesion: 0.20
 Nodes (11): Loading(), Loading(), Loading(), Loading(), Loading(), Loading(), Loading(), HeaderSkeleton() (+3 more)
 
 ### Community 42 - "ApprovalsView.tsx"
-Cohesion: 0.11
-Nodes (36): BATCH_STATUS, ControlPanelPage(), DeploymentsTab(), ErrorsTab(), ImportsTab(), ApprovalCard(), CreditDetails(), EnquiryDetails() (+28 more)
+Cohesion: 0.10
+Nodes (39): BATCH_STATUS, ControlPanelPage(), DeploymentsTab(), ErrorsTab(), ImportsTab(), ApprovalCard(), CreditDetails(), EnquiryDetails() (+31 more)
 
 ### Community 43 - "cached-queries.ts"
-Cohesion: 0.26
-Nodes (14): GET(), CompaniesDashboardWrapper(), CompaniesPage(), CompaniesSkeleton(), ManagerOrderStatsSection(), getCachedAdminCompaniesPageAccountants, getCachedAdminCompaniesPageClientCounts, getCachedAdminCompaniesPageManagers (+6 more)
-
-### Community 44 - "revalidateEnquiryPages"
 Cohesion: 0.38
-Nodes (9): Ctx, DELETE(), load(), PATCH(), POST(), revalidateEnquiryPages(), OPEN, parseQuoteOption() (+1 more)
+Nodes (10): CompaniesDashboardWrapper(), CompaniesPage(), CompaniesSkeleton(), getCachedAdminCompaniesPageAccountants, getCachedAdminCompaniesPageClientCounts, getCachedAdminCompaniesPageManagers, getCachedAdminCompaniesPageOrgs, getCachedAdminCompaniesPageRelations (+2 more)
+
+### Community 44 - "prisma"
+Cohesion: 0.11
+Nodes (37): Ctx, DELETE(), load(), PATCH(), POST(), PATCH(), POST(), POST() (+29 more)
 
 ### Community 45 - "CompanyReportForm.tsx"
-Cohesion: 0.26
-Nodes (11): Chip(), ChipGroup(), CompanyReportForm(), DeleteButton(), ExpiryNote(), FilterNote(), iso(), Job (+3 more)
+Cohesion: 0.20
+Nodes (14): ReportsPage(), Chip(), ChipGroup(), CompanyReportForm(), DeleteButton(), ExpiryNote(), FilterNote(), iso() (+6 more)
 
 ### Community 46 - "email-queue.ts"
-Cohesion: 0.16
-Nodes (19): 9. Background work, caching and scheduled jobs, writeStoredFile(), parseFilters(), text(), emailLogo(), deliverEmailJob(), EMAIL_ATTEMPTS, EMAIL_QUEUE (+11 more)
+Cohesion: 0.21
+Nodes (14): EmailState, resolveStoredPath(), writeStoredFile(), deliverEmailJob(), EMAIL_ATTEMPTS, EMAIL_QUEUE, EmailJobStatus, emailQueue() (+6 more)
 
-### Community 47 - "enquiries.ts"
-Cohesion: 0.08
-Nodes (48): GET(), SalesmanDrilldownPage(), clientFilterWhere(), ClientListItem, ClientListRow, clientListSelect, clientStatusCounts(), getClientsPage() (+40 more)
+### Community 47 - "list-params.ts"
+Cohesion: 0.11
+Nodes (33): EmailTemplatesPage(), AdminOrdersPage(), ManagerOrdersPage(), ManagerOrdersSection(), OrdersListSkeleton(), OrdersListSection(), OrdersListSkeleton(), SalesmanOrdersPage() (+25 more)
 
 ### Community 48 - "admin/layout.tsx"
-Cohesion: 0.42
-Nodes (6): AdminLayout(), ManagerLayout(), SalesmanLayout(), MantineChartsProvider(), EnquiryFollowUpSync(), @mantine/core
+Cohesion: 0.40
+Nodes (7): AdminLayout(), ManagerLayout(), SalesmanLayout(), MantineChartsProvider(), EnquiryFollowUpSync(), @mantine/charts, @mantine/core
 
 ### Community 49 - "getSalesPalSession"
-Cohesion: 0.10
-Nodes (33): handler, DELETE(), POST(), ApprovalsPage(), AccountantLayout(), ApprovalsPage(), EmailTemplatesPage(), AdminEnquiriesPage() (+25 more)
-
-### Community 50 - "SendToAgentDialog.tsx"
 Cohesion: 0.13
-Nodes (22): EmailTemplateEditor(), EmailTemplatesClient(), SAMPLE, Saved, TemplateCard(), Agent, MailContext, SendToAgentDialog() (+14 more)
+Nodes (25): handler, AgentsPage(), ApprovalsPage(), AccountantLayout(), AgentsPage(), ApprovalsPage(), AdminEnquiriesPage(), LocationsPage() (+17 more)
 
-### Community 51 - "manager/tasks/page.tsx"
-Cohesion: 0.39
-Nodes (7): ManagerTasksPage(), ManagerTasksSection(), ManagerTasksSkeleton(), SalesmanTasksPage(), TasksListSection(), TasksListSkeleton(), getCoveredUserIds()
+### Community 50 - "enquiry-agent.ts"
+Cohesion: 0.11
+Nodes (35): DELETE(), GET(), PUT(), POST(), SENDABLE, EmailTemplateEditor(), EmailTemplatesClient(), SAMPLE (+27 more)
 
-### Community 52 - "ClientHistory.tsx"
+### Community 51 - "tasks-list.ts"
 Cohesion: 0.13
-Nodes (23): ClientHistory(), Empty(), RecordLink(), Route(), OrderStatusBadge(), TONES, iconTones, KpiTile() (+15 more)
+Nodes (22): AdminTasksPage(), ManagerTasksPage(), ManagerTasksSection(), ManagerTasksSkeleton(), SalesmanTasksPage(), TasksListSection(), TasksListSkeleton(), getCoveredUserIds() (+14 more)
+
+### Community 52 - "admin/clients/[id]/page.tsx"
+Cohesion: 0.06
+Nodes (65): AdminClientDetailPage(), ClientDetailContent(), HistorySection(), SearchParams, ClientDetailContent(), HistorySection(), ManagerClientDetailPage(), SearchParams (+57 more)
 
 ### Community 53 - "enquiry.ts"
-Cohesion: 0.11
-Nodes (32): containerCounts(), measurement(), packingList(), parseEnquiryDetails(), unNumbers(), DEFAULT_WEIGHT_UNIT, round3(), ContainerCount (+24 more)
+Cohesion: 0.09
+Nodes (44): PackageLineInput, EnquiryFormState, JOB_REF_GROUPS, MODE_LABEL, MODES, PAYMENT_LABEL, ReeferTemps(), resizeTemps() (+36 more)
 
 ### Community 54 - "devDependencies"
 Cohesion: 0.17
 Nodes (12): devDependencies, eslint, eslint-config-next, prisma, tailwindcss, @tailwindcss/postcss, tsx, @types/node (+4 more)
 
-### Community 55 - "clientStatusLabel"
-Cohesion: 0.12
-Nodes (22): clientStatusDotClass(), ClientSwitcher(), go(), readRecent(), rememberClient(), Result, CompanyComparisonCard(), CompanyComparisonCardProps (+14 more)
+### Community 55 - "3. Folder map"
+Cohesion: 0.33
+Nodes (4): 3. Folder map, useKpi(), useTasks(), TaskListItem
 
 ### Community 56 - "company-report.ts"
-Cohesion: 0.14
-Nodes (25): POST(), PATCH(), GET(), POST(), placeCountry(), DEFAULT_PARTS, DETAIL_LIMIT, getCompanyReport() (+17 more)
+Cohesion: 0.13
+Nodes (21): GET(), placeCountry(), CompanyReport, DEFAULT_PARTS, DETAIL_LIMIT, getCompanyReport(), n(), Num (+13 more)
 
 ### Community 57 - "my-overview/page.tsx"
-Cohesion: 0.16
-Nodes (20): GET(), CardsSkeleton(), change(), ManagerMyOverviewPage(), PerformanceCards(), TaskCards(), chip, StatCard() (+12 more)
+Cohesion: 0.18
+Nodes (19): GET(), CardsSkeleton(), change(), ManagerMyOverviewPage(), PerformanceCards(), TaskCards(), PerformanceCardsSection(), chip (+11 more)
 
 ### Community 58 - "scripts"
 Cohesion: 0.18
 Nodes (11): scripts, build, dev, lint, prisma:generate, prisma:push, prisma:seed, seed:super-admin (+3 more)
 
-### Community 60 - "react"
-Cohesion: 0.20
-Nodes (14): Error(), AgentQuoteForm(), ApprovalDecision(), decide(), EMPTY, Latest, AddTaskModal(), Button (+6 more)
+### Community 59 - "next"
+Cohesion: 0.12
+Nodes (4): POST(), MIN_PASSWORD_LENGTH, config, next
+
+### Community 60 - "utils.ts"
+Cohesion: 0.11
+Nodes (25): AgentQuotePage(), metadata, Notice(), Error(), AgentQuoteForm(), ApprovalDecision(), EMPTY, Latest (+17 more)
 
 ### Community 61 - "Frontend Design"
 Cohesion: 0.29
@@ -398,8 +394,8 @@ Cohesion: 0.33
 Nodes (10): buildEnquiryFormPdf(), checkbox(), checks(), ensure(), fieldRow(), fit(), section(), textField() (+2 more)
 
 ### Community 63 - "clients/[id]/documents/[docId]/route.ts"
-Cohesion: 0.16
-Nodes (24): DELETE(), GET(), load(), Params, PATCH(), Params, POST(), DELETE() (+16 more)
+Cohesion: 0.18
+Nodes (22): DELETE(), load(), Params, PATCH(), POST(), DELETE(), GET(), load() (+14 more)
 
 ### Community 64 - "README.md"
 Cohesion: 0.50
@@ -414,144 +410,96 @@ Cohesion: 0.26
 Nodes (8): appFont, metadata, RootLayout(), viewport, Providers(), Toaster(), TooltipProvider, next-themes
 
 ### Community 67 - "order.ts"
-Cohesion: 0.17
-Nodes (11): MonthlyOrderStat, OPEN_ORDER_STATUSES, OrderApprovalStatus, orderApprovalStatuses, OrderMode, OrderPaymentItem, orderPaymentMethods, OrderPaymentMode (+3 more)
+Cohesion: 0.15
+Nodes (12): MonthlyOrderStat, OPEN_ORDER_STATUSES, OrderApprovalStatus, orderApprovalStatuses, OrderMode, OrderPaymentItem, orderPaymentMethods, OrderPaymentMode (+4 more)
 
 ### Community 69 - "bench.sh"
 Cohesion: 0.83
 Nodes (3): login(), run(), bench.sh script
 
 ### Community 70 - "salesman/page.tsx"
-Cohesion: 0.11
-Nodes (32): ChartSkeleton(), HeroSkeleton(), KpiCardsSection(), KpiCardsSkeleton(), MonthHeroSection(), MonthlyChartSection(), ORDER_MONTH_NAMES, OrderStatsSection() (+24 more)
+Cohesion: 0.14
+Nodes (22): GET(), ChartSkeleton(), HeroSkeleton(), KpiCardsSkeleton(), MonthHeroSection(), MonthlyChartSection(), ORDER_MONTH_NAMES, OrderStatsSection() (+14 more)
 
-### Community 71 - "OrderList.tsx"
-Cohesion: 0.15
-Nodes (19): OrderRole, OrderList(), flash(), openPayment(), submitPayment(), OrderListProps, orderNo(), OrderPayments() (+11 more)
+### Community 71 - "UserMenu.tsx"
+Cohesion: 0.31
+Nodes (10): UserMenu(), PerformanceReportButton(), recentMonths(), Avatar(), sizes, Popover, PopoverClose, PopoverContent (+2 more)
 
-### Community 73 - "EnquiryForm.tsx"
-Cohesion: 0.11
-Nodes (27): emptyPackageLine(), PackageLineInput, openEdit(), ChoiceChips(), ContainerChips(), emptyEnquiryForm(), EnquiryForm(), enquiryFormFrom() (+19 more)
+### Community 73 - "EnquiryForm"
+Cohesion: 0.18
+Nodes (13): packageLinesPayload(), ClientEnquiryForm(), submit(), ChoiceChips(), ContainerChips(), emptyEnquiryForm(), EnquiryForm(), GroupLabel() (+5 more)
 
 ### Community 76 - "Outlook mailbox integration — spec for Claude Code"
 Cohesion: 0.10
 Nodes (20): At the end of each phase, Context (read the code first), Flow, Goal, Lib, Microsoft Graph, Outlook mailbox integration — spec for Claude Code, Performance and long-term rules (+12 more)
 
 ### Community 77 - "SalesmenTargetsClient.tsx"
-Cohesion: 0.19
-Nodes (17): ManagerTeamClientProps, currentMonth(), period(), PERIOD_OPTIONS, periodDates(), periodLabel(), periodMonths(), ProgressBar() (+9 more)
+Cohesion: 0.15
+Nodes (20): ManagerTeamClientProps, CompanyCheckboxes(), currentMonth(), period(), PERIOD_OPTIONS, periodDates(), periodLabel(), periodMonths() (+12 more)
 
 ### Community 78 - "EnquiriesClient.tsx"
-Cohesion: 0.13
-Nodes (24): ApprovalChip(), CHIP, packageLinesPayload(), submit(), AwaitingClient(), canEditEnquiry(), daysOpen(), DgBadge() (+16 more)
+Cohesion: 0.14
+Nodes (24): ApprovalChip(), CHIP, AwaitingClient(), canEditEnquiry(), daysOpen(), DgBadge(), EnquiriesClient(), flash() (+16 more)
 
-### Community 79 - "company-documents.ts"
-Cohesion: 0.17
-Nodes (19): DELETE(), findDocument(), GET(), Params, PATCH(), revalidateCompanies(), GET(), safeName() (+11 more)
+### Community 79 - "prisma.ts"
+Cohesion: 0.09
+Nodes (41): DELETE(), DELETE(), findDocument(), GET(), Params, PATCH(), revalidateCompanies(), GET() (+33 more)
 
 ### Community 80 - "Sidebar.tsx"
-Cohesion: 0.06
-Nodes (55): LoginForm(), LoginPage(), DashboardLayout(), DashboardIndex(), AppShell(), LogoutOverlay(), CommandPalette(), CoverBanner() (+47 more)
+Cohesion: 0.25
+Nodes (16): AppShell(), LogoutOverlay(), DashboardContentWrapper(), getNavGroups(), getNavItems(), isNavActive(), useNavigation(), RouteProgress() (+8 more)
 
 ### Community 81 - "Bug log"
 Cohesion: 0.33
 Nodes (5): 2026-10-28: A user with history can't be deleted, and clients can't be left unassigned, 2026-10-28: Company Staff count overcounted (1.0.0, `3e4186a`), Bug log, Fixed, Open
 
-### Community 82 - "enquiry-form/[token]/route.ts"
-Cohesion: 0.26
-Nodes (11): POST(), POST(), POST(), POST(), agentLinkExpired(), clientFormExpired(), enquiryDetailsData(), allowAttempt() (+3 more)
+### Community 82 - "agent-quote/[token]/route.ts"
+Cohesion: 0.35
+Nodes (8): POST(), POST(), POST(), agentLinkExpired(), allowAttempt(), clearAttempts(), clientIp(), hits
 
-### Community 83 - "client-status-flow.ts"
-Cohesion: 0.13
-Nodes (19): GET(), POST(), POST(), BLACKLISTED_ERROR, revalidateClientViews(), statusAfterEnquiry(), statusAfterOrder(), StatusSource (+11 more)
+### Community 83 - "instrumentation.ts"
+Cohesion: 0.40
+Nodes (3): Clients, onRequestError(), register()
 
-### Community 84 - "client.ts"
-Cohesion: 0.15
-Nodes (15): DialogState, ClientStatusDropdown(), CLIENT_DOC_TYPES, clientCategories, ClientCategory, clientCategoryLabels, ClientDocType, ClientDocumentItem (+7 more)
+### Community 84 - "sendMail"
+Cohesion: 0.50
+Nodes (3): mailConfigured(), sendMail(), nodemailer
 
 ### Community 85 - "AgentQuotes.tsx"
-Cohesion: 0.23
-Nodes (18): AgentQuotes(), remove(), saveDraft(), use(), Draft, Option, sameLines(), send() (+10 more)
-
-### Community 86 - "email-templates/route.ts"
 Cohesion: 0.17
-Nodes (18): DELETE(), GET(), PUT(), POST(), POST(), SENDABLE, GET(), POST() (+10 more)
+Nodes (19): AgentOption, AgentQuotes(), remove(), saveDraft(), use(), Draft, Option, sameLines() (+11 more)
+
+### Community 86 - "eslint.config.mjs"
+Cohesion: 0.50
+Nodes (3): eslintConfig, eslint, eslint-config-next
 
 ### Community 87 - "error-log.ts"
-Cohesion: 0.24
-Nodes (6): onRequestError(), register(), cut(), ERROR_KEEP_DAYS, Input, logError()
+Cohesion: 0.36
+Nodes (5): POST(), cut(), ERROR_KEEP_DAYS, Input, logError()
 
-### Community 88 - "enquiry-follow-ups.ts"
-Cohesion: 0.17
-Nodes (17): POST(), POST(), FOLLOW_UP_CATEGORIES, POST(), sweepDormantClients(), dueForFollowUp(), ensureEnquiryFollowUpTasks(), extendFollowUpTasks() (+9 more)
-
-### Community 89 - "admin/clients/[id]/page.tsx"
-Cohesion: 0.25
-Nodes (14): AdminClientDetailPage(), ClientDetailContent(), HistorySection(), SearchParams, ClientDetailContent(), HistorySection(), ManagerClientDetailPage(), SearchParams (+6 more)
+### Community 88 - "getTokenUserId"
+Cohesion: 0.11
+Nodes (38): POST(), POST(), POST(), POST(), POST(), GET(), PATCH(), GET() (+30 more)
 
 ### Community 90 - "EnquiryDetailSheet.tsx"
-Cohesion: 0.18
-Nodes (16): CargoSection(), EnquiryDetailSheet(), EVENT_TEXT, Field(), figures(), History(), QUOTED_NOTES, Section() (+8 more)
+Cohesion: 0.16
+Nodes (22): CargoSection(), EnquiryDetailSheet(), EVENT_TEXT, Field(), figures(), History(), QUOTED_NOTES, Section() (+14 more)
 
-### Community 91 - "Input"
-Cohesion: 0.19
-Nodes (8): ClientEnquiryForm(), CopyLinkButton(), Result, SendToClientDialog(), SignaturePad(), Input(), EmailState, useEmailJobs()
-
-### Community 92 - "@prisma/client"
-Cohesion: 0.18
-Nodes (11): CACHE, Counts, getAdminKpiCounts, getAdminTaskHealth, statusCounts(), OwnerAccountsRow, notTodo, TODO_CATEGORY (+3 more)
+### Community 92 - "admin-dashboard.ts"
+Cohesion: 0.14
+Nodes (25): KpiCardsSection(), CACHE, Counts, getAdminKpiCounts, getAdminLostEnquiryCounts, getAdminTaskHealth, statusCounts(), CACHE (+17 more)
 
 ### Community 93 - "orders/[id]/page.tsx"
 Cohesion: 0.60
 Nodes (4): OrderDetailLoading(), OrderDetailContent(), OrderDetailPage(), getOrderById
 
 ### Community 94 - "hasRole"
-Cohesion: 0.23
-Nodes (12): DELETE(), Params, PATCH(), GET(), POST(), GET(), POST(), DELETE() (+4 more)
+Cohesion: 0.15
+Nodes (18): DELETE(), Params, PATCH(), GET(), POST(), GET(), POST(), DELETE() (+10 more)
 
-### Community 95 - "client-history.ts"
-Cohesion: 0.21
-Nodes (13): CLIENT_HISTORY_PAGE_SIZE, ClientEnquiryRow, ClientHistory, ClientOrderRow, ClientSummary, getClientEnquiriesPage(), getClientHistory(), getClientOrdersPage() (+5 more)
-
-### Community 96 - "main"
-Cohesion: 0.22
-Nodes (14): between(), chance(), dateOnly(), daysAgo(), inChunks(), int(), log(), lostReasonFields() (+6 more)
-
-### Community 97 - "client-documents.ts"
-Cohesion: 0.29
-Nodes (10): DELETE(), load(), Params, PATCH(), POST(), GET(), parseContact(), documentClientIds() (+2 more)
-
-### Community 98 - "agent-quote/[token]/page.tsx"
-Cohesion: 0.29
-Nodes (10): AgentQuotePage(), metadata, Notice(), ClientEnquiryFormPage(), metadata, Notice(), CompanyLogo(), agentEnquirySelect (+2 more)
-
-### Community 99 - "salesman/clients/[id]/page.tsx"
-Cohesion: 0.27
-Nodes (10): ClientDetailContent(), ClientDetailPage(), HistorySection(), SearchParams, ClientDocumentsCard(), remove(), submit(), fileUrl() (+2 more)
-
-### Community 100 - "ClientContactsCard.tsx"
-Cohesion: 0.24
-Nodes (6): blank(), ClientContactsCard(), ContactRow(), EMPTY, Main, ClientContactItem
-
-### Community 101 - "BulkImportClientsModal"
-Cohesion: 0.43
-Nodes (7): handleReset(), BulkImportClientsModal(), close(), handleFile(), reset(), resolveSalesman(), runImport()
-
-### Community 102 - "admin/clients/page.tsx"
-Cohesion: 0.60
-Nodes (5): AdminClientsPage(), ClientsTableSkeleton(), ClientTableContainer(), getCachedAdminManagersList, getCachedAdminRelationsList
-
-### Community 103 - "LocationsClient"
-Cohesion: 0.53
-Nodes (5): LocationsClient(), changed(), remove(), save(), resetLocations()
-
-### Community 104 - "cleanup-tasks/route.ts"
-Cohesion: 0.50
-Nodes (3): POST(), APPROVAL_KEEP_MONTHS, REPORT_KEEP_DAYS
-
-### Community 105 - "manager/clients/page.tsx"
-Cohesion: 0.83
-Nodes (3): ClientsTableSkeleton(), ManagerClientsPage(), ManagerClientsSection()
+### Community 102 - "[salesmanId]/page.tsx"
+Cohesion: 0.15
+Nodes (19): AdminClientsPage(), ClientsTableSkeleton(), ClientTableContainer(), AdminMyClientsPage(), MyClientsSection(), ClientsTableSkeleton(), ManagerClientsPage(), ManagerClientsSection() (+11 more)
 
 ### Community 107 - "overrides"
 Cohesion: 0.67
@@ -559,23 +507,23 @@ Nodes (3): nodemailer, overrides, next-auth
 
 ## Knowledge Gaps
 - **15 isolated node(s):** `RFC-4180`, `@fontsource/inter`, `@mantine/hooks`, `@radix-ui/react-avatar`, `@radix-ui/react-tabs` (+10 more)
-  These have ≤1 connection - possible missing edges or undocumented components. (Counts symbols only; 592 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
-- **7 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+  These have ≤1 connection - possible missing edges or undocumented components. (Counts symbols only; 597 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
+- **5 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `cn()` connect `cn` to `manager-actions.ts`, `CompaniesClient.tsx`, `ManagerClientsList.tsx`, `Modal`, `accountant/page.tsx`, `formatAmount`, `Skeleton`, `Input.tsx`, `freight.ts`, `ClientOverview`, `buttonVariants`, `TaskCalendar.tsx`, `AdminDashboardSections.tsx`, `company.ts`, `ShippingRateTable.tsx`, `ManagerDashboardSections.tsx`, `formatDate`, `AgentsClient.tsx`, `PageSkeleton`, `ApprovalsView.tsx`, `CompanyReportForm.tsx`, `getSalesPalSession`, `SendToAgentDialog.tsx`, `ClientHistory.tsx`, `clientStatusLabel`, `my-overview/page.tsx`, `react`, `salesman/page.tsx`, `OrderList.tsx`, `EnquiryForm.tsx`, `SalesmenTargetsClient.tsx`, `EnquiriesClient.tsx`, `Sidebar.tsx`, `client.ts`, `AgentQuotes.tsx`, `EnquiryDetailSheet.tsx`, `Input`, `agent-quote/[token]/page.tsx`, `salesman/clients/[id]/page.tsx`, `BulkImportClientsModal`, `LocationsClient`?**
-  _High betweenness centrality (0.141) - this node is a cross-community bridge._
+- **Why does `cn()` connect `cn` to `ShippingRateTable`, `CompaniesClient.tsx`, `ManagerClientsList.tsx`, `Button`, `accountant/page.tsx`, `TaskCalendar.tsx`, `Skeleton`, `LocationsClient.tsx`, `freight.ts`, `formatDate`, `Topbar.tsx`, `AdminDashboardSections.tsx`, `client.ts`, `TaskOverview.tsx`, `ShippingRateTable.tsx`, `ManagerDashboardSections.tsx`, `formatAmount`, `BulkImportClientsModal.tsx`, `PageSkeleton`, `ApprovalsView.tsx`, `CompanyReportForm.tsx`, `getSalesPalSession`, `enquiry-agent.ts`, `admin/clients/[id]/page.tsx`, `enquiry.ts`, `my-overview/page.tsx`, `utils.ts`, `salesman/page.tsx`, `UserMenu.tsx`, `EnquiryForm`, `SalesmenTargetsClient.tsx`, `EnquiriesClient.tsx`, `Sidebar.tsx`, `AgentQuotes.tsx`, `EnquiryDetailSheet.tsx`?**
+  _High betweenness centrality (0.150) - this node is a cross-community bridge._
 - **Are the 2 inferred relationships involving `getSalesPalSession()` (e.g. with `2. System overview` and `7. API routes (`app/api`)`) actually correct?**
   _`getSalesPalSession()` has 2 INFERRED edges - model-reasoned connections that need verification._
 - **What connects `RFC-4180`, `@fontsource/inter`, `@mantine/hooks` to the rest of the system?**
   _15 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `CompaniesClient.tsx` be split into smaller, more focused modules?**
-  _Cohesion score 0.14583333333333334 - nodes in this community are weakly interconnected._
-- **Why does `next` connect `next` to `manager-actions.ts`, `CompaniesClient.tsx`, `ManagerClientsList.tsx`, `Modal`, `isOwnerRole`, `admin-drilldown.ts`, `formatAmount`, `roles.ts`, `clients/route.ts`, `getTokenUserId`, `Input.tsx`, `buttonVariants`, `TaskCalendar.tsx`, `prisma.ts`, `enquiry-flow.ts`, `AdminDashboardSections.tsx`, `company.ts`, `enquiry-agent.ts`, `ShippingRateTable.tsx`, `ManagerDashboardSections.tsx`, `formatDate`, `MonthlyTrendChart.tsx`, `AgentsClient.tsx`, `enquiryRef`, `approvals.ts`, `package.json`, `leave-actions.ts`, `send-to-client/route.ts`, `next-auth`, `ApprovalsView.tsx`, `cached-queries.ts`, `revalidateEnquiryPages`, `enquiries.ts`, `admin/layout.tsx`, `getSalesPalSession`, `SendToAgentDialog.tsx`, `ClientHistory.tsx`, `clientStatusLabel`, `company-report.ts`, `my-overview/page.tsx`, `react`, `clients/[id]/documents/[docId]/route.ts`, `app/layout.tsx`, `salesman/page.tsx`, `OrderList.tsx`, `SalesmenTargetsClient.tsx`, `EnquiriesClient.tsx`, `company-documents.ts`, `Sidebar.tsx`, `enquiry-form/[token]/route.ts`, `client-status-flow.ts`, `client.ts`, `email-templates/route.ts`, `error-log.ts`, `enquiry-follow-ups.ts`, `admin/clients/[id]/page.tsx`, `EnquiryDetailSheet.tsx`, `@prisma/client`, `orders/[id]/page.tsx`, `hasRole`, `client-documents.ts`, `agent-quote/[token]/page.tsx`, `salesman/clients/[id]/page.tsx`, `ClientContactsCard.tsx`, `cleanup-tasks/route.ts`, `next.config.ts`?**
-  _High betweenness centrality (0.127) - this node is a cross-community bridge._
+  _Cohesion score 0.06664198445020363 - nodes in this community are weakly interconnected._
+- **Why does `next` connect `next` to `ShippingRateTable`, `CompaniesClient.tsx`, `ManagerClientsList.tsx`, `Button`, `report-pdf.tsx`, `admin-drilldown.ts`, `TaskCalendar.tsx`, `nav-meta.ts`, `clients/route.ts`, `jobs/route.ts`, `LocationsClient.tsx`, `formatDate`, `Topbar.tsx`, `leave-badges.ts`, `enquiry-flow.ts`, `AdminDashboardSections.tsx`, `client.ts`, `ShippingRateTable.tsx`, `ManagerDashboardSections.tsx`, `formatAmount`, `enquiryRef`, `scoping.ts`, `package.json`, `leave-actions.ts`, `task.ts`, `ApprovalsView.tsx`, `cached-queries.ts`, `prisma`, `list-params.ts`, `admin/layout.tsx`, `getSalesPalSession`, `enquiry-agent.ts`, `tasks-list.ts`, `admin/clients/[id]/page.tsx`, `my-overview/page.tsx`, `utils.ts`, `clients/[id]/documents/[docId]/route.ts`, `app/layout.tsx`, `salesman/page.tsx`, `SalesmenTargetsClient.tsx`, `EnquiriesClient.tsx`, `prisma.ts`, `Sidebar.tsx`, `agent-quote/[token]/route.ts`, `instrumentation.ts`, `error-log.ts`, `getTokenUserId`, `EnquiryDetailSheet.tsx`, `admin-dashboard.ts`, `orders/[id]/page.tsx`, `hasRole`, `[salesmanId]/page.tsx`, `next.config.ts`?**
+  _High betweenness centrality (0.118) - this node is a cross-community bridge._
 - **Should `ManagerClientsList.tsx` be split into smaller, more focused modules?**
-  _Cohesion score 0.07077625570776255 - nodes in this community are weakly interconnected._
-- **Why does `react` connect `react` to `CompaniesClient.tsx`, `ManagerClientsList.tsx`, `Modal`, `accountant/page.tsx`, `formatAmount`, `Skeleton`, `Input.tsx`, `buttonVariants`, `TaskCalendar.tsx`, `prisma.ts`, `AdminDashboardSections.tsx`, `company.ts`, `ShippingRateTable.tsx`, `ManagerDashboardSections.tsx`, `formatDate`, `AgentsClient.tsx`, `SalesPal Architecture`, `approvals.ts`, `package.json`, `cn`, `index.mjs`, `next-auth`, `ApprovalsView.tsx`, `cached-queries.ts`, `CompanyReportForm.tsx`, `admin/layout.tsx`, `getSalesPalSession`, `SendToAgentDialog.tsx`, `manager/tasks/page.tsx`, `clientStatusLabel`, `my-overview/page.tsx`, `salesman/page.tsx`, `OrderList.tsx`, `EnquiryForm.tsx`, `SalesmenTargetsClient.tsx`, `EnquiriesClient.tsx`, `Sidebar.tsx`, `client.ts`, `AgentQuotes.tsx`, `admin/clients/[id]/page.tsx`, `Input`, `orders/[id]/page.tsx`, `salesman/clients/[id]/page.tsx`, `ClientContactsCard.tsx`, `admin/clients/page.tsx`, `manager/clients/page.tsx`?**
-  _High betweenness centrality (0.066) - this node is a cross-community bridge._
+  _Cohesion score 0.04732673267326733 - nodes in this community are weakly interconnected._
+- **Why does `react` connect `utils.ts` to `ShippingRateTable`, `CompaniesClient.tsx`, `ManagerClientsList.tsx`, `Button`, `accountant/page.tsx`, `TaskCalendar.tsx`, `LocationsClient.tsx`, `formatDate`, `Topbar.tsx`, `leave-badges.ts`, `AdminDashboardSections.tsx`, `client.ts`, `ShippingRateTable.tsx`, `ManagerDashboardSections.tsx`, `BulkImportClientsModal.tsx`, `package.json`, `cn`, `index.mjs`, `ShellContext.tsx`, `dashboard-org/page.tsx`, `ApprovalsView.tsx`, `cached-queries.ts`, `CompanyReportForm.tsx`, `email-queue.ts`, `list-params.ts`, `admin/layout.tsx`, `getSalesPalSession`, `enquiry-agent.ts`, `tasks-list.ts`, `admin/clients/[id]/page.tsx`, `enquiry.ts`, `3. Folder map`, `my-overview/page.tsx`, `salesman/page.tsx`, `UserMenu.tsx`, `EnquiryForm`, `SalesmenTargetsClient.tsx`, `EnquiriesClient.tsx`, `Sidebar.tsx`, `AgentQuotes.tsx`, `orders/[id]/page.tsx`, `[salesmanId]/page.tsx`?**
+  _High betweenness centrality (0.068) - this node is a cross-community bridge._

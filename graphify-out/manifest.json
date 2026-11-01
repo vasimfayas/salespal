@@ -1950,9 +1950,9 @@
     "semantic_hash": ""
   },
   "package.json": {
-    "mtime": 1793530807.6149688,
-    "seen": 1793531409.792424,
-    "ast_hash": "05002ddf6dcbe166db37de787a19bf73",
+    "mtime": 1793533859.5465136,
+    "seen": 1793533863.734825,
+    "ast_hash": "466534ab84bc2573ac2b32a40447976c",
     "semantic_hash": ""
   },
   "postcss.config.mjs": {
@@ -2412,9 +2412,9 @@
     "semantic_hash": ""
   },
   "CHANGELOG.md": {
-    "mtime": 1793444475.421761,
-    "seen": 1793517016.888608,
-    "ast_hash": "56e3754f6aee4f4f8c294462505a2991",
+    "mtime": 1793533859.582185,
+    "seen": 1793533863.7355928,
+    "ast_hash": "c04206ed53016607e0e688266fe68d93",
     "semantic_hash": ""
   },
   "docs/ARCHITECTURE.md": {
@@ -2694,9 +2694,9 @@
     "semantic_hash": ""
   },
   "components/enquiries/AgentQuotes.tsx": {
-    "mtime": 1793520614.7195327,
-    "seen": 1793520674.806869,
-    "ast_hash": "63ddc771bcf6cbaf6ff4404f8e44fe28",
+    "mtime": 1793533839.0586288,
+    "seen": 1793533863.730718,
+    "ast_hash": "cdeb4555a95e998efce71c0c795b1ad0",
     "semantic_hash": ""
   },
   "lib/quote-options.ts": {
