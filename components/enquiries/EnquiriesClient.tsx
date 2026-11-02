@@ -236,7 +236,7 @@ export function EnquiriesClient({
       {canFollowUp && followUpsDue > 0 && (
         <div role="status" className="flex items-center gap-2 rounded-xl border border-warning/30 bg-warning-soft px-4 py-3 text-xs font-medium text-warning-foreground">
           <BellRing size={14} className="shrink-0" aria-hidden />
-          {followUpsDue} enquir{followUpsDue === 1 ? "y has" : "ies have"} been open for over 30 days. Log a follow-up or cancel with a reason.
+          {followUpsDue} enquir{followUpsDue === 1 ? "y has a follow-up" : "ies have follow-ups"} due. Log a follow-up or cancel with a reason.
         </div>
       )}
 

@@ -350,7 +350,7 @@ Client status (`lib/client-status-flow.ts`):
 - 60 quiet days: `onboarded` becomes `dormant` (`sweepDormantClients`).
 - Only managers and owners may set or clear `blacklisted`; blacklisted clients get no new enquiries or orders.
 
-Enquiry: `sent_to_client` or `inquiry_received` then `with_agent` then `quoted` then `confirmed` (creates the order) or `lost`; `revision_requested` when accounts send an order back. Active statuses get 30-day follow-up tasks.
+Enquiry: `sent_to_client` or `inquiry_received` then `with_agent` then `quoted` then `confirmed` (creates the order) or `lost`; `revision_requested` when accounts send an order back. Active statuses get 30-day follow-up tasks. Logging a follow-up moves the task to the next follow-up date (must be after today); the task stays open until the order or loss. An enquiry is flagged "follow-up due" only while its follow-up task's date has arrived, or while a revision task is open.
 
 Order: `transit`, `delivered`, `completed`, with `revision_requested` and `cancelled` as exits.
 

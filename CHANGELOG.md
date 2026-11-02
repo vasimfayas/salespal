@@ -2,6 +2,12 @@
 
 Newest first. Types: Added, Changed, Fixed. Tag each release `vX.Y.Z` (fix = patch, feature = minor, breaking = major).
 
+## 1.10.1 - 2026-11-02
+
+### Fixed
+- Enquiries: "follow-up due" now shows only once the follow-up date arrives (or while a revision task is open), so logging a follow-up clears it until the next date. The banner and popup no longer say "open for over 30 days".
+- Next follow-up date must be after today, so logging a follow-up can't flag the enquiry straight away.
+
 ## 1.10.0 - 2026-11-01
 
 ### Added

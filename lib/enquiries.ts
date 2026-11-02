@@ -14,6 +14,7 @@ import { readQuoteLines } from "@/lib/quote-lines";
 import { intParam, literal, pageParam, paging, param, sizeParam, type Paged, type SearchParams } from "@/lib/list-params";
 import { isOwnerRole } from "@/lib/roles";
 import { enquiryNeedsApproval } from "@/lib/approvals";
+import { flaggedTaskWhere } from "@/lib/enquiry-follow-ups";
 
 /** Salesmen: own. Managers: own + their salesmen's. Accountants / operations: their assigned companies'. Owner: all. */
 export async function enquiryScopeWhere(token: ScopedToken): Promise<Prisma.EnquiryWhereInput> {
@@ -29,7 +30,8 @@ export async function enquiryScopeWhere(token: ScopedToken): Promise<Prisma.Enqu
   return { id: -1 };
 }
 
-const enquiryListInclude = {
+// A function so "due" is measured against today on every request.
+const enquiryListInclude = () => ({
   client: { select: { name: true, department: true, category: true, credit_approved: true } },
   organization: { select: { id: true, name: true, prefix: true, export_office_no: true, logo_path: true } },
   createdBy: { select: { name: true } },
@@ -37,12 +39,12 @@ const enquiryListInclude = {
   events: { include: { createdBy: { select: { name: true } } }, orderBy: { created_at: "desc" } },
   cancelledBy: { select: { name: true } },
   followUps: { include: { createdBy: { select: { name: true } } }, orderBy: { created_at: "desc" } },
-  followUpTasks: { where: { status: { in: ["pending", "in_process"] } }, select: { id: true } },
+  followUpTasks: { where: flaggedTaskWhere(), select: { id: true } },
   agentRequests: { include: { agent: { select: { name: true, email: true } } }, orderBy: { sent_at: "desc" } },
   quoteOptions: { orderBy: { created_at: "asc" } },
-} satisfies Prisma.EnquiryInclude;
+}) satisfies Prisma.EnquiryInclude;
 
-type EnquiryWithList = Prisma.EnquiryGetPayload<{ include: typeof enquiryListInclude }>;
+type EnquiryWithList = Prisma.EnquiryGetPayload<{ include: ReturnType<typeof enquiryListInclude> }>;
 
 const STATUSES: readonly EnquiryStatus[] = enquiryStatuses;
 
@@ -156,7 +158,7 @@ function enquirySearchWhere(q: string | undefined): Prisma.EnquiryWhereInput {
 export type EnquiryPage = Paged<EnquiryListItem> & {
   /** Per-status counts for the filter tabs (scope + search, ignoring the status filter). */
   counts: Record<EnquiryStatus | "all", number>;
-  /** Enquiries in scope with an outstanding follow-up task. */
+  /** Enquiries in scope with a follow-up task that is due, or an open revision task. */
   followUpsDue: number;
   /** Enquiry opened via ?followUp= or ?view=, loaded even when it is not on the current page. */
   focus: EnquiryListItem | null;
@@ -172,11 +174,11 @@ export async function getEnquiriesPage(token: ScopedToken, params: SearchParams)
   const focusId = intParam(params, "followUp") ?? intParam(params, "view");
 
   const [rows, total, grouped, followUpsDue, focus] = await Promise.all([
-    prisma.enquiry.findMany({ where, include: enquiryListInclude, orderBy: [{ enquiry_date: "desc" }, { id: "desc" }], ...paging(page, pageSize) }),
+    prisma.enquiry.findMany({ where, include: enquiryListInclude(), orderBy: [{ enquiry_date: "desc" }, { id: "desc" }], ...paging(page, pageSize) }),
     prisma.enquiry.count({ where }),
     prisma.enquiry.groupBy({ by: ["status"], where: searched, _count: { _all: true } }),
-    prisma.enquiry.count({ where: { AND: [scope, { followUpTasks: { some: { status: { in: ["pending", "in_process"] } } } }] } }),
-    focusId ? prisma.enquiry.findFirst({ where: { AND: [scope, { id: focusId }] }, include: enquiryListInclude }) : null,
+    prisma.enquiry.count({ where: { AND: [scope, { followUpTasks: { some: flaggedTaskWhere() } }] } }),
+    focusId ? prisma.enquiry.findFirst({ where: { AND: [scope, { id: focusId }] }, include: enquiryListInclude() }) : null,
   ]);
 
   const counts = Object.fromEntries(["all", ...STATUSES].map((k) => [k, 0])) as EnquiryPage["counts"];

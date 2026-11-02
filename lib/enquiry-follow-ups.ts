@@ -18,6 +18,12 @@ function todayUtc() {
   return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
 }
 
+/** Open tasks that flag an enquiry "follow-up due": its follow-up task once its date arrives, and its revision task. */
+export function flaggedTaskWhere(): Prisma.TaskWhereInput {
+  const tomorrow = new Date(todayUtc().getTime() + DAY_MS);
+  return { ...OPEN_TASK, OR: [{ ...TASK_KIND.follow_up, due_date: { lt: tomorrow } }, TASK_KIND.revision] };
+}
+
 export function nextFollowUpDate(from = todayUtc()) {
   return new Date(from.getTime() + FOLLOW_UP_AFTER_DAYS * DAY_MS);
 }

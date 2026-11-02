@@ -23,8 +23,9 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
   if (!comment) return NextResponse.json({ error: "Write a follow-up comment" }, { status: 400 });
   if (comment.length > 2000) return NextResponse.json({ error: "Comment is too long (max 2000 characters)" }, { status: 400 });
   const nextDate = body.next_date ? parseDateOnly(body.next_date) : nextFollowUpDate();
-  if (!nextDate || nextDate < new Date(new Date().toISOString().slice(0, 10))) {
-    return NextResponse.json({ error: "Pick a next follow-up date from today onwards" }, { status: 400 });
+  // Must be after today: a follow-up due today would raise a follow-up task straight away.
+  if (!nextDate || nextDate <= new Date(new Date().toISOString().slice(0, 10))) {
+    return NextResponse.json({ error: "Pick a next follow-up date after today" }, { status: 400 });
   }
 
   const enquiry = await prisma.enquiry.findFirst({
