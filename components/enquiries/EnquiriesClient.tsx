@@ -20,6 +20,7 @@ import { SimpleTooltip } from "@/components/ui/tooltip";
 import { FollowUpModal } from "@/components/enquiries/EnquiryFollowUpModals";
 import { EnquiryStageActions, rowActions, type Action } from "@/components/enquiries/EnquiryStageActions";
 import { Modal } from "@/components/ui/Modal";
+import { Select } from "@/components/ui/Select";
 import { Toast } from "@/components/ui/Toast";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { cn, formatAmount, formatDate } from "@/lib/utils";
@@ -201,6 +202,22 @@ export function EnquiriesClient({
             </button>
           ))}
         </div>
+        {(data.companies.length > 1 || get("company")) && (
+          <Select
+            aria-label="Filter by company"
+            value={get("company") ?? ""}
+            onChange={(ev) => set({ company: ev.target.value || null })}
+            wrapperClassName="w-full sm:w-56"
+            className="h-9"
+          >
+            <option value="">All companies</option>
+            {data.companies.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name} ({c.count.toLocaleString()})
+              </option>
+            ))}
+          </Select>
+        )}
         <input
           type="search"
           value={search}
@@ -257,7 +274,7 @@ export function EnquiriesClient({
                   <th scope="col" className="w-[22%] px-4 py-3 font-medium">Enquiry</th>
                   <th scope="col" className="px-4 py-3 font-medium">Client</th>
                   <th scope="col" className="w-[22%] px-4 py-3 font-medium">Route</th>
-                  <th scope="col" className="hidden w-[13%] px-4 py-3 text-right font-medium xl:table-cell">Cost / Profit</th>
+                  <th scope="col" className="hidden w-[13%] px-4 py-3 text-right font-medium xl:table-cell">Selling price</th>
                   <th scope="col" className="w-[136px] px-4 py-3 font-medium">Status</th>
                   <th scope="col" className="w-[184px] px-4 py-3 text-right font-medium"><span className="sr-only">Actions</span></th>
                 </tr>
@@ -283,6 +300,7 @@ export function EnquiriesClient({
                         >
                           {e.ref}
                         </button>
+                        <CompanyTag name={e.company.name} />
                         <span className="block truncate text-xs text-muted-foreground">{formatDate(e.enquiry_date)} · {e.created_by}</span>
                         {isActiveEnquiry(e.status) && (
                           <span className={cn("block text-xs", e.follow_up_due ? "font-medium text-warning-foreground" : "text-muted-foreground")}>
@@ -307,8 +325,8 @@ export function EnquiriesClient({
                               {e.mode}
                               {e.is_dg && <DgBadge unNumber={e.un_number} />}
                             </span>
-                            <span className="flex min-w-0 items-center gap-1 text-foreground">
-                              <span className="truncate">{e.from}</span>
+                            <span className="block truncate text-foreground" title={e.from}>{e.from}</span>
+                            <span className="flex min-w-0 items-center gap-1 text-foreground" title={e.to}>
                               <ArrowRight size={12} className="shrink-0 text-muted-foreground" aria-label="to" />
                               <span className="truncate">{e.to}</span>
                             </span>
@@ -321,8 +339,10 @@ export function EnquiriesClient({
                           <span className="text-xs text-muted-foreground">Not quoted</span>
                         ) : (
                           <>
-                            <span className="block font-medium text-foreground">{formatAmount(converted ? e.actual_cost! : e.provisional_cost)}</span>
-                            <span className="block text-xs text-muted-foreground">{formatAmount(converted ? e.actual_profit! : e.provisional_profit ?? 0)}</span>
+                            {/* Selling price = cost + profit (actual once converted to an order). */}
+                            <span className="block font-medium text-foreground">
+                              {formatAmount(converted ? e.actual_cost! + (e.actual_profit ?? 0) : e.provisional_cost + (e.provisional_profit ?? 0))}
+                            </span>
                             {!converted && <span className="block text-xs text-muted-foreground/80">Quoted</span>}
                           </>
                         )}
@@ -381,13 +401,16 @@ export function EnquiriesClient({
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
                       <p className="font-mono text-[13px] font-semibold text-foreground">{e.ref}</p>
+                      <CompanyTag name={e.company.name} />
                       <p className="flex items-center gap-1 truncate text-sm font-medium text-foreground">
                         <span className="truncate">{e.client_name}</span>
                         <PremiumBadge category={e.client_category} compact />
                       </p>
                     </div>
-                    <div className="shrink-0">
+                    <div className="shrink-0 text-right">
                       <StatusBadge status={e.status} />
+                      {/* Plain text: the card is a button; the order link is in the detail panel it opens. */}
+                      {e.order && <OrderChip id={e.order.id} jobNo={e.order.job_no} href={null} />}
                     </div>
                   </div>
                   {e.status === "sent_to_client" ? (
@@ -506,6 +529,15 @@ function DgBadge({ unNumber }: { unNumber: string | null }) {
   return (
     <span title={text} className="shrink-0 rounded bg-warning-soft px-1 py-px text-[10px] font-semibold tracking-wide text-warning-foreground">
       DG<span className="sr-only"> — {text}</span>
+    </span>
+  );
+}
+
+/** Which of our companies the enquiry is raised under. */
+function CompanyTag({ name }: { name: string }) {
+  return (
+    <span title={name} className="my-0.5 block w-fit max-w-full truncate rounded-md bg-muted px-1.5 py-0.5 text-[11px] font-semibold text-muted-foreground">
+      {name}
     </span>
   );
 }

@@ -86,8 +86,8 @@ Defined in `lib/roles.ts` (seed list in `prisma/add-roles.sql`).
 
 | id | Name | Home page | Sees |
 |---|---|---|---|
-| 1 | Owner | `/dashboard/admin` | Everything, all companies. Can also work like a salesman: add clients under any company (My Clients = assigned to self), raise and work enquiries, own tasks |
-| 6 | Super Admin | `/dashboard/admin` | Owner's menu plus Orders, Shipping Rates; may act on any approval step |
+| 1 | Owner | `/dashboard/admin` | Everything, all companies. Can also work like a salesman: add clients under any company (My Clients = assigned to self), raise and work enquiries, own tasks. Orders: all companies, accounts actions (add details, deliver, complete, cancel; no payments or revisions) |
+| 6 | Super Admin | `/dashboard/admin` | Owner's menu plus Shipping Rates and every order action; may act on any approval step |
 | 2 | Manager | `/dashboard/manager` | Companies assigned in `manager_org`; the team in `manager_salesman` |
 | 3 | Salesman | `/dashboard/salesman/dashboard-org` | Own clients, enquiries, orders, tasks |
 | 4 | Accountant | `/dashboard/accountant` | Orders and enquiries of companies in `accountant_org` |
@@ -362,7 +362,7 @@ All under `app/dashboard/<role>/`. Each role has its own tree.
 
 | Role | Pages |
 |---|---|
-| admin | (overview), accounts, locations (owner / super admin), email-templates (owner / super admin), control-panel (super admin only: imports + reverse, deployments, errors), agents, approvals, clients, clients/[id], companies, enquiries, my-clients (owner / super admin's own clients), orders, reports, salesmen, shipping-rates, tasks (owner / super admin), users |
+| admin | (overview), accounts, locations (owner / super admin), email-templates (owner / super admin), control-panel (super admin only: imports + reverse, deployments, errors), agents, approvals, clients, clients/[id], companies, enquiries, my-clients (owner / super admin's own clients), orders (owner / super admin), reports, salesmen, shipping-rates, tasks (owner / super admin), users |
 | manager | (team overview), my-overview, team, team/[salesmanId], tasks, my-clients, clients, clients/[id], salesmen, enquiries, orders, shipping-rates, agents, approvals, reports |
 | salesman | dashboard-org, (overview), tasks, clients, clients/[id], enquiries, orders, orders/[id] |
 | accountant | (dashboard), enquiries, orders, shipping-rates, agents, approvals |

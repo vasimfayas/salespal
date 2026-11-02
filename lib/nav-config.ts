@@ -20,6 +20,7 @@ export const navConfig: Record<number, NavLink[]> = {
     { label: "Premium Clients", href: "/dashboard/admin/clients?category=premium" },
     { label: "Blacklist", href: "/dashboard/admin/clients?status=blacklisted" },
     { label: "Enquiries", href: "/dashboard/admin/enquiries" },
+    { label: "Orders", href: "/dashboard/admin/orders" },
     { label: "Tasks", href: "/dashboard/admin/tasks" },
     { label: "Agents", href: "/dashboard/admin/agents" },
     { label: "Locations", href: "/dashboard/admin/locations" },
@@ -68,12 +69,10 @@ export const navConfig: Record<number, NavLink[]> = {
   ],
 };
 
-/** Super admin: the owner's menu plus the operational screens only it has (orders, rates). */
+/** Super admin: the owner's menu plus the screens only it has (rates, control panel). */
 navConfig[6] = [
-  ...navConfig[1].slice(0, 9), // through Enquiries
-  { label: "Orders", href: "/dashboard/admin/orders" },
-  navConfig[1][9], // Tasks
+  ...navConfig[1].slice(0, 11), // through Tasks
   { label: "Shipping Rates", href: "/dashboard/admin/shipping-rates" },
-  ...navConfig[1].slice(10),
+  ...navConfig[1].slice(11),
   { label: "Control Panel", href: "/dashboard/admin/control-panel" },
 ];

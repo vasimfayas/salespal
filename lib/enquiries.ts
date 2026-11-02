@@ -158,6 +158,8 @@ function enquirySearchWhere(q: string | undefined): Prisma.EnquiryWhereInput {
 export type EnquiryPage = Paged<EnquiryListItem> & {
   /** Per-status counts for the filter tabs (scope + search, ignoring the status filter). */
   counts: Record<EnquiryStatus | "all", number>;
+  /** Companies with enquiries in scope + search (ignoring the company filter), for the company filter. */
+  companies: { id: number; name: string; prefix: string | null; count: number }[];
   /** Enquiries in scope with a follow-up task that is due, or an open revision task. */
   followUpsDue: number;
   /** Enquiry opened via ?followUp= or ?view=, loaded even when it is not on the current page. */
@@ -169,17 +171,27 @@ export async function getEnquiriesPage(token: ScopedToken, params: SearchParams)
   const pageSize = sizeParam(params);
   const status = param(params, "status");
   const scope = await enquiryScopeWhere(token);
-  const searched: Prisma.EnquiryWhereInput = { AND: [scope, enquirySearchWhere(param(params, "q"))] };
+  const companyId = intParam(params, "company");
+  const unfiltered: Prisma.EnquiryWhereInput = { AND: [scope, enquirySearchWhere(param(params, "q"))] };
+  const searched: Prisma.EnquiryWhereInput = companyId ? { AND: [unfiltered, { org_id: companyId }] } : unfiltered;
   const where: Prisma.EnquiryWhereInput = status && STATUSES.includes(status as EnquiryStatus) ? { AND: [searched, { status }] } : searched;
   const focusId = intParam(params, "followUp") ?? intParam(params, "view");
 
-  const [rows, total, grouped, followUpsDue, focus] = await Promise.all([
+  const [rows, total, grouped, followUpsDue, focus, byCompany] = await Promise.all([
     prisma.enquiry.findMany({ where, include: enquiryListInclude(), orderBy: [{ enquiry_date: "desc" }, { id: "desc" }], ...paging(page, pageSize) }),
     prisma.enquiry.count({ where }),
     prisma.enquiry.groupBy({ by: ["status"], where: searched, _count: { _all: true } }),
     prisma.enquiry.count({ where: { AND: [scope, { followUpTasks: { some: flaggedTaskWhere() } }] } }),
     focusId ? prisma.enquiry.findFirst({ where: { AND: [scope, { id: focusId }] }, include: enquiryListInclude() }) : null,
+    prisma.enquiry.groupBy({ by: ["org_id"], where: unfiltered, _count: { _all: true } }),
   ]);
+  const orgs = await prisma.organization.findMany({
+    where: { id: { in: byCompany.map((g) => g.org_id) } },
+    select: { id: true, name: true, prefix: true },
+    orderBy: { name: "asc" },
+  });
+  const companyCounts = new Map(byCompany.map((g) => [g.org_id, g._count._all]));
+  const companies = orgs.map((o) => ({ ...o, count: companyCounts.get(o.id) ?? 0 }));
 
   const counts = Object.fromEntries(["all", ...STATUSES].map((k) => [k, 0])) as EnquiryPage["counts"];
   for (const g of grouped) {
@@ -187,7 +199,7 @@ export async function getEnquiriesPage(token: ScopedToken, params: SearchParams)
     counts.all += g._count._all;
   }
 
-  return { rows: rows.map(toListItem), total, page, pageSize, counts, followUpsDue, focus: focus ? toListItem(focus) : null };
+  return { rows: rows.map(toListItem), total, page, pageSize, counts, companies, followUpsDue, focus: focus ? toListItem(focus) : null };
 }
 
 export function revalidateEnquiryPages() {

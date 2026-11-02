@@ -79,6 +79,8 @@ export function OrderList({ data, role, detailBasePath }: OrderListProps) {
   const [sheetId, setSheetId] = useState<number | null>(null);
 
   // Accountants, and salesmen on orders converted from their own enquiries (the server re-checks ownership).
+  // The owner's pages live under /dashboard/admin.
+  const pageRole = role === "owner" ? "admin" : role;
   const canRecordPayment = (order: OrderListItem) => role === "accountant" || role === "admin" || (role === "salesman" && !!order.enquiry_id);
   const filteredOrders = data.rows as OrderListItem[];
   const sheetOrder = filteredOrders.find((o) => o.id === sheetId) ?? null;
@@ -264,7 +266,7 @@ export function OrderList({ data, role, detailBasePath }: OrderListProps) {
                         )}
                         {(order.enquiry_id ?? order.origin_enquiry_id) && (
                           <Link
-                            href={enquiryHref(role, (order.enquiry_id ?? order.origin_enquiry_id)!)}
+                            href={enquiryHref(pageRole, (order.enquiry_id ?? order.origin_enquiry_id)!)}
                             title="Open enquiry"
                             className="rounded bg-warning-soft px-1.5 py-0.5 font-mono text-[10px] font-semibold text-warning-foreground transition hover:bg-warning-soft hover:underline"
                           >
@@ -506,7 +508,7 @@ export function OrderList({ data, role, detailBasePath }: OrderListProps) {
                       <>
                         <dt className="text-muted-foreground">Enquiry</dt>
                         <dd>
-                          <Link href={enquiryHref(role, (sheetOrder.enquiry_id ?? sheetOrder.origin_enquiry_id)!)} className="font-mono font-semibold hover:underline">
+                          <Link href={enquiryHref(pageRole, (sheetOrder.enquiry_id ?? sheetOrder.origin_enquiry_id)!)} className="font-mono font-semibold hover:underline">
                             {enquiryRef((sheetOrder.enquiry_id ?? sheetOrder.origin_enquiry_id)!, sheetOrder.organization?.prefix)}
                           </Link>
                         </dd>

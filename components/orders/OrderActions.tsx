@@ -11,7 +11,8 @@ import { formatAmount, formatDate } from "@/lib/utils";
 import type { OrderListItem } from "@/types/order";
 
 /** "admin" = super admin: every accounts and manager action. */
-export type OrderRole = "salesman" | "manager" | "accountant" | "admin";
+/** "admin" is the super admin (every action); "owner" gets the accounts actions only (the server refuses it payments and revisions). */
+export type OrderRole = "salesman" | "manager" | "accountant" | "admin" | "owner";
 
 const OPEN = ["transit", "delivered"];
 
@@ -27,6 +28,7 @@ async function postJson(url: string, body: unknown, method = "POST") {
  *   accounts: Add details · Mark delivered · Mark completed · Cancel
  *   manager:  Request revision · Cancel
  *   salesman: Request revision
+ *   owner:    accounts actions (no payments, no revision)
  */
 export function OrderActions({ order, role, onDone, size = "sm" }: { order: OrderListItem; role: OrderRole; onDone: (message: string) => void; size?: "sm" | "md" }) {
   const router = useRouter();
@@ -35,7 +37,7 @@ export function OrderActions({ order, role, onDone, size = "sm" }: { order: Orde
   const isOpen = OPEN.includes(order.status);
   if (!isOpen) return null;
 
-  const accounts = role === "accountant" || role === "admin";
+  const accounts = role === "accountant" || role === "admin" || role === "owner";
   const hasDetails = !!order.job_no && !!order.invoice_date;
   const fullyPaid = order.balance <= 0.005;
 

@@ -2,6 +2,16 @@
 
 Newest first. Types: Added, Changed, Fixed. Tag each release `vX.Y.Z` (fix = patch, feature = minor, breaking = major).
 
+## 1.11.0 - 2026-11-02
+
+### Added
+- Enquiries: company tag on every enquiry, and a company filter (with counts) next to the status tabs.
+- Owner: Orders screen for every company, with the accounts actions (add details, deliver, complete, cancel). Enquiries and client history link the owner and super admin to the order.
+
+### Changed
+- Enquiry list shows the selling price instead of cost / profit.
+- Enquiry list shows origin and destination on their own lines, so the origin isn't cut off; phone cards show the order number.
+
 ## 1.10.1 - 2026-11-02
 
 ### Fixed
