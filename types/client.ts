@@ -28,6 +28,13 @@ export function clientStatusLabel(status: string) {
 /** Only managers and admins may put a client on, or take it off, the black list. */
 export const MANAGER_ONLY_STATUSES: readonly ClientStatus[] = ["blacklisted"];
 
+/**
+ * Set by the system: an enquiry makes a client "enquiry", the first order "onboarded", 60 quiet days "dormant".
+ * Salesmen can't pick them by hand (it would inflate the onboarded counts); managers and the owner can, to correct.
+ * Moving a client OUT of them (e.g. dormant → lead) stays open to everyone.
+ */
+export const SYSTEM_STATUSES: readonly ClientStatus[] = ["enquiry", "onboarded", "dormant"];
+
 /** Onboarded clients with no enquiry (or order) for this many days become "dormant". */
 export const DORMANT_AFTER_DAYS = 60;
 

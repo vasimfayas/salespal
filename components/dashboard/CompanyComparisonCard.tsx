@@ -1,4 +1,5 @@
-import { Star, AlertTriangle, UserCheck, Users, XCircle, type LucideIcon } from "lucide-react";
+import Link from "next/link";
+import { Star, AlertTriangle, ChevronRight, UserCheck, Users, XCircle, type LucideIcon } from "lucide-react";
 import { cn, formatAmount } from "@/lib/utils";
 import { clientStatusLabel } from "@/types/client";
 import { statusDotClass } from "@/components/ui/Badge";
@@ -39,18 +40,18 @@ function getInitials(name: string) {
     .slice(0, 2);
 }
 
-function KpiTile({ icon: Icon, tone, value, label }: { icon: LucideIcon; tone: "success" | "primary" | "danger"; value: number; label: string }) {
+function KpiTile({ icon: Icon, tone, value, label, hint, href }: { icon: LucideIcon; tone: "success" | "primary" | "danger"; value: number; label: string; hint: string; href: string }) {
   const chip = { success: "bg-success-soft text-success-foreground", primary: "bg-primary-soft text-primary-soft-foreground", danger: "bg-danger-soft text-danger-foreground" }[tone];
   return (
-    <div className="rounded-control border border-border bg-subtle px-3 py-3">
-      <div className="flex items-center gap-2">
-        <span className={cn("flex size-6 items-center justify-center rounded-md", chip)}>
-          <Icon size={13} strokeWidth={2.5} aria-hidden />
-        </span>
-        <span className="truncate text-xs text-muted-foreground">{label}</span>
-      </div>
-      <p className="mt-2 text-xl font-semibold tabular-nums text-foreground">{value.toLocaleString()}</p>
-    </div>
+    <Link href={href} title={`${label} · ${hint}`} className="block rounded-control border border-border bg-subtle px-3 py-3 transition-colors hover:border-border-strong hover:bg-muted">
+      {/* Icon above the label so the label keeps the full tile width. */}
+      <span className={cn("flex size-6 items-center justify-center rounded-md", chip)}>
+        <Icon size={13} strokeWidth={2.5} aria-hidden />
+      </span>
+      <span className="mt-1.5 block text-xs leading-tight text-muted-foreground">{label}</span>
+      <p className="mt-1 text-xl font-semibold tabular-nums text-foreground">{value.toLocaleString()}</p>
+      <p className="truncate text-[11px] text-muted-foreground">{hint}</p>
+    </Link>
   );
 }
 
@@ -63,9 +64,12 @@ export interface CompanyComparisonCardProps {
   pipelineBreakdown: { status: string; count: number }[];
   totalClients: number;
   managerName: string;
-  /** Order value this month by the company's team. */
+  /** Order value in the period under the company. */
   teamValue: number;
   maxTeamValue: number;
+  /** Onboarded and lost count the dashboard's period ("This month"); active leads are right now. */
+  periodLabel: string;
+  links: { onboarded: string; pipeline: string; lost: string; company: string };
 }
 
 export function CompanyComparisonCard({
@@ -79,6 +83,8 @@ export function CompanyComparisonCard({
   managerName,
   teamValue,
   maxTeamValue,
+  periodLabel,
+  links,
 }: CompanyComparisonCardProps) {
   const theme = STATUS_THEME[status];
   const BadgeIcon = theme.badgeIcon;
@@ -91,7 +97,10 @@ export function CompanyComparisonCard({
 
       <div className="flex h-full flex-col gap-5 p-5 pt-6">
         <div className="flex items-center justify-between gap-3">
-          <h3 className="text-lg font-semibold text-foreground">{orgName}</h3>
+          <Link href={links.company} className="group inline-flex min-w-0 items-center gap-1 text-lg font-semibold text-foreground hover:text-primary">
+            <span className="truncate">{orgName}</span>
+            <ChevronRight size={16} className="shrink-0 text-muted-foreground group-hover:text-primary" aria-hidden />
+          </Link>
           {BadgeIcon && theme.badgeLabel && (
             <span className={cn("inline-flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium", theme.badge)}>
               <BadgeIcon size={12} strokeWidth={2.5} aria-hidden />
@@ -101,9 +110,9 @@ export function CompanyComparisonCard({
         </div>
 
         <div className="grid grid-cols-3 gap-3">
-          <KpiTile icon={UserCheck} tone="success" value={onboarded} label="Onboarded" />
-          <KpiTile icon={Users} tone="primary" value={activeLeads} label="Active leads" />
-          <KpiTile icon={XCircle} tone="danger" value={lost} label="Lost" />
+          <KpiTile icon={UserCheck} tone="success" value={onboarded} label="Onboarded" hint={periodLabel} href={links.onboarded} />
+          <KpiTile icon={Users} tone="primary" value={activeLeads} label="Active leads" hint="Right now" href={links.pipeline} />
+          <KpiTile icon={XCircle} tone="danger" value={lost} label="Lost" hint={periodLabel} href={links.lost} />
         </div>
 
         <div className="space-y-2.5">
@@ -146,8 +155,9 @@ export function CompanyComparisonCard({
               <p className="truncate text-sm font-medium text-foreground">{managerName}</p>
             </div>
           </div>
-          <div className="w-28 shrink-0 text-right">
-            <p className="text-xs text-muted-foreground">Order value · this month</p>
+          <div className="min-w-28 shrink-0 text-right">
+            <p className="text-xs text-muted-foreground">Order value</p>
+            <p className="text-[11px] text-muted-foreground/80">{periodLabel}</p>
             <p className={cn("mt-0.5 text-lg font-semibold tabular-nums", theme.valueColor)}>{formatAmount(teamValue)}</p>
             <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-muted">
               <div className={cn("h-full rounded-full transition-[width] duration-500", theme.accent)} style={{ width: `${gaugePct}%` }} />

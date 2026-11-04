@@ -267,9 +267,22 @@ export function parseEnquiryRef(text: string) {
   return Number.isInteger(id) && id > 0 ? id : null;
 }
 
+/** Priority flag, highest first. Stored as enquiries.priority (smallint); lists sort by it first. */
+export const enquiryPriorities = [
+  { value: 2, label: "Very important" },
+  { value: 1, label: "Medium" },
+  { value: 0, label: "Normal" },
+] as const;
+export type EnquiryPriority = (typeof enquiryPriorities)[number]["value"];
+export const isEnquiryPriority = (v: unknown): v is EnquiryPriority => enquiryPriorities.some((p) => p.value === v);
+
 export type EnquiryListItem = {
   id: number;
   ref: string;
+  /** 0 normal, 1 medium, 2 very important. */
+  priority: EnquiryPriority;
+  /** Quick enquiry still waiting for its full details; can't be quoted or sent until they're saved. */
+  details_pending: boolean;
   client_id: number;
   client_name: string;
   /** The company the enquiry is raised under: name, enquiry-ID prefix, export office number, logo. */

@@ -56,9 +56,9 @@ export const getAdminKpiCounts = unstable_cache(
   CACHE
 );
 
-/** Company scorecards: per-company status counts, the company's (first) manager and that manager's team KPI. */
+/** Company scorecards: per-company status counts (right now), the company's (first) manager and its order value in the period. */
 export const getAdminCompanyScorecards = unstable_cache(
-  async () => {
+  async (start: string, end: string | null) => {
     const [byOrg, orgs, managers] = await Promise.all([
       prisma.client.groupBy({ by: ["org_id", "status"], _count: { _all: true } }),
       prisma.organization.findMany({ select: { id: true, name: true }, orderBy: { id: "asc" } }),
@@ -78,8 +78,9 @@ export const getAdminCompanyScorecards = unstable_cache(
 
     // Every company, lowest id first — including ones with no clients yet.
     const orgIds = orgs.map((o) => o.id);
-    // Order value this month per company: every non-void order under that company, whoever raised it.
-    const { from, to } = monthPeriod(0);
+    // Order value in the period per company: every non-void order under that company, whoever raised it.
+    const from = new Date(start);
+    const to = end ? new Date(new Date(end).getTime() + 1) : new Date();
     const valueRows = await prisma.order.groupBy({
       by: ["org_id"],
       where: { status: { notIn: [...VOID_ORDER_STATUSES] }, created_at: { gte: from, lt: to }, org_id: { in: orgIds } },
@@ -101,6 +102,27 @@ export const getAdminCompanyScorecards = unstable_cache(
     });
   },
   ["admin-company-scorecards"],
+  CACHE
+);
+
+/**
+ * Company cards: per company, distinct clients that became onboarded / lost in the period. Same rule as the
+ * top KPI cards (statusEntries, by the event's company), so the company cards add up to them.
+ */
+export const getAdminCompanyEntries = unstable_cache(
+  async (start: string, end: string | null) => {
+    const from = new Date(start);
+    const to = end ? new Date(new Date(end).getTime() + 1) : new Date();
+    const rows = await prisma.$queryRaw<{ org_id: number; status: string; n: number }[]>(Prisma.sql`
+      SELECT e.org_id, e.to_status AS status, COUNT(DISTINCT e.client_id)::int AS n
+      FROM client_status_events e
+      WHERE e.to_status IN ('onboarded', 'lost') AND e.created_at >= ${from} AND e.created_at < ${to}
+      GROUP BY 1, 2`);
+    const out: Record<number, { onboarded: number; lost: number }> = {};
+    for (const r of rows) (out[r.org_id] ??= { onboarded: 0, lost: 0 })[r.status as "onboarded" | "lost"] = r.n;
+    return out;
+  },
+  ["admin-company-entries"],
   CACHE
 );
 

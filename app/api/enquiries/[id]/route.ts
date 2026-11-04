@@ -41,11 +41,13 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
         : comparable(enquiry[key]) === comparable(details.data[key]);
   const changed: string[] = (Object.keys(details.data) as (keyof EnquiryDetails)[]).filter((key) => !same(key));
   if (needsApproval !== enquiry.needs_approval) changed.push("needs_approval");
+  // Saving the full form completes a quick enquiry, even if nothing else changed.
+  if (enquiry.details_pending) changed.push("details_pending");
   if (changed.length === 0) return NextResponse.json({ ok: true, changed: [] });
-  const label = (key: string) => (key === "needs_approval" ? `manager approval (${needsApproval ? "on" : "off"})` : ENQUIRY_FIELD_LABELS[key as keyof EnquiryDetails]);
+  const label = (key: string) => (key === "needs_approval" ? `manager approval (${needsApproval ? "on" : "off"})` : key === "details_pending" ? "completed the quick enquiry" : ENQUIRY_FIELD_LABELS[key as keyof EnquiryDetails]);
 
   await prisma.$transaction([
-    prisma.enquiry.update({ where: { id: enquiry.id }, data: { ...enquiryDetailsData(details.data), needs_approval: needsApproval } }),
+    prisma.enquiry.update({ where: { id: enquiry.id }, data: { ...enquiryDetailsData(details.data), needs_approval: needsApproval, details_pending: false } }),
     prisma.enquiryEvent.create({
       data: {
         enquiry_id: enquiry.id,

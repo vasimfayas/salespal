@@ -32,9 +32,10 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
 
   const enquiry = await prisma.enquiry.findFirst({
     where: { AND: [{ id: Number((await context.params).id) }, await enquiryScopeWhere(token)] },
-    select: { ...agentEnquirySelect, org_id: true, status: true },
+    select: { ...agentEnquirySelect, org_id: true, status: true, details_pending: true },
   });
   if (!enquiry) return NextResponse.json({ error: "Enquiry not found" }, { status: 404 });
+  if (enquiry.details_pending) return NextResponse.json({ error: "Fill in the full enquiry details before sending it to agents" }, { status: 409 });
   if (!SENDABLE.includes(enquiry.status)) return NextResponse.json({ error: "Only an enquiry that isn't quoted yet can be sent to an agent" }, { status: 409 });
 
   const found = await prisma.agent.findMany({ where: { id: { in: ids } } });

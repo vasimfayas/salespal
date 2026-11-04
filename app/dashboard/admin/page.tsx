@@ -1,3 +1,5 @@
+import { isPeriodKey, monthKey, periodLabel, type PeriodKey } from "@/lib/dashboard-period";
+import { DashboardPending, DashboardTransitionProvider } from "@/components/dashboard/DashboardTransition";
 import { Suspense } from "react";
 import { getCachedAdminOrgs } from "@/lib/cached-queries";
 import { PageHeader } from "@/components/layout/PageHeader";
@@ -16,7 +18,6 @@ import {
   CardSmallSkeleton,
 } from "@/components/dashboard/AdminDashboardSections";
 
-type PeriodKey = "this_month" | "last_month" | "quarter";
 
 export default async function AdminDashboardPage({
   searchParams,
@@ -24,32 +25,23 @@ export default async function AdminDashboardPage({
   searchParams: Promise<{ period?: string; org?: string }>;
 }) {
   const params = await searchParams;
-  const period = (
-    ["this_month", "last_month", "quarter"].includes(params.period ?? "")
-      ? params.period
-      : "this_month"
-  ) as PeriodKey;
+  const period: PeriodKey = isPeriodKey(params.period) ? params.period : "this_month";
   const orgId = params.org ? Number(params.org) : undefined;
 
   // Orgs are fast (cached 300s) — fetch for header + filters
   const orgs = await getCachedAdminOrgs();
 
-  const now = new Date();
-  const monthName = now.toLocaleDateString("en", {
-    month: "long",
-    year: "numeric",
-  });
   const orgNames = orgs.length > 2 ? `${orgs.length} companies` : orgs.map((o) => o.name).join(" & ");
 
   return (
-    <>
+    <DashboardTransitionProvider>
       <PageHeader
         title="Owner Dashboard"
-        subtitle={`${orgNames} · ${monthName}`}
+        subtitle={`${orgNames} · ${periodLabel(period === "this_month" ? monthKey(0) : period)}`}
         action={<DashboardFilters orgs={orgs} />}
       />
 
-      <div className="space-y-6">
+      <DashboardPending className="space-y-6">
         <Suspense fallback={<KpiSkeleton />}>
           <KpiCardsRow period={period} orgId={orgId} />
         </Suspense>
@@ -92,7 +84,7 @@ export default async function AdminDashboardPage({
             <LiveActivitySection className="order-4 lg:order-none" />
           </Suspense>
         </div>
-      </div>
-    </>
+      </DashboardPending>
+    </DashboardTransitionProvider>
   );
 }

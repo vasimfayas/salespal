@@ -18,7 +18,7 @@ import { RotateCcw, Plus, X, Loader2, Search, ChevronDown, MapPin, Navigation } 
 import { Modal } from "@/components/ui/Modal";
 import { Input } from "@/components/ui/Input";
 import { Toast } from "@/components/ui/Toast";
-import { clientStatusLabel, clientStatusLabels, clientStatuses } from "@/types/client";
+import { SYSTEM_STATUSES, clientStatusLabel, clientStatusLabels, clientStatuses } from "@/types/client";
 import { clientStatusDotClass } from "@/components/clients/client-status-ui";
 import { LostReasonDialog } from "@/components/shared/LostReasonDialog";
 import { ContactDetailsDialog, type ContactPromptTarget } from "@/components/clients/ContactDetailsDialog";
@@ -28,6 +28,7 @@ import { buttonVariants } from "@/components/ui/Button";
 import { clientCategories, clientCategoryLabels } from "@/types/client";
 import { PremiumBadge } from "@/components/clients/ClientCategory";
 import { DepartmentTag } from "@/components/clients/DepartmentTag";
+import { ClientNameField } from "@/components/clients/ClientNameField";
 import { CrNumberField, type CrMatch } from "@/components/clients/CrNumberField";
 import { ExtraContactsFields, filledContacts, type ExtraContactInput } from "@/components/clients/ExtraContactsFields";
 import { ClientReach } from "@/components/clients/ClientReach";
@@ -78,6 +79,10 @@ interface SalesmanClientsListProps {
   companies: CompanyOption[];
 }
 
+
+// Salesmen pick only the stages they work; enquiry / onboarded / not enquired come from enquiries, orders and time.
+const pickableStatuses = clientStatuses.filter((st) => st !== "blacklisted" && !(SYSTEM_STATUSES as readonly string[]).includes(st));
+
 export function SalesmanClientsList({ initialClients, total, page, pageSize, companies }: SalesmanClientsListProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -103,6 +108,8 @@ export function SalesmanClientsList({ initialClients, total, page, pageSize, com
   const [extraContacts, setExtraContacts] = useState<ExtraContactInput[]>([]);
   // Set when the CR No matched an existing company and the user chose to add a department of it.
   const [departmentOf, setDepartmentOf] = useState<CrMatch | null>(null);
+  // The optional department box stays hidden until the user asks for it.
+  const [showDepartment, setShowDepartment] = useState(false);
   // Status change past Lead on a client with no contact details asks for them first
   const [contactPrompt, setContactPrompt] = useState<ContactPromptTarget | null>(null);
   const [lostTarget, setLostTarget] = useState<{ id: number; name: string } | null>(null);
@@ -198,6 +205,7 @@ export function SalesmanClientsList({ initialClients, total, page, pageSize, com
         location_coordinates: "",
         org_id: defaultCompanyId(companies),
       });
+      setShowDepartment(false);
       setDepartmentOf(null);
       setExtraContacts([]);
       setIsAddOpen(false);
@@ -509,7 +517,7 @@ export function SalesmanClientsList({ initialClients, total, page, pageSize, com
                             {client.status === "blacklisted" && (
                               <p className="px-3 py-2 text-xs text-muted-foreground">Only a manager can take a client off the black list.</p>
                             )}
-                            {client.status !== "blacklisted" && clientStatuses.filter((st) => st !== "blacklisted").map((st) => (
+                            {client.status !== "blacklisted" && pickableStatuses.map((st) => (
                               <DropdownMenuItem
                                 key={st}
                                 onClick={(e) => {
@@ -663,24 +671,27 @@ export function SalesmanClientsList({ initialClients, total, page, pageSize, com
               />
             ) : (
               <>
-                <Input
-                  label="Client Name"
-                  type="text"
-                  required
-                  value={addForm.name}
-                  onChange={(e) => setAddForm({ ...addForm, name: e.target.value })}
-                  placeholder="e.g. Acme Corp"
-                  className="text-xs"
-                />
-                <Input
-                  label="Department (optional)"
-                  type="text"
-                  value={addForm.department}
-                  onChange={(e) => setAddForm({ ...addForm, department: e.target.value })}
-                  placeholder="e.g. Logistics, Procurement"
-                  hint="Only if this company is handled per department."
-                  className="text-xs"
-                />
+                <ClientNameField value={addForm.name} onChange={(name) => setAddForm({ ...addForm, name })} hasCr={!!addForm.cr_no.trim()} />
+                {showDepartment ? (
+                  <Input
+                    label="Department (optional)"
+                    type="text"
+                    autoFocus
+                    value={addForm.department}
+                    onChange={(e) => setAddForm({ ...addForm, department: e.target.value })}
+                    placeholder="e.g. Logistics, Procurement"
+                    hint="Only if this company is handled per department."
+                    className="text-xs"
+                  />
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setShowDepartment(true)}
+                    className="w-fit text-xs font-medium text-primary hover:underline"
+                  >
+                    + Add department
+                  </button>
+                )}
                 <Input
                   label="CR Expiry Date"
                   type="date"
@@ -764,7 +775,7 @@ export function SalesmanClientsList({ initialClients, total, page, pageSize, com
                 }
                 className="w-full rounded-control border border-input bg-card px-3 text-sm text-foreground shadow-xs outline-none transition-[border-color,box-shadow] duration-150 placeholder:text-muted-foreground/70 hover:border-border-strong focus:border-ring focus:ring-3 focus:ring-ring/15 disabled:cursor-not-allowed disabled:bg-muted disabled:opacity-70 h-10 cursor-pointer"
               >
-                {clientStatuses.filter((st) => st !== "blacklisted").map((st) => (
+                {pickableStatuses.map((st) => (
                   <option key={st} value={st}>{clientStatusLabels[st]}</option>
                 ))}
               </select>

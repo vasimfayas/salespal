@@ -219,7 +219,7 @@ Table name in the database is in brackets. Types are the Prisma types. `?` means
 | Column | Type | Notes |
 |---|---|---|
 | id | Int PK | |
-| name, contact_person_name, contact_no | String | Main contact lives here; extra people in `client_contacts` |
+| name, contact_person_name, contact_no | String | Main contact lives here; extra people in `client_contacts`. New clients (form and import) get `name` in capitals, single-spaced (`POST /api/clients`). Adding a client refuses a duplicate CR, phone or email, and a duplicate main-company `name` (any case, `NAME_EXISTS`) only when no CR is given (a new CR = a different company); a department of a company with a CR keeps the parent's name |
 | contact_person_designation, mail_id, location_coordinates, notes | String? | |
 | cr_no | String? unique | Commercial registration number |
 | cr_expiry_date | Date? | |
@@ -288,6 +288,8 @@ Indexes: salesman, org, (org, status), (salesman, status), status, category, cre
 | Lost | `cancel_reason?`, `lost_reason?` (`high_rate, late_quote, dispute, credit_terms, other`), `cancelled_at?`, `cancelled_by_id?` |
 | Client form | `client_form_token?` unique, `client_form_email?`, `client_form_sent_at?`, `client_signed_name?`, `client_signed_at?`, `client_signature_path?` |
 | Follow-up | `next_follow_up_at?` (Date; null means enquiry_date + 30 days) |
+| Priority | `priority` smallint default 0: `0` normal, `1` medium, `2` very important (`enquiryPriorities`, `types/enquiry.ts`). Set by the raiser, their manager or the owner (`POST enquiries/[id]/priority`). Lists sort priority first, then newest; the manager's list groups by raiser (managers first, then each salesman by name) between the two (`enquiryListOrder`, `lib/enquiries.ts`). Added by `prisma/add-enquiry-priority.sql` |
+| Quick enquiry | `details_pending` bool default false. `POST enquiries` with `quick: true` saves only client, company, mode, from and to (payment cash, today's date, status `inquiry_received`) and returns the ref. While true: no stage move except lose (`applyEnquiryAction`), no send-to-agent; the list shows a "Details pending" chip, a banner count (`detailsPending`) and a Complete details button. Saving the full form (`PATCH enquiries/[id]`) sets it false. Counts as an enquiry like any other. Added by `prisma/add-enquiry-details-pending.sql` |
 | Approval | `needs_approval` (bool), `approval_status?` (`pending, approved, rejected`) |
 
 **EnquiryEvent** [`enquiry_events`]: stage history: `action`, `from_status?`, `to_status?`, `prev_cost?`, `prev_profit?`, `cost?`, `profit?`, `note?`, `order_id?`, `created_by_id`.
@@ -349,12 +351,13 @@ Client status (`lib/client-status-flow.ts`):
 - First order: anything short of `onboarded` becomes `onboarded`.
 - 60 quiet days: `onboarded` becomes `dormant` (`sweepDormantClients`).
 - Only managers and owners may set or clear `blacklisted`; blacklisted clients get no new enquiries or orders.
+- `enquiry`, `onboarded` and `dormant` are system statuses (`SYSTEM_STATUSES`): set by raising an enquiry, the first order and the 60-day sweep. Salesmen can't pick them by hand (status change, add client, client edit); managers, owner and super admin can, to correct. Moving a client out of them (e.g. dormant → lead) is open to everyone (`statusChangeError`, `lib/client-status-flow.ts`).
 
 Enquiry: `sent_to_client` or `inquiry_received` then `with_agent` then `quoted` then `confirmed` (creates the order) or `lost`; `revision_requested` when accounts send an order back. Active statuses get 30-day follow-up tasks. Logging a follow-up moves the task to the next follow-up date (must be after today); the task stays open until the order or loss. An enquiry is flagged "follow-up due" only while its follow-up task's date has arrived, or while a revision task is open.
 
 Order: `transit`, `delivered`, `completed`, with `revision_requested` and `cancelled` as exits.
 
-Approvals (`lib/approvals.ts`, `types/approval.ts`): `credit_agreement` goes accounts, manager, owner; `enquiry` goes to manager. Super admin may act on any step.
+Approvals (`lib/approvals.ts`, `types/approval.ts`): `credit_agreement` goes accounts, manager, owner; `enquiry` goes to manager. Super admin may act on any step. An enquiry quote needs manager approval (`enquiryNeedsApproval`) when `needs_approval` is ticked, or payment is credit and the client has no approved credit agreement, or its `credit_days` exceed the client's `credit_days_approved` (an agreement with no days sets no limit). Checked when the quote is confirmed, so enquiries already quoted follow the new rule too.
 
 ## 6. Pages (App Router)
 
@@ -362,7 +365,7 @@ All under `app/dashboard/<role>/`. Each role has its own tree.
 
 | Role | Pages |
 |---|---|
-| admin | (overview), accounts, locations (owner / super admin), email-templates (owner / super admin), control-panel (super admin only: imports + reverse, deployments, errors), agents, approvals, clients, clients/[id], companies, enquiries, my-clients (owner / super admin's own clients), orders (owner / super admin), reports, salesmen, shipping-rates, tasks (owner / super admin), users |
+| admin | (overview; `?period=` this_month, quarter, or a calendar month `YYYY-MM`, see `lib/dashboard-period.ts`), overview/[kind] (drill-through lists), overview/company/[id] (one company: clients by status now and its client status history), accounts, locations (owner / super admin), email-templates (owner / super admin), control-panel (super admin only: imports + reverse, deployments, errors), agents, approvals, clients, clients/[id], companies, enquiries, my-clients (owner / super admin's own clients), orders (owner / super admin), reports, salesmen, shipping-rates, tasks (owner / super admin), users |
 | manager | (team overview), my-overview, team, team/[salesmanId], tasks, my-clients, clients, clients/[id], salesmen, enquiries, orders, shipping-rates, agents, approvals, reports |
 | salesman | dashboard-org, (overview), tasks, clients, clients/[id], enquiries, orders, orders/[id] |
 | accountant | (dashboard), enquiries, orders, shipping-rates, agents, approvals |
@@ -370,7 +373,7 @@ All under `app/dashboard/<role>/`. Each role has its own tree.
 | all roles | `/dashboard/calendar` (task calendar: month / week / year, opened from the top bar icon; data from `lib/calendar.ts` via `GET /api/calendar`) |
 | public | `/login`, `/enquiry-form/[token]`, `/agent-quote/[token]` |
 
-Data for dashboards is assembled in `lib/admin-dashboard.ts`, `manager-dashboard.ts`, `accountant-dashboard.ts`, `owner-accounts.ts`, `performance.ts`, `pipeline-metrics.ts`, and streamed section by section with `Suspense` (`components/dashboard/*Sections.tsx`).
+Data for dashboards is assembled in `lib/admin-dashboard.ts`, `manager-dashboard.ts`, `accountant-dashboard.ts`, `owner-accounts.ts`, `performance.ts`, `pipeline-metrics.ts`, and streamed section by section with `Suspense` (`components/dashboard/*Sections.tsx`). Owner company cards: onboarded / lost count clients that entered that status in the period (`getAdminCompanyEntries`, same rule as the top cards), active leads are right now, order value is the period; "Top performer" is the company with the highest order value in the period, and with exactly two companies the other is "Needs attention".
 
 ## 7. API routes (`app/api`)
 
@@ -378,8 +381,8 @@ Data for dashboards is assembled in `lib/admin-dashboard.ts`, `manager-dashboard
 |---|---|
 | Auth | `auth/[...nextauth]` |
 | Users | `users` (POST), `users/reset-password` (POST) |
-| Clients | `clients` (GET, POST), `clients/[id]` (GET, PATCH, DELETE: super admin only; refused while the client has orders or departments, otherwise removes its enquiries, tasks, history, contacts and uploaded files), `/status`, `/checklist`, `/contacts`, `/contacts/[contactId]`, `/documents`, `/documents/[docId]`, `/tasks`, `/tasks/[taskId]`, `clients/bulk-assign` |
-| Enquiries | `enquiries` (GET, POST by salesman, manager, owner, super admin), `enquiries/[id]` (PATCH), `/stage`, `/cancel`, `/follow-ups`, `/send-to-agent`, `/signature`, `/quote-options` (POST), `/quote-options/[optionId]` (PATCH, DELETE), `enquiries/send-to-client`, `enquiries/follow-ups/sync` |
+| Clients | `clients` (GET, POST; GET `?cr=` exact CR lookup and `?name_like=` similar-name lookup for the add-client form, names only), `clients/[id]` (GET, PATCH, DELETE: super admin only; refused while the client has orders or departments, otherwise removes its enquiries, tasks, history, contacts and uploaded files), `/status`, `/checklist`, `/contacts`, `/contacts/[contactId]`, `/documents`, `/documents/[docId]`, `/tasks`, `/tasks/[taskId]`, `clients/bulk-assign` (manager: to themselves or a salesman on their team in the client's company; owner / super admin: to themselves, or a manager / salesman who works for the client's company, from the Clients page) |
+| Enquiries | `enquiries` (GET, POST by salesman, manager, owner, super admin), `enquiries/[id]` (PATCH), `/stage`, `/cancel`, `/follow-ups`, `/priority`, `/send-to-agent`, `/signature`, `/quote-options` (POST), `/quote-options/[optionId]` (PATCH, DELETE), `enquiries/send-to-client`, `enquiries/follow-ups/sync` |
 | Public forms | `enquiry-form/[token]` (POST), `agent-quote/[token]` (POST) |
 | Orders | `orders` (GET, POST), `orders/[id]` (GET, PATCH), `/status`, `/payments`, `/reminder`, `orders/stats` |
 | Tasks | `tasks` (GET; POST by every role. `category: "todo"` is a private personal task: always assigned to the creator and hidden from everyone else, including managers and owners; accountants and operations can only create to-dos. Owners and managers may pass `assigned_to_id` for other task types), `tasks/[id]` (PATCH, DELETE), `/follow-up`, `/outcome`, `/updates` |

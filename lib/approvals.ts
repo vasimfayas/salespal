@@ -106,8 +106,15 @@ async function applyOutcome(tx: Prisma.TransactionClient, request: { type: strin
 }
 
 /** Whether confirming this quote needs a manager's approval first. */
-export function enquiryNeedsApproval(enquiry: { needs_approval: boolean; payment_mode: string }, client: { credit_approved: boolean }) {
-  return enquiry.needs_approval || (enquiry.payment_mode === "credit" && !client.credit_approved);
+export function enquiryNeedsApproval(
+  enquiry: { needs_approval: boolean; payment_mode: string; credit_days: number | null },
+  client: { credit_approved: boolean; credit_days_approved: number | null },
+) {
+  if (enquiry.needs_approval) return true;
+  if (enquiry.payment_mode !== "credit") return false;
+  if (!client.credit_approved) return true;
+  // More days than the approved agreement needs approval; an agreement saved without days sets no limit.
+  return client.credit_days_approved != null && enquiry.credit_days != null && enquiry.credit_days > client.credit_days_approved;
 }
 
 export type ApprovalView = Awaited<ReturnType<typeof getApprovalViews>>[number];

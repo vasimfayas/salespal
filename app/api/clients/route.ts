@@ -7,7 +7,7 @@ import { literal } from "@/lib/list-params";
 import { parentIdsWithCr } from "@/lib/clients-list";
 import { clientScopeWhere, getManagerOrgIds, getManagerSalesmanIds, getManagerSalesmanIdsForOrg, getSalesmanOrgIds, getTokenUserId, isRole, hasRole } from "@/lib/scoping";
 import { normalizeCrNo, parseCrExpiryDate } from "@/lib/client-fields";
-import { canSetStatus, isClientStatus } from "@/lib/client-status-flow";
+import { isClientStatus, statusChangeError } from "@/lib/client-status-flow";
 import { cleanText, contactRequiredMessage, missingContactFields, statusRequiresContact } from "@/lib/client-contact";
 import { departmentTaken } from "@/lib/client-fields";
 import { MAX_EXTRA_CONTACTS, parseContact } from "@/lib/client-contacts";
@@ -51,6 +51,24 @@ export async function GET(request: NextRequest) {
         can_add_department: allowedOrgIds.includes(main.org_id),
         departments: [main, ...main.departments].map((d) => ({ id: d.id, department: d.department, salesman: d.assignedSalesman.name })),
       },
+    });
+  }
+
+  // ?name_like= (add-client form, from 3 letters): companies on file with a similar name and who handles them.
+  // Names only, like ?cr=, so a duplicate is spotted before saving.
+  if (url.searchParams.has("name_like")) {
+    if (!hasRole(token, [1, 2, 3])) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    const name = (url.searchParams.get("name_like") ?? "").trim().replace(/\s+/g, " ").slice(0, 120);
+    if (name.length < 3) return NextResponse.json({ matches: [] });
+    const select = { id: true, name: true, organization: { select: { name: true } }, assignedSalesman: { select: { name: true } } } as const;
+    // The exact match (what the server would refuse) first, then up to 5 similar names.
+    const [exact, similar] = await Promise.all([
+      prisma.client.findFirst({ where: { parent_client_id: null, name: { equals: name, mode: "insensitive" } }, select }),
+      prisma.client.findMany({ where: { parent_client_id: null, name: { contains: literal(name), mode: "insensitive" } }, select, orderBy: { name: "asc" }, take: 5 }),
+    ]);
+    const rows = exact ? [exact, ...similar.filter((c) => c.id !== exact.id).slice(0, 4)] : similar;
+    return NextResponse.json({
+      matches: rows.map((c) => ({ id: c.id, name: c.name, org_name: c.organization.name, salesman: c.assignedSalesman.name, exact: c.id === exact?.id })),
     });
   }
 
@@ -139,19 +157,32 @@ export async function POST(request: NextRequest) {
   // Only Name is required for a Lead; contact details become required past Lead.
   const status = body.status ?? "lead";
   if (!isClientStatus(status)) return NextResponse.json({ error: "Invalid status" }, { status: 400 });
-  if (!canSetStatus(Number(token.role_id), "lead", status)) {
-    return NextResponse.json({ error: "Only managers can add a client to the black list" }, { status: 403 });
-  }
+  const blocked = statusChangeError(Number(token.role_id), "lead", status);
+  if (blocked) return NextResponse.json({ error: blocked === "Only managers can change the black list" ? "Only managers can add a client to the black list" : blocked }, { status: 403 });
   const contactPersonName = cleanText(body.contact_person_name) ?? "";
   const contactNo = cleanText(body.contact_no) ?? "";
   const designation = cleanText(body.contact_person_designation) || null;
   const mailId = cleanText(body.mail_id) || null;
-  if (!cleanText(body.name)) return NextResponse.json({ error: "Client name is required" }, { status: 400 });
+  // New client names are stored in capitals, single-spaced (also on bulk import).
+  const name = (cleanText(body.name) ?? "").replace(/\s+/g, " ").toUpperCase();
+  if (!name) return NextResponse.json({ error: "Client name is required" }, { status: 400 });
   const missing = statusRequiresContact(status)
     ? missingContactFields({ contact_person_name: contactPersonName, contact_no: contactNo, contact_person_designation: designation })
     : [];
   if (missing.length) {
     return NextResponse.json({ error: contactRequiredMessage(missing), code: "CONTACT_REQUIRED", missing }, { status: 422 });
+  }
+
+  // Without a CR, the same name as a company already on file (any case) is a duplicate. With a CR not on file it's a
+  // different company even if the name matches (the CR is the identity). Departments keep the parent's name.
+  if (!parent && !crNo) {
+    const sameName = await prisma.client.findFirst({ where: { parent_client_id: null, name: { equals: name, mode: "insensitive" } }, select: { id: true } });
+    if (sameName) {
+      return NextResponse.json(
+        { error: "A client with this name already exists. If it's a different company, enter its CR number. If it's the same company, enter that company's CR number and a Department.", code: "NAME_EXISTS" },
+        { status: 409 }
+      );
+    }
   }
 
   // Duplicate check only on details that were actually entered
@@ -208,7 +239,7 @@ export async function POST(request: NextRequest) {
     client = await prisma.client.create({
       data: {
         import_batch_id: importBatchId,
-        name: parent ? parent.name : cleanText(body.name)!,
+        name: parent ? parent.name : name,
         contact_person_name: contactPersonName,
         contact_no: contactNo,
         location_coordinates: body.location_coordinates,

@@ -3,7 +3,7 @@ import { revalidateTag } from "next/cache";
 import { getToken } from "next-auth/jwt";
 import { prisma } from "@/lib/prisma";
 import { clientScopeWhere } from "@/lib/scoping";
-import { applyClientStatus, canSetStatus, isClientStatus } from "@/lib/client-status-flow";
+import { applyClientStatus, isClientStatus, statusChangeError } from "@/lib/client-status-flow";
 import { isLostReason, lostReasonText } from "@/types/enquiry";
 import { cleanText, contactRequiredMessage, missingContactFields, statusRequiresContact } from "@/lib/client-contact";
 
@@ -16,9 +16,8 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
   const scoped = await prisma.client.findFirst({ where: { AND: [{ id: Number(id) }, await clientScopeWhere(token)] } });
   if (!scoped) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   if (!isClientStatus(body.status)) return NextResponse.json({ error: "Invalid status" }, { status: 400 });
-  if (!canSetStatus(Number(token.role_id), scoped.status, body.status)) {
-    return NextResponse.json({ error: "Only managers can change the black list" }, { status: 403 });
-  }
+  const blocked = statusChangeError(Number(token.role_id), scoped.status, body.status);
+  if (blocked) return NextResponse.json({ error: blocked }, { status: 403 });
 
   // Marking a client lost needs a reason (kept in the client's history).
   let lostReason: string | undefined;

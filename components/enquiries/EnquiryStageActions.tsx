@@ -89,7 +89,10 @@ export function EnquiryStageActions({
   const [open, setOpen] = useState<Action | null>(null);
   // Confirming waits for a manager's approval of the quote (pending), or a requote after a rejection.
   const blocked = enquiry.approval_required && (enquiry.approval_status === "pending" || enquiry.approval_status === "rejected");
-  const actions = availableActions(enquiry.status).filter((a) => (!only || only.includes(a)) && !(a === "confirm" && blocked));
+  // A quick enquiry can only be marked lost until its full details are saved.
+  const actions = availableActions(enquiry.status).filter(
+    (a) => (!only || only.includes(a)) && !(a === "confirm" && blocked) && !(enquiry.details_pending && a !== "lose"),
+  );
   if (actions.length === 0) return null;
 
   function start(action: Action) {

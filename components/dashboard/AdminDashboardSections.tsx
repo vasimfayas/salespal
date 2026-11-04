@@ -2,6 +2,7 @@ import { changeLabel } from "@/lib/pipeline-metrics";
 import { getCachedAdminActivityFeed, getCachedAdminOrgs } from "@/lib/cached-queries";
 import {
   getAdminCompanyScorecards,
+  getAdminCompanyEntries,
   getAdminKpiCounts,
   getAdminLostEnquiryCounts,
   getAdminLeaderboard,
@@ -42,7 +43,7 @@ import {
   XCircle,
 } from "lucide-react";
 
-import { getPeriodRange, getPreviousPeriodRange, type PeriodKey } from "@/lib/dashboard-period";
+import { getPeriodRange, getPreviousPeriodRange, periodLabel, type PeriodKey } from "@/lib/dashboard-period";
 export { getPeriodRange };
 
 /* ─── Delta badge component ─── */
@@ -174,12 +175,14 @@ export async function CompanyHeroSection({
   period: PeriodKey;
   orgId?: number;
 }) {
-  const scorecards = await getAdminCompanyScorecards();
+  const { start, end } = getPeriodRange(period);
+  const range = [start.toISOString(), end?.toISOString() ?? null] as const;
+  const [scorecards, entries] = await Promise.all([getAdminCompanyScorecards(...range), getAdminCompanyEntries(...range)]);
   if (scorecards.length === 0) return null;
 
   const orgData = [...scorecards].sort((a, b) => a.orgName.localeCompare(b.orgName));
 
-  // "Top performer" = the company whose team brought in the most order value this month (none while all are at 0).
+  // "Top performer" = the company with the most order value in the period (none while all are at 0).
   const maxTeamValue = Math.max(...orgData.map((d) => d.teamValue), 1);
   const best = orgData.find((d) => d.teamValue > 0 && d.teamValue === maxTeamValue);
 
@@ -214,9 +217,16 @@ export async function CompanyHeroSection({
               key={d.oid}
               orgName={d.orgName}
               status={status}
-              onboarded={d.counts.onboarded ?? 0}
+              onboarded={entries[d.oid]?.onboarded ?? 0}
               activeLeads={(d.counts.lead ?? 0) + (d.counts.follow_up ?? 0)}
-              lost={d.counts.lost ?? 0}
+              lost={entries[d.oid]?.lost ?? 0}
+              periodLabel={periodLabel(period)}
+              links={{
+                onboarded: `/dashboard/admin/overview/onboarded?period=${period}&org=${d.oid}`,
+                pipeline: `/dashboard/admin/overview/pipeline?period=${period}&org=${d.oid}`,
+                lost: `/dashboard/admin/overview/lost-clients?period=${period}&org=${d.oid}`,
+                company: `/dashboard/admin/overview/company/${d.oid}`,
+              }}
               pipelineBreakdown={pipelineBreakdown}
               totalClients={d.total}
               managerName={d.managerName}

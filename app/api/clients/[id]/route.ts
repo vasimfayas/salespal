@@ -6,7 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { clientScopeWhere, hasRole } from "@/lib/scoping";
 import { clientCategoryLabels, isClientCategory, type ClientCategory } from "@/types/client";
 import { departmentTaken, normalizeCrNo, parseCrExpiryDate } from "@/lib/client-fields";
-import { applyClientStatus, canSetStatus, isClientStatus } from "@/lib/client-status-flow";
+import { applyClientStatus, isClientStatus, statusChangeError } from "@/lib/client-status-flow";
 import { SUPER_ADMIN_ROLE } from "@/lib/roles";
 import { removeDocumentFile } from "@/lib/company-documents";
 import { cleanText, contactRequiredMessage, missingContactFields, statusRequiresContact } from "@/lib/client-contact";
@@ -71,9 +71,8 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
 
   if (body.status !== undefined) {
     if (!isClientStatus(body.status)) return NextResponse.json({ error: "Invalid status" }, { status: 400 });
-    if (!canSetStatus(Number(token.role_id), scoped.status, body.status)) {
-      return NextResponse.json({ error: "Only managers can change the black list" }, { status: 403 });
-    }
+    const blocked = statusChangeError(Number(token.role_id), scoped.status, body.status);
+    if (blocked) return NextResponse.json({ error: blocked }, { status: 403 });
   }
 
   // Contact details can't be blank on a client past Lead (checked against the values after this update)

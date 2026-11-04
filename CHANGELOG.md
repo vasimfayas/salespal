@@ -2,6 +2,26 @@
 
 Newest first. Types: Added, Changed, Fixed. Tag each release `vX.Y.Z` (fix = patch, feature = minor, breaking = major).
 
+## 1.12.0 - 2026-11-04
+
+> Before deploying, run `prisma/add-enquiry-priority.sql` and `prisma/add-enquiry-details-pending.sql` on the production database (both only add columns).
+
+### Added
+- Enquiries: priority flag (very important / medium / normal), set by the raiser, their manager or the owner; lists sort by priority, then date (managers: grouped by who raised it).
+- Enquiries: Quick enquiry. Client, mode, from and to give an enquiry ref straight away; it shows "Details pending" and can't be quoted or sent to agents until Complete details is saved.
+- Enquiries: copy-ref icon next to each ref; salesman filter for managers, manager-team and person filters for the owner; the follow-ups-due and needs-details pills filter the list.
+- From / To: a whole country can be picked as the place.
+- Clients: owner can reassign selected clients to a manager or salesman of the client's company, or take them over.
+- Clients: similar names shown after 3 letters while adding; new names saved in capitals; same name with a different CR is allowed.
+- Owner dashboard: company page (clients by status and full status history); month filter for this year's months.
+
+### Changed
+- Credit enquiries need manager approval when their credit days exceed the client's approved credit days.
+- Enquiry, Onboarded and Not enquired are system statuses: salesmen can't set them by hand (managers and owner can, to correct).
+- Owner dashboard company cards: onboarded and lost count the selected period (same rule as the top cards), order value and Top performer follow the period; tiles open their lists.
+- Smoother loading on the owner dashboard and its drill-downs; tidier enquiry toolbar, banners and table; quick-enquiry route fields full width.
+- Client form: Department behind "+ Add department"; "Attn" is now "Contact".
+
 ## 1.11.0 - 2026-11-02
 
 ### Added

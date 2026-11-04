@@ -8,7 +8,7 @@ import { prisma } from "@/lib/prisma";
 import { clientScopeWhere, getActingUserIds, getAccountantOrgIds, getOperationsOrgIds, getManagerOrgIds, getManagerSalesmanIds, getSalesmanOrgIds, getTokenUserId, type ScopedToken } from "@/lib/scoping";
 import { BLACKLISTED_ERROR, statusAfterEnquiry } from "@/lib/client-status-flow";
 import { CONTACT_FIELD_LABELS, missingContactFields } from "@/lib/client-contact";
-import { enquiryRef, enquiryStatuses, parseEnquiryRef, readContainers, type EnquiryListItem, type EnquiryStatus } from "@/types/enquiry";
+import { enquiryRef, enquiryStatuses, isEnquiryPriority, parseEnquiryRef, readContainers, type EnquiryListItem, type EnquiryStatus } from "@/types/enquiry";
 import { DEFAULT_DIMENSION_UNIT, readPackages } from "@/lib/freight";
 import { readQuoteLines } from "@/lib/quote-lines";
 import { intParam, literal, pageParam, paging, param, sizeParam, type Paged, type SearchParams } from "@/lib/list-params";
@@ -32,7 +32,7 @@ export async function enquiryScopeWhere(token: ScopedToken): Promise<Prisma.Enqu
 
 // A function so "due" is measured against today on every request.
 const enquiryListInclude = () => ({
-  client: { select: { name: true, department: true, category: true, credit_approved: true } },
+  client: { select: { name: true, department: true, category: true, credit_approved: true, credit_days_approved: true } },
   organization: { select: { id: true, name: true, prefix: true, export_office_no: true, logo_path: true } },
   createdBy: { select: { name: true } },
   order: { select: { id: true, job_no: true, status: true } },
@@ -56,6 +56,8 @@ function toListItem(e: EnquiryWithList): EnquiryListItem {
     client_id: e.client_id,
     client_name: clientLabel(e.client),
     client_category: e.client.category,
+    priority: (isEnquiryPriority(e.priority) ? e.priority : 0),
+    details_pending: e.details_pending,
     enquiry_date: e.enquiry_date.toISOString().slice(0, 10),
     mode: e.mode,
     from: e.from,
@@ -160,31 +162,76 @@ export type EnquiryPage = Paged<EnquiryListItem> & {
   counts: Record<EnquiryStatus | "all", number>;
   /** Companies with enquiries in scope + search (ignoring the company filter), for the company filter. */
   companies: { id: number; name: string; prefix: string | null; count: number }[];
+  /** Managers / owner: who raised enquiries in scope + search + company (+ the owner's manager filter), for the salesman filter. */
+  raisers: { id: number; name: string; role_id: number; count: number }[];
+  /** Owner: every manager, for the manager (team) filter. */
+  managers: { id: number; name: string }[];
   /** Enquiries in scope with a follow-up task that is due, or an open revision task. */
   followUpsDue: number;
+  /** Quick enquiries in scope still waiting for their full details. */
+  detailsPending: number;
   /** Enquiry opened via ?followUp= or ?view=, loaded even when it is not on the current page. */
   focus: EnquiryListItem | null;
 };
+
+/**
+ * Priority first, then newest. Managers: priority, then grouped by who raised it (managers' own first,
+ * then each salesman by name), then newest.
+ */
+function enquiryListOrder(token: ScopedToken): Prisma.EnquiryOrderByWithRelationInput[] {
+  const newest: Prisma.EnquiryOrderByWithRelationInput[] = [{ enquiry_date: "desc" }, { id: "desc" }];
+  if (token.role_id === 2) {
+    return [{ priority: "desc" }, { createdBy: { role_id: "asc" } }, { createdBy: { name: "asc" } }, { created_by_id: "asc" }, ...newest];
+  }
+  return [{ priority: "desc" }, ...newest];
+}
 
 export async function getEnquiriesPage(token: ScopedToken, params: SearchParams): Promise<EnquiryPage> {
   const page = pageParam(params);
   const pageSize = sizeParam(params);
   const status = param(params, "status");
   const scope = await enquiryScopeWhere(token);
+  const base: Prisma.EnquiryWhereInput = { AND: [scope, enquirySearchWhere(param(params, "q"))] };
   const companyId = intParam(params, "company");
-  const unfiltered: Prisma.EnquiryWhereInput = { AND: [scope, enquirySearchWhere(param(params, "q"))] };
-  const searched: Prisma.EnquiryWhereInput = companyId ? { AND: [unfiltered, { org_id: companyId }] } : unfiltered;
+  const byCompanyWhere: Prisma.EnquiryWhereInput = companyId ? { org_id: companyId } : {};
+  // Who raised it: ?salesman=<id> (one person) or ?manager=<id> (owner: that manager and their salesmen). Scope still applies.
+  const raiserFilters = isOwnerRole(token.role_id) || token.role_id === 2;
+  const salesmanId = raiserFilters ? intParam(params, "salesman") : undefined;
+  const managerId = isOwnerRole(token.role_id) ? intParam(params, "manager") : undefined;
+  const teamIds = managerId
+    ? [managerId, ...(await prisma.managerSalesman.findMany({ where: { manager_id: managerId }, select: { salesman_id: true } })).map((r) => r.salesman_id)]
+    : null;
+  const byRaiserWhere: Prisma.EnquiryWhereInput = {
+    AND: [salesmanId ? { created_by_id: salesmanId } : {}, teamIds ? { created_by_id: { in: teamIds } } : {}],
+  };
+  // ?flag= from the banners: follow-up due, or quick enquiries waiting for details.
+  const followUpDueWhere: Prisma.EnquiryWhereInput = { followUpTasks: { some: flaggedTaskWhere() } };
+  const pendingWhere: Prisma.EnquiryWhereInput = { details_pending: true, status: { not: "lost" } };
+  const flag = param(params, "flag");
+  const flagWhere: Prisma.EnquiryWhereInput = flag === "follow_up" ? followUpDueWhere : flag === "pending" ? pendingWhere : {};
+  const searched: Prisma.EnquiryWhereInput = { AND: [base, byCompanyWhere, byRaiserWhere, flagWhere] };
   const where: Prisma.EnquiryWhereInput = status && STATUSES.includes(status as EnquiryStatus) ? { AND: [searched, { status }] } : searched;
   const focusId = intParam(params, "followUp") ?? intParam(params, "view");
 
-  const [rows, total, grouped, followUpsDue, focus, byCompany] = await Promise.all([
-    prisma.enquiry.findMany({ where, include: enquiryListInclude(), orderBy: [{ enquiry_date: "desc" }, { id: "desc" }], ...paging(page, pageSize) }),
+  const [rows, total, grouped, followUpsDue, detailsPending, focus, byCompany, byRaiser] = await Promise.all([
+    prisma.enquiry.findMany({ where, include: enquiryListInclude(), orderBy: enquiryListOrder(token), ...paging(page, pageSize) }),
     prisma.enquiry.count({ where }),
     prisma.enquiry.groupBy({ by: ["status"], where: searched, _count: { _all: true } }),
-    prisma.enquiry.count({ where: { AND: [scope, { followUpTasks: { some: flaggedTaskWhere() } }] } }),
+    prisma.enquiry.count({ where: { AND: [scope, followUpDueWhere] } }),
+    prisma.enquiry.count({ where: { AND: [scope, pendingWhere] } }),
     focusId ? prisma.enquiry.findFirst({ where: { AND: [scope, { id: focusId }] }, include: enquiryListInclude() }) : null,
-    prisma.enquiry.groupBy({ by: ["org_id"], where: unfiltered, _count: { _all: true } }),
+    prisma.enquiry.groupBy({ by: ["org_id"], where: { AND: [base, byRaiserWhere] }, _count: { _all: true } }),
+    // Raiser options: in scope + search + company, ignoring the raiser filters.
+    raiserFilters ? prisma.enquiry.groupBy({ by: ["created_by_id"], where: { AND: [base, byCompanyWhere, teamIds ? { created_by_id: { in: teamIds } } : {}] }, _count: { _all: true } }) : [],
   ]);
+  const [raiserUsers, managerUsers] = await Promise.all([
+    byRaiser.length
+      ? prisma.user.findMany({ where: { id: { in: byRaiser.map((g) => g.created_by_id) } }, select: { id: true, name: true, role_id: true }, orderBy: { name: "asc" } })
+      : [],
+    isOwnerRole(token.role_id) ? prisma.user.findMany({ where: { role_id: 2 }, select: { id: true, name: true }, orderBy: { name: "asc" } }) : [],
+  ]);
+  const raiserCounts = new Map(byRaiser.map((g) => [g.created_by_id, g._count._all]));
+  const raisers = raiserUsers.map((u) => ({ ...u, count: raiserCounts.get(u.id) ?? 0 }));
   const orgs = await prisma.organization.findMany({
     where: { id: { in: byCompany.map((g) => g.org_id) } },
     select: { id: true, name: true, prefix: true },
@@ -199,7 +246,7 @@ export async function getEnquiriesPage(token: ScopedToken, params: SearchParams)
     counts.all += g._count._all;
   }
 
-  return { rows: rows.map(toListItem), total, page, pageSize, counts, companies, followUpsDue, focus: focus ? toListItem(focus) : null };
+  return { rows: rows.map(toListItem), total, page, pageSize, counts, companies, raisers, managers: managerUsers, followUpsDue, detailsPending, focus: focus ? toListItem(focus) : null };
 }
 
 export function revalidateEnquiryPages() {

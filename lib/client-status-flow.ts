@@ -1,7 +1,8 @@
 import { Prisma } from "@prisma/client";
 import { revalidateTag } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { DORMANT_AFTER_DAYS, MANAGER_ONLY_STATUSES, clientStatuses, type ClientStatus } from "@/types/client";
+import { DORMANT_AFTER_DAYS, MANAGER_ONLY_STATUSES, SYSTEM_STATUSES, clientStatuses, type ClientStatus } from "@/types/client";
+import { isOwnerRole } from "@/lib/roles";
 
 /**
  * Automatic client status moves:
@@ -20,6 +21,20 @@ export function canSetStatus(roleId: number, from: string, to: string) {
   const restricted = MANAGER_ONLY_STATUSES as readonly string[];
   if (!restricted.includes(from) && !restricted.includes(to)) return true;
   return roleId === 1 || roleId === 2;
+}
+
+/** Why this role can't move a client from → to by hand, or null when it can (black list and system statuses). */
+export function statusChangeError(roleId: number, from: string, to: string): string | null {
+  if (!canSetStatus(roleId, from, to)) return "Only managers can change the black list";
+  const system = SYSTEM_STATUSES as readonly string[];
+  if (to !== from && system.includes(to) && roleId !== 2 && !isOwnerRole(roleId)) {
+    return to === "onboarded"
+      ? "A client becomes Onboarded when its first order is created"
+      : to === "enquiry"
+        ? "A client becomes Enquiry when an enquiry is raised for it"
+        : "Not enquired is set automatically after 60 quiet days";
+  }
+  return null;
 }
 
 export const BLACKLISTED_ERROR = "This client is on the black list — no new enquiries or orders.";

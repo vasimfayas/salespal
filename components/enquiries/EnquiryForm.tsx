@@ -648,7 +648,7 @@ export function EnquiryForm({
         </Section>
 
         {/* Manager approval of the quote before it can be confirmed */}
-        <Section title="Approval" hint="Credit enquiries for clients without an approved credit agreement always need it.">
+        <Section title="Approval" hint="Credit enquiries always need it when the client has no approved credit agreement, or the credit days are more than the agreement allows.">
           <div className={cn("rounded-control border p-3 transition-colors", form.needs_approval ? "border-primary/40 bg-primary-soft/40" : "border-border")}>
             <Switch
               id="enq-needs-approval"

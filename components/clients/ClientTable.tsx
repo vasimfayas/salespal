@@ -4,11 +4,12 @@ import { clientStatusLabels, clientStatuses } from "@/types/client";
 
 import Link from "next/link";
 import { useState, Fragment } from "react";
+import { useRouter } from "next/navigation";
 import { Pagination } from "@/components/ui/Pagination";
 import { useDebouncedParam, useUrlFilters } from "@/hooks/useUrlFilters";
 import { Badge } from "@/components/ui/Badge";
 import { cn, formatDate, formatPhoneNumber } from "@/lib/utils";
-import { RotateCcw, Search, ChevronDown, Navigation, Building, User, Mail, Calendar, X } from "lucide-react";
+import { RotateCcw, Search, ChevronDown, Navigation, Building, User, Mail, Calendar, X, Loader2, UserCheck } from "lucide-react";
 
 import { buttonVariants } from "@/components/ui/Button";
 import { clientCategories, clientCategoryLabels } from "@/types/client";
@@ -48,6 +49,9 @@ type Manager = {
   name: string;
 };
 
+/** Someone the owner can reassign clients to; org_ids null = any company (the owner themselves). */
+export type ClientAssignee = { id: number; name: string; org_ids: number[] | null };
+
 type ManagerSalesman = {
   manager_id: number;
   salesman_id: number;
@@ -64,6 +68,7 @@ export function ClientTable({
   companies = [],
   managers = [],
   managerSalesmen = [],
+  assignees,
 }: {
   clients: Client[];
   total: number;
@@ -72,6 +77,8 @@ export function ClientTable({
   companies?: Company[];
   managers?: Manager[];
   managerSalesmen?: ManagerSalesman[];
+  /** Owner / super admin: select clients and reassign them (POST /api/clients/bulk-assign). */
+  assignees?: ClientAssignee[];
 }) {
   const { get, set, reset, isPending } = useUrlFilters();
   const statusFilter = get("status", "all");
@@ -83,6 +90,56 @@ export function ClientTable({
   const [searchQuery, setSearchQuery] = useDebouncedParam("q", set, get("q"));
   const [expandedClientId, setExpandedClientId] = useState<number | null>(null);
   const filteredClients = clients;
+
+  const router = useRouter();
+  const canReassign = !!assignees?.length;
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [targetId, setTargetId] = useState("");
+  const [assigning, setAssigning] = useState(false);
+  const [assignMessage, setAssignMessage] = useState<{ ok: boolean; text: string } | null>(null);
+  const selectedOrgIds = [...new Set(clients.filter((c) => selectedIds.has(c.id)).map((c) => c.org_id))];
+  // Only people who work for every selected client's company.
+  const eligible = (assignees ?? []).filter((a) => a.org_ids === null || selectedOrgIds.every((id) => a.org_ids!.includes(id)));
+  const allVisibleSelected = clients.length > 0 && clients.every((c) => selectedIds.has(c.id));
+
+  function toggleSelected(id: number) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+    setTargetId("");
+  }
+
+  function toggleAllVisible() {
+    setSelectedIds(allVisibleSelected ? new Set() : new Set(clients.map((c) => c.id)));
+    setTargetId("");
+  }
+
+  async function reassign() {
+    if (!targetId || selectedIds.size === 0) return;
+    setAssigning(true);
+    setAssignMessage(null);
+    try {
+      const res = await fetch("/api/clients/bulk-assign", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ client_ids: [...selectedIds], salesman_id: Number(targetId) }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "Failed to reassign clients");
+      const name = assignees?.find((a) => a.id === Number(targetId))?.name ?? "them";
+      setAssignMessage({ ok: true, text: `${selectedIds.size} client${selectedIds.size === 1 ? "" : "s"} assigned to ${name}` });
+      setSelectedIds(new Set());
+      setTargetId("");
+      router.refresh();
+    } catch (err) {
+      setAssignMessage({ ok: false, text: err instanceof Error ? err.message : "Failed to reassign clients" });
+    } finally {
+      setAssigning(false);
+    }
+  }
 
   function handleReset() {
     setSearchQuery("");
@@ -243,6 +300,37 @@ export function ClientTable({
         </div>
       </div>
 
+      {assignMessage && (
+        <p role={assignMessage.ok ? "status" : "alert"} className={cn("rounded-xl px-4 py-3 text-xs font-medium", assignMessage.ok ? "bg-success-soft text-success-foreground" : "bg-danger-soft text-danger-foreground")}>
+          {assignMessage.text}
+        </p>
+      )}
+
+      {/* Reassign bar (owner / super admin) */}
+      {canReassign && selectedIds.size > 0 && (
+        <div className="sticky top-2 z-20 flex flex-wrap items-center gap-3 rounded-xl border border-primary/30 bg-primary-soft px-4 py-3 shadow-sm">
+          <span className="text-xs font-semibold text-primary">{selectedIds.size} selected</span>
+          <select
+            aria-label="Reassign selected clients to"
+            value={targetId}
+            onChange={(e) => setTargetId(e.target.value)}
+            className="h-9 min-w-[200px] cursor-pointer rounded-control border border-input bg-card px-3 text-sm text-foreground shadow-xs outline-none hover:border-border-strong focus:border-ring focus:ring-3 focus:ring-ring/15"
+          >
+            <option value="">{eligible.length ? "Assign to..." : "No one works for all these companies"}</option>
+            {eligible.map((a) => (
+              <option key={a.id} value={a.id}>{a.name}</option>
+            ))}
+          </select>
+          <button type="button" onClick={reassign} disabled={!targetId || assigning} className={buttonVariants({ size: "sm" })}>
+            {assigning ? <Loader2 size={12} className="animate-spin" /> : <UserCheck size={13} />}
+            <span>Reassign</span>
+          </button>
+          <button type="button" onClick={() => setSelectedIds(new Set())} className="ml-auto cursor-pointer text-xs font-semibold text-primary hover:underline">
+            Clear selection
+          </button>
+        </div>
+      )}
+
       {/* Table Section */}
       {filteredClients.length > 0 ? (
         <div className={cn("space-y-1 transition-opacity", isPending && "opacity-60")} aria-busy={isPending}>
@@ -251,6 +339,11 @@ export function ClientTable({
           <table className="w-full text-left text-sm">
             <thead className="border-border border-b text-muted-foreground text-[13px]">
               <tr>
+                {canReassign && (
+                  <th className="w-10 px-3 py-3">
+                    <input type="checkbox" aria-label="Select all clients on this page" checked={allVisibleSelected} onChange={toggleAllVisible} className="size-4 cursor-pointer accent-primary" />
+                  </th>
+                )}
                 <th className="w-10 px-2 py-3"></th>
                 <th className="px-4 py-3">Client</th>
                 <th className="hidden px-4 py-3 sm:table-cell">Contact</th>
@@ -270,6 +363,11 @@ export function ClientTable({
                     <tr
                       className={cn("transition group border-b border-border", "bg-card hover:bg-subtle/70")}
                     >
+                      {canReassign && (
+                        <td className="w-10 px-3 py-3">
+                          <input type="checkbox" aria-label={`Select ${client.name}`} checked={selectedIds.has(client.id)} onChange={() => toggleSelected(client.id)} className="size-4 cursor-pointer accent-primary" />
+                        </td>
+                      )}
                       <td
                         className="w-10 px-2 py-3 text-center cursor-pointer"
                         onClick={() => setExpandedClientId(isExpanded ? null : client.id)}
@@ -301,7 +399,7 @@ export function ClientTable({
                         <ClientReach client={client} />
                         {client.contact_person_name && (
                           <span className="block text-[10px] text-muted-foreground/80 font-medium mt-0.5">
-                            Attn: {client.contact_person_name}
+                            Contact: {client.contact_person_name}
                           </span>
                         )}
                       </td>
@@ -351,7 +449,7 @@ export function ClientTable({
 
                       return (
                         <tr className={cn("bg-card hover:bg-subtle/70")}>
-                          <td colSpan={9} className="px-6 py-4 text-xs text-foreground/85 space-y-3.5 border-t border-border/50">
+                          <td colSpan={canReassign ? 10 : 9} className="px-6 py-4 text-xs text-foreground/85 space-y-3.5 border-t border-border/50">
                             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                               <div className="space-y-1">
                                 <span className="font-semibold text-muted-foreground/80 text-xs block">CR No</span>

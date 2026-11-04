@@ -123,7 +123,7 @@ export async function applyEnquiryAction(
       include: {
         order: { select: { id: true } },
         client: {
-          select: { id: true, status: true, assigned_salesman_id: true, contact_person_name: true, contact_no: true, contact_person_designation: true, credit_approved: true },
+          select: { id: true, status: true, assigned_salesman_id: true, contact_person_name: true, contact_no: true, contact_person_designation: true, credit_approved: true, credit_days_approved: true },
         },
       },
     });
@@ -138,6 +138,7 @@ export async function applyEnquiryAction(
         requested_by_id: actor.id,
         data: { cost, profit, payment_mode: enquiry.payment_mode, credit_days: enquiry.credit_days, mode: enquiry.mode, from: enquiry.from, to: enquiry.to },
       });
+    if (enquiry.details_pending && action !== "lose") throw new FlowError("Fill in the full enquiry details first (Complete details)", 409);
     if (!FROM[action].includes(from)) {
       throw new FlowError(`An enquiry that is ${from.replace(/_/g, " ")} can't be ${ACTION_VERB[action]}`);
     }

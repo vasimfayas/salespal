@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { PriorityFlag, PriorityPicker } from "@/components/enquiries/EnquiryPriority";
 import { CopyLinkButton } from "@/components/enquiries/SendToClientDialog";
 import { ArrowRight, ExternalLink, MessageSquareText, Pencil } from "lucide-react";
 import { EnquiryStageActions, type Action } from "@/components/enquiries/EnquiryStageActions";
@@ -14,7 +15,8 @@ import { orderStatusLabel } from "@/types/order";
 import { cargoTotals, fromKg, dimensionUnitLabels, isDimensionUnit, lineCbm, volumetricRuleLabels, DEFAULT_DIMENSION_UNIT } from "@/lib/freight";
 
 import { PremiumBadge } from "@/components/clients/ClientCategory";
-import { ApprovalChip } from "@/components/enquiries/ApprovalChip";
+import { ApprovalChip, DetailsPendingChip } from "@/components/enquiries/ApprovalChip";
+import { CopyRefButton } from "@/components/enquiries/CopyRefButton";
 function Field({ label, children, className }: { label: string; children: React.ReactNode; className?: string }) {
   return (
     <div className={cn("min-w-0", className)}>
@@ -78,9 +80,14 @@ export function EnquiryDetailSheet({
             {/* Header */}
             <div className="space-y-3 border-b border-border px-6 pb-5 pt-6 pr-14">
               <div className="flex flex-wrap items-center gap-2">
-                <span className="font-mono text-sm font-semibold text-foreground">{e.ref}</span>
+                <span className="flex items-center gap-0.5">
+                  <span className="font-mono text-sm font-semibold text-foreground">{e.ref}</span>
+                  <CopyRefButton value={e.ref} />
+                </span>
                 <StatusBadge status={e.status} />
                 <ApprovalChip enquiry={e} className="mt-0" />
+                <DetailsPendingChip pending={e.details_pending} className="mt-0" />
+                {!canFollowUp && <PriorityFlag priority={e.priority} />}
               </div>
               <div>
                 <p className="flex flex-wrap items-center gap-2 text-lg font-semibold leading-snug text-foreground">
@@ -97,6 +104,8 @@ export function EnquiryDetailSheet({
                   </p>
                 )}
               </div>
+              {/* Raiser, their manager and the owner set the flag (canFollowUp roles); others just see it above. */}
+              {canFollowUp && <PriorityPicker key={`${e.id}-${e.priority}`} enquiryId={e.id} priority={e.priority} onDone={onDone} />}
               {active && (
                 <p className={cn("text-xs", e.follow_up_due ? "font-medium text-warning-foreground" : "text-muted-foreground")}>
                   Active {daysOpen(e.enquiry_date)} days{e.follow_up_due ? " · follow-up due" : ""}
@@ -341,8 +350,8 @@ export function EnquiryDetailSheet({
             <div className="flex flex-wrap items-center gap-2 border-t border-border bg-subtle px-6 py-4">
                 {(canFollowUp || stageOnly) && <EnquiryStageActions enquiry={e} only={canFollowUp ? undefined : stageOnly} onDone={onDone} />}
                 {canEdit && (
-                  <Button size="sm" variant="secondary" onClick={() => onEdit!(e)}>
-                    <Pencil /> Edit
+                  <Button size="sm" variant={e.details_pending ? "primary" : "secondary"} onClick={() => onEdit!(e)}>
+                    <Pencil /> {e.details_pending ? "Complete details" : "Edit"}
                   </Button>
                 )}
                 {showFollowUp && (

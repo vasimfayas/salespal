@@ -7,7 +7,7 @@ import type { EnquiryPage } from "@/lib/enquiries";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { orderHref, orderNo, type AppRole } from "@/lib/record-links";
-import { ArrowRight, BellRing, ChevronRight, ClipboardList, MessageSquareText, Pencil, Plus, Send } from "lucide-react";
+import { ArrowRight, BellRing, ChevronRight, ClipboardList, FilePenLine, MessageSquareText, Pencil, Plus, Send, X, Zap, type LucideIcon } from "lucide-react";
 import { SendToClientDialog } from "@/components/enquiries/SendToClientDialog";
 import { EnquiryDetailSheet } from "@/components/enquiries/EnquiryDetailSheet";
 import { EnquiryPdfButton } from "@/components/enquiries/EnquiryPdfButton";
@@ -21,6 +21,7 @@ import { FollowUpModal } from "@/components/enquiries/EnquiryFollowUpModals";
 import { EnquiryStageActions, rowActions, type Action } from "@/components/enquiries/EnquiryStageActions";
 import { Modal } from "@/components/ui/Modal";
 import { Select } from "@/components/ui/Select";
+import { PriorityFlag } from "@/components/enquiries/EnquiryPriority";
 import { Toast } from "@/components/ui/Toast";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { cn, formatAmount, formatDate } from "@/lib/utils";
@@ -37,7 +38,9 @@ import {
 } from "@/types/enquiry";
 
 import { PremiumBadge } from "@/components/clients/ClientCategory";
-import { ApprovalChip } from "@/components/enquiries/ApprovalChip";
+import { ApprovalChip, DetailsPendingChip } from "@/components/enquiries/ApprovalChip";
+import { QuickEnquiryDialog } from "@/components/enquiries/QuickEnquiryDialog";
+import { CopyRefButton } from "@/components/enquiries/CopyRefButton";
 /** Anything short of Confirmed can still be corrected, except a form the client is still filling in. */
 const canEditEnquiry = (e: EnquiryListItem) => e.status !== "confirmed" && e.status !== "sent_to_client";
 
@@ -88,6 +91,7 @@ export function EnquiriesClient({
   // Company the new enquiry is raised under; "" = the client's company.
   const [orgId, setOrgId] = useState("");
   const [sendOpen, setSendOpen] = useState(() => canCreate && get("send") === "1");
+  const [quickOpen, setQuickOpen] = useState(false);
 
 
   const [saving, setSaving] = useState(false);
@@ -112,6 +116,7 @@ export function EnquiriesClient({
   };
   const orderLink = (id: number) => orderHref(role, id);
   const followUpsDue = data.followUpsDue;
+  const detailsPending = data.detailsPending;
 
   const visible = enquiries;
 
@@ -182,8 +187,9 @@ export function EnquiriesClient({
   return (
     <div className="space-y-4">
       {/* Toolbar */}
-      <div className="flex flex-wrap items-center gap-3 rounded-card border border-border/80 bg-card p-4 shadow-card">
-        <div className="flex flex-wrap gap-1 rounded-xl bg-muted p-1" role="tablist" aria-label="Filter by status">
+      <div className="flex flex-wrap items-center gap-2.5 rounded-card border border-border/80 bg-card p-3 shadow-card">
+        {/* One line of tabs; scrolls sideways when the screen is too narrow. */}
+        <div className="flex w-full gap-1 overflow-x-auto rounded-xl bg-muted p-1 [scrollbar-width:none]" role="tablist" aria-label="Filter by status">
           {FILTERS.map((f) => (
             <button
               key={f.value}
@@ -191,7 +197,7 @@ export function EnquiriesClient({
               aria-selected={filter === f.value}
               onClick={() => set({ status: f.value })}
               className={cn(
-                "cursor-pointer rounded-lg px-3 py-1.5 text-xs font-semibold transition",
+                "shrink-0 cursor-pointer whitespace-nowrap rounded-lg px-2.5 py-1.5 text-xs font-semibold transition",
                 filter === f.value ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
               )}
             >
@@ -207,7 +213,7 @@ export function EnquiriesClient({
             aria-label="Filter by company"
             value={get("company") ?? ""}
             onChange={(ev) => set({ company: ev.target.value || null })}
-            wrapperClassName="w-full sm:w-56"
+            wrapperClassName="w-full sm:w-40"
             className="h-9"
           >
             <option value="">All companies</option>
@@ -218,18 +224,58 @@ export function EnquiriesClient({
             ))}
           </Select>
         )}
+        {role === "admin" && data.managers.length > 0 && (
+          <Select
+            aria-label="Filter by manager's team"
+            value={get("manager") ?? ""}
+            onChange={(ev) => set({ manager: ev.target.value || null, salesman: null })}
+            wrapperClassName="w-full sm:w-40"
+            className="h-9"
+          >
+            <option value="">All managers</option>
+            {data.managers.map((m) => (
+              <option key={m.id} value={m.id}>{m.name}&apos;s team</option>
+            ))}
+          </Select>
+        )}
+        {(role === "admin" || role === "manager") && (data.raisers.length > 1 || get("salesman")) && (
+          <Select
+            aria-label="Filter by who raised the enquiry"
+            value={get("salesman") ?? ""}
+            onChange={(ev) => set({ salesman: ev.target.value || null })}
+            wrapperClassName="w-full sm:w-40"
+            className="h-9"
+          >
+            <option value="">{role === "manager" ? "All salesmen" : "All people"}</option>
+            {data.raisers.map((r) => (
+              <option key={r.id} value={r.id}>
+                {r.name}{r.role_id === 2 ? " (manager)" : r.role_id === 3 ? "" : " (owner)"} ({r.count.toLocaleString()})
+              </option>
+            ))}
+          </Select>
+        )}
         <input
           type="search"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search ref, client or job no..."
+          placeholder="Search enquiries…"
+          title="Search by enquiry ref, client or job no"
           aria-label="Search enquiries"
-          className="w-full rounded-control border border-input bg-card px-3 text-sm text-foreground shadow-xs outline-none transition-[border-color,box-shadow] duration-150 placeholder:text-muted-foreground/70 hover:border-border-strong focus:border-ring focus:ring-3 focus:ring-ring/15 disabled:cursor-not-allowed disabled:bg-muted disabled:opacity-70 h-9 min-w-[200px] flex-1"
+          className="w-full rounded-control border border-input bg-card px-3 text-sm text-foreground shadow-xs outline-none transition-[border-color,box-shadow] duration-150 placeholder:text-muted-foreground/70 hover:border-border-strong focus:border-ring focus:ring-3 focus:ring-ring/15 disabled:cursor-not-allowed disabled:bg-muted disabled:opacity-70 h-9 min-w-[140px] flex-1 basis-full sm:basis-0"
         />
-        <EnquiryPdfButton enquiry={null} label="Blank form" className="h-9 rounded-xl" />
+        <SimpleTooltip label="Download a blank enquiry form">
+          <EnquiryPdfButton enquiry={null} label="Blank form" iconOnly className="size-9" />
+        </SimpleTooltip>
         {canCreate && (
-          <Button size="sm" variant="secondary" onClick={() => setSendOpen(true)}>
-            <Send /> Send to client
+          <SimpleTooltip label="Send the enquiry form to a client">
+            <Button size="icon-sm" variant="secondary" onClick={() => setSendOpen(true)} aria-label="Send to client" className="size-9">
+              <Send />
+            </Button>
+          </SimpleTooltip>
+        )}
+        {canCreate && (
+          <Button size="sm" variant="secondary" onClick={() => setQuickOpen(true)}>
+            <Zap /> Quick enquiry
           </Button>
         )}
         {canCreate && (
@@ -250,10 +296,28 @@ export function EnquiriesClient({
         )}
       </div>
 
-      {canFollowUp && followUpsDue > 0 && (
-        <div role="status" className="flex items-center gap-2 rounded-xl border border-warning/30 bg-warning-soft px-4 py-3 text-xs font-medium text-warning-foreground">
-          <BellRing size={14} className="shrink-0" aria-hidden />
-          {followUpsDue} enquir{followUpsDue === 1 ? "y has a follow-up" : "ies have follow-ups"} due. Log a follow-up or cancel with a reason.
+      {canFollowUp && (followUpsDue > 0 || detailsPending > 0 || get("flag")) && (
+        <div className="flex flex-wrap gap-2">
+          {(followUpsDue > 0 || get("flag") === "follow_up") && (
+            <FlagBanner
+              icon={BellRing}
+              active={get("flag") === "follow_up"}
+              onToggle={(on) => set({ flag: on ? "follow_up" : null })}
+              title="Log a follow-up or cancel with a reason"
+            >
+              {followUpsDue} follow-up{followUpsDue === 1 ? "" : "s"} due
+            </FlagBanner>
+          )}
+          {(detailsPending > 0 || get("flag") === "pending") && (
+            <FlagBanner
+              icon={FilePenLine}
+              active={get("flag") === "pending"}
+              onToggle={(on) => set({ flag: on ? "pending" : null })}
+              title="Quick enquiries: open each one and press Complete details"
+            >
+              {detailsPending} quick enquir{detailsPending === 1 ? "y needs" : "ies need"} details
+            </FlagBanner>
+          )}
         </div>
       )}
 
@@ -289,19 +353,26 @@ export function EnquiriesClient({
                       className="group cursor-pointer transition-colors hover:bg-subtle"
                     >
                       <td className="px-4 py-3 align-top">
-                        <button
-                          type="button"
-                          onClick={(ev) => {
-                            ev.stopPropagation();
-                            setDetailId(e.id);
-                          }}
-                          aria-label={`View details for ${e.ref}`}
-                          className="cursor-pointer rounded font-mono text-[13px] font-semibold text-foreground group-hover:text-primary"
-                        >
-                          {e.ref}
-                        </button>
+                        <span className="flex items-center gap-0.5">
+                          <button
+                            type="button"
+                            onClick={(ev) => {
+                              ev.stopPropagation();
+                              setDetailId(e.id);
+                            }}
+                            aria-label={`View details for ${e.ref}`}
+                            className="cursor-pointer rounded font-mono text-[13px] font-semibold text-foreground group-hover:text-primary"
+                          >
+                            {e.ref}
+                          </button>
+                          <CopyRefButton value={e.ref} />
+                        </span>
                         <CompanyTag name={e.company.name} />
-                        <span className="block truncate text-xs text-muted-foreground">{formatDate(e.enquiry_date)} · {e.created_by}</span>
+                        <PriorityFlag priority={e.priority} className="my-0.5 flex" />
+                        {/* Who raised it, highlighted: the manager's list is grouped by it. */}
+                        <span className="block truncate text-xs text-muted-foreground">
+                          {formatDate(e.enquiry_date)} · <span className="font-semibold text-foreground">{e.created_by}</span>
+                        </span>
                         {isActiveEnquiry(e.status) && (
                           <span className={cn("block text-xs", e.follow_up_due ? "font-medium text-warning-foreground" : "text-muted-foreground")}>
                             Active {daysOpen(e.enquiry_date)}d{e.follow_up_due ? " · follow-up due" : ""}
@@ -349,13 +420,19 @@ export function EnquiriesClient({
                       </td>
                       <td className="px-4 py-3 align-top">
                         <StatusBadge status={e.status} />
+                        <DetailsPendingChip pending={e.details_pending} className="flex w-fit" />
                         {e.order && (
                           <OrderChip id={e.order.id} jobNo={e.order.job_no} href={orderLink(e.order.id)} />
                         )}
                       </td>
                       <td className="px-4 py-3 text-right align-top" onClick={(ev) => ev.stopPropagation()}>
                         <div className="flex items-center justify-end gap-1">
-                          {canFollowUp && rowActions(e.status).length > 0 && !e.follow_up_due && (
+                          {canFollowUp && e.details_pending && canEditEnquiry(e) && (
+                            <Button size="sm" onClick={() => openEdit(e)}>
+                              <FilePenLine /> Complete
+                            </Button>
+                          )}
+                          {canFollowUp && !e.details_pending && rowActions(e.status).length > 0 && !e.follow_up_due && (
                             <div className="flex flex-col-reverse items-end gap-1">
                               <EnquiryStageActions enquiry={e} only={rowActions(e.status)} onDone={flash} />
                             </div>
@@ -402,6 +479,7 @@ export function EnquiriesClient({
                     <div className="min-w-0">
                       <p className="font-mono text-[13px] font-semibold text-foreground">{e.ref}</p>
                       <CompanyTag name={e.company.name} />
+                      <PriorityFlag priority={e.priority} className="my-0.5 flex" />
                       <p className="flex items-center gap-1 truncate text-sm font-medium text-foreground">
                         <span className="truncate">{e.client_name}</span>
                         <PremiumBadge category={e.client_category} compact />
@@ -429,8 +507,11 @@ export function EnquiriesClient({
                   )}
                   {shipmentSpec(e) && <p className="mt-0.5 break-words text-xs tabular-nums text-muted-foreground">{shipmentSpec(e)}</p>}
                   <ApprovalChip enquiry={e} className="block w-fit" />
+                  <DetailsPendingChip pending={e.details_pending} className="flex w-fit" />
                   <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
-                    <span>{formatDate(e.enquiry_date)}</span>
+                    <span>
+                      {formatDate(e.enquiry_date)} · <span className="font-semibold text-foreground">{e.created_by}</span>
+                    </span>
                     {isActiveEnquiry(e.status) && (
                       <span className={cn(e.follow_up_due && "font-medium text-warning-foreground")}>
                         Active {daysOpen(e.enquiry_date)}d{e.follow_up_due ? " · follow-up due" : ""}
@@ -459,6 +540,16 @@ export function EnquiriesClient({
           setFollowUpId(e.id);
         }}
         onDone={(message) => {
+          flash(message);
+          router.refresh();
+        }}
+      />
+
+      <QuickEnquiryDialog
+        open={quickOpen}
+        onClose={() => setQuickOpen(false)}
+        companies={companies}
+        onCreated={(message) => {
           flash(message);
           router.refresh();
         }}
@@ -503,6 +594,26 @@ export function EnquiriesClient({
 
       <Toast message={toast} />
     </div>
+  );
+}
+
+/** Warning pill that filters the list to the enquiries it counts; click again to show all. */
+function FlagBanner({ icon: Icon, active, onToggle, title, children }: { icon: LucideIcon; active: boolean; onToggle: (on: boolean) => void; title: string; children: React.ReactNode }) {
+  return (
+    <button
+      type="button"
+      aria-pressed={active}
+      title={title}
+      onClick={() => onToggle(!active)}
+      className={cn(
+        "inline-flex cursor-pointer items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-warning/25",
+        active ? "border-warning bg-warning text-white dark:text-foreground" : "border-warning/30 bg-warning-soft text-warning-foreground hover:border-warning/60",
+      )}
+    >
+      <Icon size={13} className="shrink-0" aria-hidden />
+      {children}
+      {active && <X size={12} className="shrink-0 opacity-80" aria-label="Clear filter" />}
+    </button>
   );
 }
 

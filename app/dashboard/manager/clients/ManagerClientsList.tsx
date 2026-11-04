@@ -29,6 +29,7 @@ import { buttonVariants } from "@/components/ui/Button";
 import { clientCategories, clientCategoryLabels } from "@/types/client";
 import { PremiumToggle } from "@/components/clients/ClientCategory";
 import { DepartmentTag } from "@/components/clients/DepartmentTag";
+import { ClientNameField } from "@/components/clients/ClientNameField";
 import { CrNumberField, type CrMatch } from "@/components/clients/CrNumberField";
 import { ExtraContactsFields, filledContacts, type ExtraContactInput } from "@/components/clients/ExtraContactsFields";
 import { ClientReach } from "@/components/clients/ClientReach";
@@ -129,6 +130,8 @@ export function ManagerClientsList({
   const [extraContacts, setExtraContacts] = useState<ExtraContactInput[]>([]);
   // Set when the CR No matched an existing company and the user chose to add a department of it.
   const [departmentOf, setDepartmentOf] = useState<CrMatch | null>(null);
+  // The optional department box stays hidden until the user asks for it.
+  const [showDepartment, setShowDepartment] = useState(false);
   // Status change past Lead on a client with no contact details asks for them first
   const [contactPrompt, setContactPrompt] = useState<ContactPromptTarget | null>(null);
   const [lostTarget, setLostTarget] = useState<{ id: number; name: string } | null>(null);
@@ -261,6 +264,7 @@ export function ManagerClientsList({
         assigned_salesman_id: "",
         org_id: defaultCompanyId(companies),
       });
+      setShowDepartment(false);
       setDepartmentOf(null);
       setExtraContacts([]);
       setIsAddOpen(false);
@@ -872,24 +876,27 @@ export function ManagerClientsList({
               />
             ) : (
               <>
-                <Input
-                  label="Client Name"
-                  type="text"
-                  required
-                  value={addForm.name}
-                  onChange={(e) => setAddForm({ ...addForm, name: e.target.value })}
-                  placeholder="e.g. Acme Corp"
-                  className="text-xs"
-                />
-                <Input
-                  label="Department (optional)"
-                  type="text"
-                  value={addForm.department}
-                  onChange={(e) => setAddForm({ ...addForm, department: e.target.value })}
-                  placeholder="e.g. Logistics, Procurement"
-                  hint="Only if this company is handled per department."
-                  className="text-xs"
-                />
+                <ClientNameField value={addForm.name} onChange={(name) => setAddForm({ ...addForm, name })} hasCr={!!addForm.cr_no.trim()} />
+                {showDepartment ? (
+                  <Input
+                    label="Department (optional)"
+                    type="text"
+                    autoFocus
+                    value={addForm.department}
+                    onChange={(e) => setAddForm({ ...addForm, department: e.target.value })}
+                    placeholder="e.g. Logistics, Procurement"
+                    hint="Only if this company is handled per department."
+                    className="text-xs"
+                  />
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setShowDepartment(true)}
+                    className="w-fit text-xs font-medium text-primary hover:underline"
+                  >
+                    + Add department
+                  </button>
+                )}
                 <Input
                   label="CR Expiry Date"
                   type="date"

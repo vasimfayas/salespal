@@ -3,6 +3,9 @@ import { PageHeader } from "@/components/layout/PageHeader";
 import { ClientTable } from "@/components/clients/ClientTable";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { getClientsPage } from "@/lib/clients-list";
+import { getSalesPalSession } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
+import type { ClientAssignee } from "@/components/clients/ClientTable";
 import type { SearchParams } from "@/lib/list-params";
 import {
   getCachedAdminOrgs,
@@ -11,12 +14,27 @@ import {
 } from "@/lib/cached-queries";
 
 async function ClientTableContainer({ searchParams }: { searchParams: SearchParams }) {
-  const [clients, companies, managers, managerSalesmen] = await Promise.all([
+  const [clients, companies, managers, managerSalesmen, session, staff] = await Promise.all([
     getClientsPage({}, searchParams),
     getCachedAdminOrgs(),
     getCachedAdminManagersList(),
     getCachedAdminRelationsList(),
+    getSalesPalSession(),
+    // Who the owner can reassign clients to, with the companies each works for.
+    prisma.user.findMany({
+      where: { role_id: { in: [2, 3] } },
+      select: { id: true, name: true, role_id: true, managerOrgs: { select: { org_id: true } }, salesmanManager: { select: { org_id: true } } },
+      orderBy: { name: "asc" },
+    }),
   ]);
+  const assignees: ClientAssignee[] = [
+    { id: Number(session!.user.id), name: `Me (${session!.user.name})`, org_ids: null },
+    ...staff.map((u) => ({
+      id: u.id,
+      name: `${u.name} · ${u.role_id === 2 ? "Manager" : "Salesman"}`,
+      org_ids: [...new Set((u.role_id === 2 ? u.managerOrgs : u.salesmanManager).map((r) => r.org_id))],
+    })),
+  ];
 
   return (
     <ClientTable
@@ -27,6 +45,7 @@ async function ClientTableContainer({ searchParams }: { searchParams: SearchPara
       companies={companies}
       managers={managers}
       managerSalesmen={managerSalesmen}
+      assignees={assignees}
     />
   );
 }

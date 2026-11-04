@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useId, useMemo, useRef, useState } from "react";
-import { MapPin, Plane, Ship, Truck, X, type LucideIcon } from "lucide-react";
+import { Globe, MapPin, Plane, Ship, Truck, X, type LucideIcon } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { controlBase, labelClass } from "@/components/ui/field-styles";
 import { useLocations } from "@/hooks/useLocations";
@@ -29,6 +29,7 @@ export function LocationPicker({
   required,
   placeholder,
   strict,
+  inline,
 }: {
   id?: string;
   label: string;
@@ -40,6 +41,8 @@ export function LocationPicker({
   placeholder?: string;
   /** Only suggest the mode's kind of place (airports for air, ports for sea, road points for land). */
   strict?: boolean;
+  /** Open the suggestions in the page flow instead of floating, so a scrolling dialog doesn't clip them. */
+  inline?: boolean;
 }) {
   const autoId = useId();
   const inputId = id ?? autoId;
@@ -52,6 +55,12 @@ export function LocationPicker({
   const listRef = useRef<HTMLDivElement>(null);
   const preferred = KIND_FOR_MODE[mode] ?? "port";
   const places = useLocations();
+  // Every country with a listed place, so a whole country can be picked as From / To.
+  const countries = useMemo(() => {
+    const byName = new Map<string, string>();
+    for (const l of places ?? []) if (!byName.has(l.country)) byName.set(l.country, l.countryCode);
+    return [...byName].map(([name, code]) => ({ name, code })).sort((a, b) => a.name.localeCompare(b.name));
+  }, [places]);
 
   const groups = useMemo(() => {
     const tokens = query.trim().toLowerCase().split(/[\s,]+/).filter(Boolean);
@@ -67,9 +76,18 @@ export function LocationPicker({
     for (const m of matches) byCountry.set(m.country, [...(byCountry.get(m.country) ?? []), m]);
     return [...byCountry.entries()].map(([country, items]) => ({ country, code: items[0].countryCode, items }));
   }, [places, query, preferred, strict]);
-  const flat = useMemo(() => groups.flatMap((g) => g.items), [groups]);
+  // Countries matching what was typed, listed above the places.
+  const countryMatches = useMemo(() => {
+    const tokens = query.trim().toLowerCase().split(/[\s,]+/).filter(Boolean);
+    if (!tokens.length) return [];
+    return countries.filter((c) => tokens.every((t) => c.name.toLowerCase().includes(t) || c.code.toLowerCase() === t)).slice(0, 5);
+  }, [countries, query]);
+  const flat = useMemo(
+    () => [...countryMatches.map((c) => c.name), ...groups.flatMap((g) => g.items.map(locationLabel))],
+    [countryMatches, groups],
+  );
   const typed = query.trim();
-  const exact = flat.some((l) => locationLabel(l).toLowerCase() === typed.toLowerCase());
+  const exact = flat.some((label) => label.toLowerCase() === typed.toLowerCase());
 
   useEffect(() => {
     if (!open) return;
@@ -85,14 +103,15 @@ export function LocationPicker({
   }, [active]);
 
   function choose(index: number) {
-    const l = flat[index];
-    if (!l) return;
-    onChange(locationLabel(l));
+    const label = flat[index];
+    if (!label) return;
+    onChange(label);
     setQuery("");
     setOpen(false);
   }
 
-  let optionIndex = -1;
+  // Countries take the first indexes; places follow.
+  let optionIndex = countryMatches.length - 1;
   return (
     <div ref={boxRef} className="relative">
       <label htmlFor={inputId} className={labelClass}>
@@ -167,12 +186,42 @@ export function LocationPicker({
           id={listId}
           role="listbox"
           aria-label={`${label} suggestions`}
-          className="animate-pop-in absolute z-30 mt-1 max-h-80 w-full min-w-72 overflow-y-auto rounded-control border border-border bg-popover py-1 text-sm shadow-pop"
+          className={cn(
+            "animate-pop-in mt-1 w-full overflow-y-auto rounded-control border border-border bg-popover py-1 text-sm shadow-pop",
+            inline ? "relative max-h-60" : "absolute z-30 max-h-80 min-w-72",
+          )}
         >
           {!typed && (
             <p className="px-3 pb-1 pt-1.5 text-xs text-muted-foreground">
               {KIND[preferred].label}s for this mode. {strict ? "Type to search." : "Type to search everything."}
             </p>
+          )}
+          {countryMatches.length > 0 && (
+            <div role="group" aria-label="Countries">
+              <div className="px-3 pb-1 pt-2 text-xs font-semibold text-foreground">Countries</div>
+              {countryMatches.map((c, i) => {
+                return (
+                  <div
+                    key={`country-${c.name}`}
+                    id={`${listId}-${i}`}
+                    data-index={i}
+                    role="option"
+                    aria-selected={i === active}
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => choose(i)}
+                    onMouseEnter={() => setActive(i)}
+                    className={cn("mx-1 flex cursor-pointer items-center gap-2.5 rounded-md py-1.5 pl-4 pr-2", i === active && "bg-muted")}
+                  >
+                    <span className="flex size-6 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground" title="Whole country">
+                      <Globe className="size-3.5" aria-hidden />
+                    </span>
+                    <span className="min-w-0 flex-1 truncate text-foreground">{c.name}</span>
+                    <span className="shrink-0 font-mono text-xs text-muted-foreground">{c.code}</span>
+                    <span className="sr-only">Country</span>
+                  </div>
+                );
+              })}
+            </div>
           )}
           {groups.map((g) => (
             <div key={g.country} role="group" aria-label={g.country}>
@@ -208,7 +257,7 @@ export function LocationPicker({
               })}
             </div>
           ))}
-          {flat.length === 0 && <p className="px-3 py-2 text-sm text-muted-foreground">No listed port or airport matches.</p>}
+          {flat.length === 0 && <p className="px-3 py-2 text-sm text-muted-foreground">No listed country, port or airport matches.</p>}
           {typed && !exact && (
             <button
               type="button"

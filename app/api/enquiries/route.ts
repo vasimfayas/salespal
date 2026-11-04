@@ -6,6 +6,7 @@ import { applyClientStatus, revalidateClientViews } from "@/lib/client-status-fl
 import { getEnquiriesPage, resolveEnquiryClient, revalidateEnquiryPages } from "@/lib/enquiries";
 import { enquiryDetailsData, parseEnquiryDetails } from "@/lib/enquiry-fields";
 import { parseQuoteLines } from "@/lib/quote-lines";
+import { enquiryModes, enquiryRef } from "@/types/enquiry";
 
 export async function GET(request: NextRequest) {
   const token = await getToken({ req: request, secret: process.env.NEXTAUTH_SECRET });
@@ -20,6 +21,8 @@ export async function GET(request: NextRequest) {
 /**
  * Salesmen, managers and the owner / super admin raise enquiries. Cost and profit are optional: with both the enquiry
  * starts as "quoted", otherwise as "inquiry_received" (quote it later).
+ * `quick: true` saves only client, mode, from and to (details_pending) so the salesman gets a ref to reply with;
+ * the rest is filled in later through PATCH, and the enquiry can't move on until then.
  */
 export async function POST(request: NextRequest) {
   const token = await getToken({ req: request, secret: process.env.NEXTAUTH_SECRET });
@@ -27,17 +30,18 @@ export async function POST(request: NextRequest) {
   if (!hasRole(token, [1, 2, 3])) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   const body = await request.json();
+  const quick = body.quick === true;
   const clientId = Number(body.client_id);
   const blank = (v: unknown) => v === undefined || v === null || v === "";
   // Itemised quote lines give the totals; otherwise the older single cost / profit pair.
-  const lines = Array.isArray(body.quote_lines) && body.quote_lines.length ? parseQuoteLines(body.quote_lines) : null;
+  const lines = !quick && Array.isArray(body.quote_lines) && body.quote_lines.length ? parseQuoteLines(body.quote_lines) : null;
   if (lines && "error" in lines) return NextResponse.json({ error: lines.error }, { status: 400 });
-  const hasQuote = !!lines || !blank(body.provisional_cost) || !blank(body.provisional_profit);
+  const hasQuote = !quick && (!!lines || !blank(body.provisional_cost) || !blank(body.provisional_profit));
   const cost = lines ? lines.cost : hasQuote ? Number(body.provisional_cost) : null;
   const profit = lines ? lines.profit : hasQuote ? Number(body.provisional_profit) : null;
 
   if (!Number.isInteger(clientId)) return NextResponse.json({ error: "Select a client" }, { status: 400 });
-  const details = parseEnquiryDetails(body);
+  const details = quick ? quickDetails(body) : parseEnquiryDetails(body);
   if ("error" in details) return NextResponse.json({ error: details.error }, { status: 400 });
   if (hasQuote && !lines) {
     if (blank(body.provisional_cost) || !Number.isFinite(cost) || cost! < 0) return NextResponse.json({ error: "Enter both cost and profit, or leave both empty" }, { status: 400 });
@@ -53,7 +57,7 @@ export async function POST(request: NextRequest) {
       data: {
         client_id: clientId,
         org_id: orgId,
-        ...enquiryDetailsData(details.data),
+        ...("quick" in details ? details.quick : enquiryDetailsData(details.data)),
         needs_approval: body.needs_approval === true,
         provisional_cost: cost,
         provisional_profit: profit,
@@ -81,5 +85,18 @@ export async function POST(request: NextRequest) {
 
   revalidateEnquiryPages();
   if (nextStatus) revalidateClientViews();
-  return NextResponse.json({ enquiry: { id: enquiry.id, status: enquiry.status }, client_status: nextStatus }, { status: 201 });
+  const org = await prisma.organization.findUnique({ where: { id: orgId }, select: { prefix: true } });
+  return NextResponse.json(
+    { enquiry: { id: enquiry.id, status: enquiry.status, ref: enquiryRef(enquiry.id, org?.prefix) }, client_status: nextStatus },
+    { status: 201 },
+  );
+}
+
+/** Quick enquiry: mode and route only; payment defaults to cash and everything else waits for the full form. */
+function quickDetails(body: Record<string, unknown>) {
+  const from = String(body.from ?? "").trim();
+  const to = String(body.to ?? "").trim();
+  if (!enquiryModes.includes(body.mode as never)) return { error: "Invalid mode of transport" };
+  if (!from || !to) return { error: "From and To are required" };
+  return { quick: { enquiry_date: new Date(new Date().toISOString().slice(0, 10)), mode: body.mode as string, from, to, payment_mode: "cash", details_pending: true } };
 }

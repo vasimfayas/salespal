@@ -449,6 +449,10 @@ model Enquiry {
   /// The company the enquiry is raised under (its ID prefix, export office, and who sees it). Defaults to the client's.
   org_id                   Int
   enquiry_date             DateTime              @db.Date
+  /// 0 normal (default), 1 medium, 2 very important (types/enquiry.ts enquiryPriorities). Lists sort by it first.
+  priority                 Int                   @default(0) @db.SmallInt
+  /// Quick enquiry: saved with only client, mode and route to get a ref; can't move on until the full details are saved.
+  details_pending          Boolean               @default(false)
   mode                     String
   from                     String
   to                       String
@@ -546,6 +550,7 @@ model Enquiry {
   @@index([status])
   @@index([created_by_id, status])
   @@index([enquiry_date, id])
+  @@index([priority, enquiry_date, id])
   @@map("enquiries")
 }
 

@@ -1,4 +1,4 @@
-import { CheckCircle2, Clock, XCircle } from "lucide-react";
+import { CheckCircle2, Clock, FilePenLine, XCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { EnquiryListItem } from "@/types/enquiry";
 
@@ -7,6 +7,16 @@ const CHIP = {
   rejected: { label: "Rejected — requote", icon: XCircle, tone: "bg-danger-soft text-danger-foreground" },
   approved: { label: "Manager approved", icon: CheckCircle2, tone: "bg-success-soft text-success-foreground" },
 } as const;
+
+/** Quick enquiry still waiting for its full details. */
+export function DetailsPendingChip({ pending, className }: { pending: boolean; className?: string }) {
+  if (!pending) return null;
+  return (
+    <span className={cn("mt-1 inline-flex items-center gap-1 whitespace-nowrap rounded-full bg-warning-soft px-2 py-0.5 text-[11px] font-medium text-warning-foreground", className)}>
+      <FilePenLine size={11} aria-hidden /> Details pending
+    </span>
+  );
+}
 
 /** The quote's manager-approval state, shown under the enquiry status. Nothing when no approval is involved. */
 export function ApprovalChip({ enquiry, className }: { enquiry: Pick<EnquiryListItem, "approval_status" | "approval_required">; className?: string }) {
