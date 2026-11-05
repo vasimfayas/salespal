@@ -4,6 +4,7 @@ import { getToken } from "next-auth/jwt";
 import { prisma } from "@/lib/prisma";
 import { hasRole } from "@/lib/scoping";
 import { AGENT_EDITOR_ROLES, AGENT_LOCK_ROLES, parseAgent } from "@/lib/agents";
+import { companiesExist } from "@/lib/agents-page";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -30,8 +31,9 @@ export async function PATCH(request: NextRequest, context: Params) {
   if (!token || !hasRole(token, AGENT_EDITOR_ROLES)) return NextResponse.json({ error: "Only managers can edit agents" }, { status: 403 });
   const parsed = parseAgent(body);
   if ("error" in parsed) return NextResponse.json({ error: parsed.error }, { status: 400 });
-  const { count } = await prisma.agent.updateMany({ where: { id }, data: parsed.data });
-  if (!count) return NextResponse.json({ error: "Agent not found" }, { status: 404 });
+  if (!(await companiesExist(parsed.orgIds))) return NextResponse.json({ error: "Select a valid company" }, { status: 400 });
+  if (!(await prisma.agent.count({ where: { id } }))) return NextResponse.json({ error: "Agent not found" }, { status: 404 });
+  await prisma.agent.update({ where: { id }, data: { ...parsed.data, orgs: { deleteMany: {}, create: parsed.orgIds.map((org_id) => ({ org_id })) } } });
   revalidatePath("/dashboard", "layout");
   return NextResponse.json({ ok: true });
 }

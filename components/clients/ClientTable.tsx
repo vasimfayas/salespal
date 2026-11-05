@@ -1,7 +1,5 @@
 "use client";
 
-import { clientStatusLabels, clientStatuses } from "@/types/client";
-
 import Link from "next/link";
 import { useState, Fragment } from "react";
 import { useRouter } from "next/navigation";
@@ -17,6 +15,7 @@ import { PremiumToggle } from "@/components/clients/ClientCategory";
 import { DepartmentTag } from "@/components/clients/DepartmentTag";
 import { ClientReach } from "@/components/clients/ClientReach";
 import { KycBadge } from "@/components/clients/KycBadge";
+import { ClientStatusTabs } from "@/components/clients/ClientStatusTabs";
 type Client = {
   /** False when KYC documents are missing or expired. */
   kyc_ok?: boolean;
@@ -65,6 +64,7 @@ export function ClientTable({
   total,
   page,
   pageSize,
+  counts,
   companies = [],
   managers = [],
   managerSalesmen = [],
@@ -74,6 +74,8 @@ export function ClientTable({
   total: number;
   page: number;
   pageSize: number;
+  /** Clients per status for the tabs (filters applied, except status). */
+  counts: Record<string, number>;
   companies?: Company[];
   managers?: Manager[];
   managerSalesmen?: ManagerSalesman[];
@@ -153,6 +155,7 @@ export function ClientTable({
     <div className="space-y-4">
       {/* Search and Filters Toolbar */}
       <div className="flex flex-col gap-4 bg-card p-4 rounded-card border border-border/80 shadow-card">
+        <ClientStatusTabs value={statusFilter} counts={counts} onChange={(status) => set({ status })} />
         {/* Search Bar */}
         <div className="relative">
           <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-muted-foreground/80">
@@ -216,23 +219,6 @@ export function ClientTable({
               </select>
             </div>
           )}
-
-          {/* Status Filter */}
-          <div className="flex min-w-0 flex-col gap-1.5 sm:min-w-[140px]">
-            <label className="text-xs font-semibold text-muted-foreground">
-              Status
-            </label>
-            <select
-              value={statusFilter}
-              onChange={(e) => set({ status: e.target.value })}
-              className="w-full rounded-control border border-input bg-card px-3 text-sm text-foreground shadow-xs outline-none transition-[border-color,box-shadow] duration-150 placeholder:text-muted-foreground/70 hover:border-border-strong focus:border-ring focus:ring-3 focus:ring-ring/15 disabled:cursor-not-allowed disabled:bg-muted disabled:opacity-70 h-10 cursor-pointer"
-            >
-              <option value="all">All Statuses</option>
-              {clientStatuses.map((st) => (
-                <option key={st} value={st}>{clientStatusLabels[st]}</option>
-              ))}
-            </select>
-          </div>
 
           {/* Category Filter */}
           <div className="flex min-w-0 flex-col gap-1.5 sm:min-w-[140px]">

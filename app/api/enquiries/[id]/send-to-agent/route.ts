@@ -7,6 +7,7 @@ import { agentEnquirySelect, agentQuotePath, agentQuoteUrl, newAgentToken, sendA
 import { getEmailTemplate } from "@/lib/email-templates-db";
 import { templateProblem } from "@/lib/email-templates";
 import { enquiryRef } from "@/types/enquiry";
+import { agentForOrgWhere } from "@/lib/agents";
 
 /** Statuses an enquiry can be sent to an agent from (again, to ask another agent). */
 const SENDABLE = ["inquiry_received", "with_agent"];
@@ -18,7 +19,7 @@ const MAX_AGENTS = 25;
  * "Send to agent" (body: agent_ids): each agent gets an email with the shipment details and a link to add their cost,
  * and the enquiry moves to "With agent". Responds with every link too, to share by hand when email is off or fails.
  * Optional `subject` + `body` reword the email for this send only (the company template is the default); {{placeholders}} fill in per agent.
- * Locked agents are refused, and unknown ones skipped, without stopping the rest.
+ * Locked agents are refused, and unknown ones or those not linked to the enquiry's company skipped, without stopping the rest.
  */
 export async function POST(request: NextRequest, context: { params: Promise<{ id: string }> }) {
   const token = await getToken({ req: request, secret: process.env.NEXTAUTH_SECRET });
@@ -38,7 +39,7 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
   if (enquiry.details_pending) return NextResponse.json({ error: "Fill in the full enquiry details before sending it to agents" }, { status: 409 });
   if (!SENDABLE.includes(enquiry.status)) return NextResponse.json({ error: "Only an enquiry that isn't quoted yet can be sent to an agent" }, { status: 409 });
 
-  const found = await prisma.agent.findMany({ where: { id: { in: ids } } });
+  const found = await prisma.agent.findMany({ where: { id: { in: ids }, ...agentForOrgWhere(enquiry.org_id) } });
   const locked = found.filter((a) => a.locked);
   const agents = found.filter((a) => !a.locked);
   if (agents.length === 0) {

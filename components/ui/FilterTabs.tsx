@@ -28,7 +28,7 @@ export function FilterTabs<T extends string>({
             aria-selected={active}
             onClick={() => onChange(t.value)}
             className={cn(
-              "press inline-flex cursor-pointer items-center gap-1.5 rounded-[calc(var(--radius-control)-2px)] px-3 py-1.5 text-xs font-medium",
+              "press inline-flex shrink-0 cursor-pointer items-center gap-1.5 whitespace-nowrap rounded-[calc(var(--radius-control)-2px)] px-3 py-1.5 text-xs font-medium",
               active ? "bg-card text-foreground shadow-xs" : "text-muted-foreground hover:text-foreground",
             )}
           >

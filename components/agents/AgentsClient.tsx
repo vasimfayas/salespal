@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Download, Globe, Lock, LockOpen, Mail, Pencil, Phone, Plus, RotateCcw, Star, Trash2, Upload, UserRound, Users, X } from "lucide-react";
+import { Building2, Download, Globe, Lock, LockOpen, Mail, Pencil, Phone, Plus, RotateCcw, Star, Trash2, Upload, UserRound, Users, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -10,6 +10,8 @@ import { Input } from "@/components/ui/Input";
 import { Modal, ModalFooter, ModalHeader } from "@/components/ui/Modal";
 import { labelClass } from "@/components/ui/field-styles";
 import { AGENT_COLUMNS, BulkImportAgentsModal } from "@/components/agents/BulkImportAgentsModal";
+import { NetworkPicker } from "@/components/agents/NetworkPicker";
+import { distinctNetworks } from "@/lib/agents";
 import { downloadCsv } from "@/lib/csv";
 import { useLocations } from "@/hooks/useLocations";
 import { cn, titleCase } from "@/lib/utils";
@@ -24,8 +26,10 @@ export type AgentRow = {
   phone: string | null;
   extra_phones: string[];
   country: string | null;
-  network: string | null;
-  code: string | null;
+  /** Networks the agent is a member of. */
+  networks: string[];
+  /** Companies the agent works for; empty = all of them. */
+  org_ids: number[];
   modes: string[];
   locked: boolean;
   /** Flagged as a top (preferred) agent. */
@@ -33,7 +37,7 @@ export type AgentRow = {
   requests: number;
 };
 
-const EMPTY = { name: "", contact_person: "", emails: [""], phones: [""], country: "", network: "", code: "", modes: [] as string[], is_top: false };
+const EMPTY = { name: "", contact_person: "", emails: [""], phones: [""], country: "", networks: [] as string[], org_ids: [] as number[], modes: [] as string[], is_top: false };
 const toBody = (f: typeof EMPTY) => ({
   ...f,
   email: f.emails[0]?.trim() ?? "",
@@ -64,6 +68,22 @@ function MultiInput({ label, type, values, onChange, hint, required }: { label: 
     </div>
   );
 }
+
+/** A checkbox styled as a pill (agent modes and companies). */
+function CheckPill({ on, onToggle, children }: { on: boolean; onToggle: () => void; children: React.ReactNode }) {
+  return (
+    <label
+      className={cn(
+        "inline-flex cursor-pointer items-center gap-2 rounded-control border px-3 py-1.5 text-sm transition-colors has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring",
+        on ? "border-primary bg-primary-soft text-primary-soft-foreground" : "border-border text-foreground hover:bg-muted",
+      )}
+    >
+      <input type="checkbox" className="sr-only" checked={on} onChange={onToggle} />
+      {children}
+    </label>
+  );
+}
+
 const selectClass =
   "h-9 cursor-pointer rounded-control border border-input bg-card px-3 text-sm text-foreground shadow-xs outline-none hover:border-border-strong focus:border-ring focus:ring-3 focus:ring-ring/15";
 
@@ -71,7 +91,7 @@ const selectClass =
  * The agents directory: add, edit and delete the agents enquiries are sent to for rates, and lock / unlock them.
  * `canEdit` off (accounts) leaves only the lock toggle.
  */
-export function AgentsClient({ agents, canEdit = true }: { agents: AgentRow[]; canEdit?: boolean }) {
+export function AgentsClient({ agents, companies, canEdit = true }: { agents: AgentRow[]; companies: { id: number; name: string }[]; canEdit?: boolean }) {
   const router = useRouter();
   const places = useLocations();
   const COUNTRIES = useMemo(() => [...new Set((places ?? []).map((l) => l.country))].sort(), [places]);
@@ -84,21 +104,25 @@ export function AgentsClient({ agents, canEdit = true }: { agents: AgentRow[]; c
   const [modeFilter, setModeFilter] = useState("all");
   const [countryFilter, setCountryFilter] = useState("all");
   const [networkFilter, setNetworkFilter] = useState("all");
+  const [companyFilter, setCompanyFilter] = useState("all");
   const [topOnly, setTopOnly] = useState(false);
   const countries = useMemo(() => [...new Set(agents.map((a) => a.country).filter((c): c is string => !!c))].sort(), [agents]);
-  const networks = useMemo(() => [...new Set(agents.map((a) => a.network).filter((n): n is string => !!n))].sort(), [agents]);
+  const networks = useMemo(() => distinctNetworks(agents.flatMap((a) => a.networks)), [agents]);
   const shown = agents.filter(
     (a) =>
       (modeFilter === "all" || a.modes.includes(modeFilter)) &&
       (countryFilter === "all" || a.country === countryFilter) &&
-      (networkFilter === "all" || a.network === networkFilter) &&
+      (networkFilter === "all" || a.networks.some((n) => n.toLowerCase() === networkFilter.toLowerCase())) &&
+      // Agents with no company work for all of them.
+      (companyFilter === "all" || a.org_ids.length === 0 || a.org_ids.includes(Number(companyFilter))) &&
       (!topOnly || a.is_top),
   );
-  const filtering = modeFilter !== "all" || countryFilter !== "all" || networkFilter !== "all" || topOnly;
+  const filtering = modeFilter !== "all" || countryFilter !== "all" || networkFilter !== "all" || companyFilter !== "all" || topOnly;
   function resetFilters() {
     setModeFilter("all");
     setCountryFilter("all");
     setNetworkFilter("all");
+    setCompanyFilter("all");
     setTopOnly(false);
   }
 
@@ -114,8 +138,8 @@ export function AgentsClient({ agents, canEdit = true }: { agents: AgentRow[]; c
             emails: [agent.email, ...agent.extra_emails],
             phones: [agent.phone ?? "", ...agent.extra_phones],
             country: agent.country ?? "",
-            network: agent.network ?? "",
-            code: agent.code ?? "",
+            networks: agent.networks,
+            org_ids: agent.org_ids,
             modes: agent.modes,
             is_top: agent.is_top,
           },
@@ -147,7 +171,7 @@ export function AgentsClient({ agents, canEdit = true }: { agents: AgentRow[]; c
   function exportAgents() {
     downloadCsv("agents.csv", [
       [...AGENT_COLUMNS],
-      ...agents.map((a) => [a.name, a.contact_person ?? "", [a.email, ...a.extra_emails].join("; "), [a.phone ?? "", ...a.extra_phones].filter(Boolean).join("; "), a.country ?? "", a.network ?? "", a.code ?? "", a.modes.join("; ")]),
+      ...agents.map((a) => [a.name, a.contact_person ?? "", [a.email, ...a.extra_emails].join("; "), [a.phone ?? "", ...a.extra_phones].filter(Boolean).join("; "), a.country ?? "", a.networks.join("; "), a.modes.join("; ")]),
     ]);
   }
 
@@ -231,6 +255,16 @@ export function AgentsClient({ agents, canEdit = true }: { agents: AgentRow[]; c
               </option>
             ))}
           </select>
+          {companies.length > 1 && (
+            <select aria-label="Filter by company" value={companyFilter} onChange={(e) => setCompanyFilter(e.target.value)} className={selectClass}>
+              <option value="all">All companies</option>
+              {companies.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+          )}
           <label className={cn("inline-flex h-9 cursor-pointer items-center gap-1.5 rounded-control border px-3 text-sm transition-colors has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring", topOnly ? "border-warning bg-warning-soft text-warning-foreground" : "border-input text-foreground hover:bg-muted")}>
             <input type="checkbox" className="sr-only" checked={topOnly} onChange={(e) => setTopOnly(e.target.checked)} />
             <Star size={14} className={topOnly ? "fill-current" : ""} aria-hidden /> Top agents
@@ -256,7 +290,7 @@ export function AgentsClient({ agents, canEdit = true }: { agents: AgentRow[]; c
         <EmptyState
           icon={Users}
           title="No agents match these filters"
-          message="Try a different mode, country or network."
+          message="Try a different mode, country, network or company."
           action={
             <Button size="sm" variant="secondary" onClick={resetFilters}>
               <RotateCcw /> Reset filters
@@ -328,18 +362,18 @@ export function AgentsClient({ agents, canEdit = true }: { agents: AgentRow[]; c
                   )}
                 </div>
               </div>
-              {(a.country || a.network || a.code || a.modes.length > 0) && (
+              {(a.country || a.networks.length > 0 || a.modes.length > 0) && (
                 <div className="flex flex-wrap items-center gap-1.5 text-xs">
                   {a.country && (
                     <span className="inline-flex items-center gap-1 text-foreground">
                       <Globe size={13} className="text-muted-foreground" aria-label="Country" /> {a.country}
                     </span>
                   )}
-                  {(a.network || a.code) && (
-                    <span className="rounded-full bg-primary-soft px-2 py-0.5 font-medium text-primary-soft-foreground">
-                      {[a.network, a.code].filter(Boolean).join(" · ")}
+                  {a.networks.map((n) => (
+                    <span key={n} className="rounded-full bg-primary-soft px-2 py-0.5 font-medium text-primary-soft-foreground">
+                      {n}
                     </span>
-                  )}
+                  ))}
                   {a.modes.map((m) => (
                     <span key={m} className="rounded-full bg-muted px-2 py-0.5 font-medium text-muted-foreground">
                       {titleCase(m)}
@@ -347,6 +381,10 @@ export function AgentsClient({ agents, canEdit = true }: { agents: AgentRow[]; c
                   ))}
                 </div>
               )}
+              <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <Building2 size={13} className="shrink-0" aria-label="Companies" />
+                {companies.filter((c) => a.org_ids.includes(c.id)).map((c) => c.name).join(", ") || "All companies"}
+              </p>
               <dl className="space-y-1 text-sm">
                 {a.contact_person && (
                   <div className="flex items-center gap-2 text-foreground">
@@ -383,34 +421,33 @@ export function AgentsClient({ agents, canEdit = true }: { agents: AgentRow[]; c
               {orderModes.map((m) => {
                 const on = form.modes.includes(m);
                 return (
-                  <label
-                    key={m}
-                    className={cn(
-                      "inline-flex cursor-pointer items-center gap-2 rounded-control border px-3 py-1.5 text-sm transition-colors has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring",
-                      on ? "border-primary bg-primary-soft text-primary-soft-foreground" : "border-border text-foreground hover:bg-muted",
-                    )}
-                  >
-                    <input
-                      type="checkbox"
-                      className="sr-only"
-                      checked={on}
-                      onChange={() => setForm({ ...form, modes: on ? form.modes.filter((x) => x !== m) : [...form.modes, m] })}
-                    />
+                  <CheckPill key={m} on={on} onToggle={() => setForm({ ...form, modes: on ? form.modes.filter((x) => x !== m) : [...form.modes, m] })}>
                     {titleCase(m)}
-                  </label>
+                  </CheckPill>
                 );
               })}
             </div>
+          </fieldset>
+          <fieldset>
+            <legend className={labelClass}>Companies</legend>
+            <div className="flex flex-wrap gap-2">
+              {companies.map((c) => {
+                const on = form.org_ids.includes(c.id);
+                return (
+                  <CheckPill key={c.id} on={on} onToggle={() => setForm({ ...form, org_ids: on ? form.org_ids.filter((x) => x !== c.id) : [...form.org_ids, c.id] })}>
+                    {c.name}
+                  </CheckPill>
+                );
+              })}
+            </div>
+            <p className="mt-1.5 text-xs text-muted-foreground">Only enquiries of the selected companies can use this agent. Select none to allow all companies.</p>
           </fieldset>
           <label className="flex cursor-pointer items-center gap-2 text-sm font-medium text-foreground">
             <input type="checkbox" className="size-4 cursor-pointer accent-[var(--primary)]" checked={form.is_top} onChange={(e) => setForm({ ...form, is_top: e.target.checked })} />
             <Star size={14} className={form.is_top ? "fill-warning text-warning" : "text-muted-foreground"} aria-hidden /> Top agent
             <span className="font-normal text-muted-foreground">(shown first and starred when sending enquiries)</span>
           </label>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <Input label="Network (optional)" value={form.network} onChange={(e) => setForm({ ...form, network: e.target.value })} placeholder="e.g. WCA" />
-            <Input label="Code (optional)" value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value })} />
-          </div>
+          <NetworkPicker known={networks} values={form.networks} onChange={(networks) => setForm((f) => ({ ...f, networks }))} />
           <Input label="Agent name" required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="e.g. Gulf Freight Partners" />
           <Input label="Contact person (optional)" value={form.contact_person} onChange={(e) => setForm({ ...form, contact_person: e.target.value })} />
           <MultiInput label="Email" type="email" required values={form.emails} onChange={(emails) => setForm({ ...form, emails })} hint="Rate requests are sent to all emails." />

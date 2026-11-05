@@ -44,6 +44,7 @@ model Organization {
   approvalRequests ApprovalRequest[]
   enquiries        Enquiry[]
   orders           Order[]
+  agents           AgentOrg[]
 
   @@map("organizations")
 }
@@ -622,9 +623,13 @@ model Agent {
   extra_emails   String[]              @default([])
   extra_phones   String[]              @default([])
   country        String?
-  /// Agent network (e.g. WCA, JCtrans) and the agent's code in it.
+  /// Network the agent is a member of (e.g. WCA, JCtrans); `extra_networks` holds the rest. Read through agentNetworks (lib/agents.ts).
   network        String?
+  extra_networks String[]              @default([])
+  /// No longer shown or edited; kept so values already saved aren't lost.
   code           String?
+  /// Companies whose enquiries can use this agent; none = all of them (agentForOrgWhere in lib/agents.ts).
+  orgs           AgentOrg[]
   /// Transport modes the agent handles: air | sea | land.
   modes          String[]              @default([])
   /// Locked agents can't be sent enquiries (owner, managers and accounts toggle it).
@@ -636,6 +641,17 @@ model Agent {
   quoteOptions   EnquiryQuoteOption[]
 
   @@map("agents")
+}
+
+model AgentOrg {
+  agent_id Int
+  org_id   Int
+  agent    Agent        @relation(fields: [agent_id], references: [id], onDelete: Cascade)
+  org      Organization @relation(fields: [org_id], references: [id], onDelete: Cascade)
+
+  @@id([agent_id, org_id])
+  @@index([org_id])
+  @@map("agent_org")
 }
 
 /// One "Send to agent" rate request: the agent gets an emailed link (/agent-quote/<token>) to give their cost.

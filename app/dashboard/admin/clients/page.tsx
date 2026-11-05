@@ -42,6 +42,7 @@ async function ClientTableContainer({ searchParams }: { searchParams: SearchPara
       total={clients.total}
       page={clients.page}
       pageSize={clients.pageSize}
+      counts={clients.counts}
       companies={companies}
       managers={managers}
       managerSalesmen={managerSalesmen}

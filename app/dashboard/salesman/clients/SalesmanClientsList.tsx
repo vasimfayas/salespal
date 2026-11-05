@@ -27,6 +27,7 @@ import { missingContactFields, statusRequiresContact } from "@/lib/client-contac
 import { buttonVariants } from "@/components/ui/Button";
 import { clientCategories, clientCategoryLabels } from "@/types/client";
 import { PremiumBadge } from "@/components/clients/ClientCategory";
+import { ClientStatusTabs } from "@/components/clients/ClientStatusTabs";
 import { DepartmentTag } from "@/components/clients/DepartmentTag";
 import { ClientNameField } from "@/components/clients/ClientNameField";
 import { CrNumberField, type CrMatch } from "@/components/clients/CrNumberField";
@@ -75,6 +76,8 @@ interface SalesmanClientsListProps {
   total: number;
   page: number;
   pageSize: number;
+  /** Clients per status for the tabs (filters applied, except status). */
+  counts: Record<string, number>;
   /** Companies the salesman works for. */
   companies: CompanyOption[];
 }
@@ -83,7 +86,7 @@ interface SalesmanClientsListProps {
 // Salesmen pick only the stages they work; enquiry / onboarded / not enquired come from enquiries, orders and time.
 const pickableStatuses = clientStatuses.filter((st) => st !== "blacklisted" && !(SYSTEM_STATUSES as readonly string[]).includes(st));
 
-export function SalesmanClientsList({ initialClients, total, page, pageSize, companies }: SalesmanClientsListProps) {
+export function SalesmanClientsList({ initialClients, total, page, pageSize, counts, companies }: SalesmanClientsListProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
 
@@ -283,6 +286,7 @@ export function SalesmanClientsList({ initialClients, total, page, pageSize, com
 
       {/* Search and Filters Toolbar */}
       <div className="flex flex-col gap-4 bg-card p-4 rounded-card border border-border/80 shadow-card">
+        <ClientStatusTabs value={statusFilter} counts={counts} onChange={(status) => set({ status })} />
         {/* Search Bar */}
         <div className="relative">
           <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-muted-foreground/80">
@@ -307,27 +311,6 @@ export function SalesmanClientsList({ initialClients, total, page, pageSize, com
 
         {/* Filters Selectors Row */}
         <div className="flex flex-wrap items-end gap-4 border-t border-border/70 pt-3.5">
-          {/* Status Filter */}
-          <div className="flex flex-col gap-1.5 min-w-[140px]">
-            <label
-              className="text-xs font-semibold text-muted-foreground"
-              htmlFor="status-filter"
-            >
-              Status
-            </label>
-            <select
-              id="status-filter"
-              value={statusFilter}
-              onChange={(e) => set({ status: e.target.value })}
-              className="w-full rounded-control border border-input bg-card px-3 text-sm text-foreground shadow-xs outline-none transition-[border-color,box-shadow] duration-150 placeholder:text-muted-foreground/70 hover:border-border-strong focus:border-ring focus:ring-3 focus:ring-ring/15 disabled:cursor-not-allowed disabled:bg-muted disabled:opacity-70 h-10 cursor-pointer"
-            >
-              <option value="all">All Statuses</option>
-              {clientStatuses.map((st) => (
-                <option key={st} value={st}>{clientStatusLabels[st]}</option>
-              ))}
-            </select>
-          </div>
-
           {/* Category Filter */}
           <div className="flex flex-col gap-1.5 min-w-[140px]">
             <label className="text-xs font-semibold text-muted-foreground" htmlFor="category-filter">

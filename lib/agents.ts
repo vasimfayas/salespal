@@ -1,7 +1,38 @@
 import { orderModes } from "@/types/order";
 import type { Place } from "@/lib/locations";
 
-/** Agent fields from a form body, or an error message. */
+/** The networks an agent is a member of: the primary `network`, then `extra_networks`. */
+export function agentNetworks(agent: { network: string | null; extra_networks: string[] }) {
+  return agent.network ? [agent.network, ...agent.extra_networks] : agent.extra_networks;
+}
+
+/** Network names without repeats, ignoring case ("WCA" and "wca" are one network), sorted. */
+export function distinctNetworks(names: string[]) {
+  return [...new Map(names.map((n) => [n.toLowerCase(), n])).values()].sort((a, b) => a.localeCompare(b));
+}
+
+/** What the network picker offers: known networks not yet selected that match the text (exact match first), and `newName` when the text is a new network. */
+export function networkSuggestions(known: string[], selected: string[], typed: string) {
+  const text = typed.trim();
+  const query = text.toLowerCase();
+  const taken = new Set(selected.map((n) => n.toLowerCase()));
+  const matches = known
+    .filter((n) => !taken.has(n.toLowerCase()) && n.toLowerCase().includes(query))
+    .sort((a, b) => Number(b.toLowerCase() === query) - Number(a.toLowerCase() === query));
+  const isNew = !!query && !taken.has(query) && !known.some((n) => n.toLowerCase() === query);
+  return { matches, newName: isNew ? text : null };
+}
+
+/** The network text left in the box stands for: a known network's own spelling, the new name, or null (empty / already selected). */
+export function typedNetwork(known: string[], selected: string[], typed: string) {
+  const { matches, newName } = networkSuggestions(known, selected, typed);
+  return newName ?? matches.find((n) => n.toLowerCase() === typed.trim().toLowerCase()) ?? null;
+}
+
+/** Agents that can work on a company's enquiries: linked to it, or linked to no company (available to all). */
+export const agentForOrgWhere = (orgId: number) => ({ OR: [{ orgs: { none: {} } }, { orgs: { some: { org_id: orgId } } }] });
+
+/** Agent fields from a form body, plus the companies to link it to, or an error message. */
 export function parseAgent(body: Record<string, unknown>) {
   const text = (v: unknown, max: number) => (typeof v === "string" ? v.trim().slice(0, max) : "");
   const list = (v: unknown, max: number) => (Array.isArray(v) ? v.map((x) => text(x, max)).filter(Boolean).slice(0, 10) : []);
@@ -11,7 +42,10 @@ export function parseAgent(body: Record<string, unknown>) {
   const bad = emails.find((e) => !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e));
   if (!emails.length || bad) return { error: `Enter a valid email address${bad ? `: ${bad}` : ""}` } as const;
   const modes = Array.isArray(body.modes) ? orderModes.filter((m) => (body.modes as unknown[]).includes(m)) : [];
+  const networks = [...new Set(list(Array.isArray(body.networks) ? body.networks : [body.network], 80))];
+  const orgIds = Array.isArray(body.org_ids) ? [...new Set(body.org_ids.map(Number).filter((n) => Number.isInteger(n) && n > 0))] : [];
   return {
+    orgIds,
     data: {
       name,
       email: emails[0],
@@ -20,8 +54,8 @@ export function parseAgent(body: Record<string, unknown>) {
       phone: text(body.phone, 40) || null,
       extra_phones: list(body.extra_phones, 40),
       country: text(body.country, 80) || null,
-      network: text(body.network, 80) || null,
-      code: text(body.code, 40) || null,
+      network: networks[0] ?? null,
+      extra_networks: networks.slice(1),
       modes,
       is_top: body.is_top === true,
     },

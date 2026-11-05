@@ -97,15 +97,18 @@ function toListItem(row: ClientListRow): ClientListItem {
   return { ...client, parent: row.parent && { cr_no: row.parent.cr_no, cr_expiry_date: row.parent.cr_expiry_date }, kyc_ok: kycStatus(kycDocs).ok };
 }
 
-export async function getClientsPage(scope: Prisma.ClientWhereInput, params: SearchParams): Promise<Paged<ClientListItem>> {
+export async function getClientsPage(scope: Prisma.ClientWhereInput, params: SearchParams): Promise<Paged<ClientListItem> & { counts: Record<string, number> }> {
   const page = pageParam(params);
   const pageSize = sizeParam(params);
-  const where: Prisma.ClientWhereInput = { AND: [scope, await clientFilterWhere(params)] };
-  const [rows, total] = await Promise.all([
-    prisma.client.findMany({ where, select: clientListSelect, orderBy: { id: "desc" }, ...paging(page, pageSize) }),
-    prisma.client.count({ where }),
+  const status = param(params, "status");
+  // The status tabs' counts ignore the status filter; the same query gives the total.
+  const unfiltered: Prisma.ClientWhereInput = { AND: [scope, await clientFilterWhere({ ...params, status: undefined })] };
+  const [rows, counts] = await Promise.all([
+    prisma.client.findMany({ where: status ? { AND: [unfiltered, { status }] } : unfiltered, select: clientListSelect, orderBy: { id: "desc" }, ...paging(page, pageSize) }),
+    clientStatusCounts(unfiltered),
   ]);
-  return { rows: rows.map(toListItem), total, page, pageSize };
+  const total = status ? (counts[status] ?? 0) : Object.values(counts).reduce((sum, n) => sum + n, 0);
+  return { rows: rows.map(toListItem), total, page, pageSize, counts };
 }
 
 /** { status: count } computed in the database — use instead of loading clients just to count them. */

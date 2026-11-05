@@ -49,6 +49,7 @@ async function ManagerClientsSection({ params }: { params: SearchParams }) {
       total={clients.total}
       page={clients.page}
       pageSize={clients.pageSize}
+      counts={clients.counts}
       salesmen={salesmen}
       companies={managerOrgs.map((item) => item.org)}
     />

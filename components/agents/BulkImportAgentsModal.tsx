@@ -7,8 +7,8 @@ import { Modal, ModalFooter, ModalHeader } from "@/components/ui/Modal";
 import { downloadCsv, parseCsv } from "@/lib/csv";
 
 /** CSV columns (Excel opens and saves CSV). Several emails / phones / modes in one cell are separated by ";". */
-export const AGENT_COLUMNS = ["name", "contact_person", "emails", "phones", "country", "network", "code", "modes"] as const;
-const EXAMPLE = ["Gulf Freight Partners", "Ali Khan", "ali@gulf.com; ops@gulf.com", "+97455556666; +97444443333", "Qatar", "WCA", "GFP01", "air; sea"];
+export const AGENT_COLUMNS = ["name", "contact_person", "emails", "phones", "country", "network", "modes"] as const;
+const EXAMPLE = ["Gulf Freight Partners", "Ali Khan", "ali@gulf.com; ops@gulf.com", "+97455556666; +97444443333", "Qatar", "WCA; JCtrans", "air; sea"];
 
 export function downloadAgentTemplate() {
   downloadCsv("agents-import-template.csv", [[...AGENT_COLUMNS], EXAMPLE]);
@@ -49,8 +49,7 @@ export function BulkImportAgentsModal({ open, onClose, onImported }: { open: boo
           phone: split(get("phones"))[0] ?? "",
           extra_phones: split(get("phones")).slice(1),
           country: get("country"),
-          network: get("network"),
-          code: get("code"),
+          networks: split(get("network")),
           modes: split(get("modes")).map((m) => m.toLowerCase()),
         }),
       }).catch(() => null);
@@ -69,7 +68,7 @@ export function BulkImportAgentsModal({ open, onClose, onImported }: { open: boo
         <ModalHeader title="Import agents" onClose={onClose} />
         <div className="flex items-center justify-between gap-3 rounded-lg border border-border bg-subtle p-3">
           <p className="text-xs text-foreground/70">
-            Required: <span className="font-semibold">name, emails</span>. Separate several emails, phones or modes with “;”.
+            Required: <span className="font-semibold">name, emails</span>. Separate several emails, phones, modes or networks with “;”.
           </p>
           <Button type="button" variant="secondary" size="sm" onClick={downloadAgentTemplate}>
             <Download size={13} /> Template

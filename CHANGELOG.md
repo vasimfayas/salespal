@@ -2,6 +2,18 @@
 
 Newest first. Types: Added, Changed, Fixed. Tag each release `vX.Y.Z` (fix = patch, feature = minor, breaking = major).
 
+## 1.13.0 - 2026-11-05
+
+### Added
+- Agents: an agent can be a member of several networks. The network field lists the distinct networks already on agents and takes new names by typing; CSV import and export use `WCA; JCtrans` in one cell.
+- Agents: link an agent to one or more companies. Send to agent and Quote only offer agents linked to the enquiry's company (the server enforces it); an agent with no company stays available to all. Agents page shows the companies and has a company filter.
+
+### Changed
+- Clients: the Status dropdown is now a tab switch with counts, like enquiries, on every client list.
+
+### Removed
+- Agents: the code field is no longer shown or edited. Saved codes stay in the database.
+
 ## 1.12.0 - 2026-11-04
 
 > Before deploying, run `prisma/add-enquiry-priority.sql` and `prisma/add-enquiry-details-pending.sql` on the production database (both only add columns).

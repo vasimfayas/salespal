@@ -46,7 +46,7 @@ export default async function SalesmanDrilldownPage({
         <KpiCard label="New clients · this month" value={perf.newClients} hint="First order placed this month" />
         <KpiCard label="Clients" value={totalClients} hint={`${counts.onboarded ?? 0} onboarded`} />
       </div>
-      <ClientTable clients={clients.rows} total={clients.total} page={clients.page} pageSize={clients.pageSize} />
+      <ClientTable clients={clients.rows} total={clients.total} page={clients.page} pageSize={clients.pageSize} counts={clients.counts} />
     </>
   );
 }

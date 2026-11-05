@@ -164,6 +164,8 @@ erDiagram
   Enquiry ||--o{ EnquiryFollowUp : comments
   Enquiry ||--o{ EnquiryAgentRequest : "rate requests"
   Agent ||--o{ EnquiryAgentRequest : receives
+  Agent ||--o{ AgentOrg : "works for"
+  Organization ||--o{ AgentOrg : "uses"
   Enquiry ||--o{ Task : "follow-up tasks"
   Task ||--o{ TaskUpdate : activity
   Order ||--o{ OrderPayment : payments
@@ -296,7 +298,9 @@ Indexes: salesman, org, (org, status), (salesman, status), status, category, cre
 
 **EnquiryFollowUp** [`enquiry_follow_ups`]: `enquiry_id`, `comment`, `created_by_id`.
 
-**Agent** [`agents`]: freight partner: `name`, `contact_person?`, `email`, `phone?`, `extra_emails[]`, `extra_phones[]`, `country?`, `network?`, `code?`, `modes[]` (`air, sea, land`), `locked`, `is_top` (top agent: listed first, starred, preselect-friendly).
+**Agent** [`agents`]: freight partner: `name`, `contact_person?`, `email`, `phone?`, `extra_emails[]`, `extra_phones[]`, `country?`, `network?`, `extra_networks[]` (the networks the agent is a member of; read through `agentNetworks` in `lib/agents.ts`), `code?` (legacy, no longer shown or edited), `modes[]` (`air, sea, land`), `locked`, `is_top` (top agent: listed first, starred, preselect-friendly).
+
+**AgentOrg** [`agent_org`]: the companies an agent works for (`agent_id`, `org_id`). An agent with no rows works for all companies. `agentForOrgWhere` (`lib/agents.ts`) applies this: `GET agents?org_id=` for the pickers, send-to-agent (others are skipped) and new quote options (refused; editing an option can keep its agent after it is unlinked). Rate requests already sent are unaffected.
 
 **EnquiryAgentRequest** [`enquiry_agent_requests`]: one "send to agent" rate request: `enquiry_id`, `agent_id`, `token` unique (link `/agent-quote/<token>`), `sent_by_id`, `sent_at`, reply fields `cost?`, `notes?`, `replied_at?`. "Send to agent" takes `agent_ids[]` (up to 25): one request/token/email each; the dialog preselects agents whose `modes` include the enquiry mode and whose `country` is the country of the enquiry's From (`agentMatchesRoute` in `lib/agents.ts`; the From place is resolved through the `locations` table).
 
@@ -386,7 +390,7 @@ Data for dashboards is assembled in `lib/admin-dashboard.ts`, `manager-dashboard
 | Public forms | `enquiry-form/[token]` (POST), `agent-quote/[token]` (POST) |
 | Orders | `orders` (GET, POST), `orders/[id]` (GET, PATCH), `/status`, `/payments`, `/reminder`, `orders/stats` |
 | Tasks | `tasks` (GET; POST by every role. `category: "todo"` is a private personal task: always assigned to the creator and hidden from everyone else, including managers and owners; accountants and operations can only create to-dos. Owners and managers may pass `assigned_to_id` for other task types), `tasks/[id]` (PATCH, DELETE), `/follow-up`, `/outcome`, `/updates` |
-| Agents | `agents` (GET incl. operations, POST), `agents/[id]` (PATCH, DELETE) |
+| Agents | `agents` (GET incl. operations, `?org_id=` limits to that company's agents; POST), `agents/[id]` (PATCH, DELETE) |
 | Email jobs | `email-jobs` (GET status by ids; roles 2, 3) |
 | Email templates | `email-templates` (GET any user; PUT, DELETE owner / super admin) |
 | Locations | `locations` (GET any user; POST owner / super admin), `locations/[id]` (PATCH, DELETE owner / super admin) |

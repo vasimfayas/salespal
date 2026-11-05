@@ -6,14 +6,14 @@ import { Button } from "@/components/ui/Button";
 import { Dialog, DialogBody, DialogContent, DialogFooter } from "@/components/ui/dialog";
 import { EmailTemplateEditor } from "@/components/email/EmailTemplateEditor";
 import { CopyLinkButton } from "@/components/enquiries/SendToClientDialog";
-import { agentMatchesRoute } from "@/lib/agents";
+import { agentMatchesRoute, agentNetworks } from "@/lib/agents";
 import { useLocations } from "@/hooks/useLocations";
 import { useEmailJobs } from "@/hooks/useEmailJobs";
 import { templateProblem, type EmailTemplate, type EmailVars } from "@/lib/email-templates";
 import { cn, titleCase } from "@/lib/utils";
 import type { EnquiryListItem } from "@/types/enquiry";
 
-type Agent = { id: number; name: string; contact_person: string | null; email: string; country: string | null; network: string | null; code: string | null; modes: string[]; is_top: boolean };
+type Agent = { id: number; name: string; contact_person: string | null; email: string; country: string | null; network: string | null; extra_networks: string[]; modes: string[]; is_top: boolean };
 type MailContext = { logo_src: string | null; company: string; ref: string; sender: string; shipment: [string, string][]; valid_days: number };
 type Sent = { agent: string; email: string; url: string; email_job_id: number };
 
@@ -42,11 +42,11 @@ export function SendToAgentDialog({ enquiry, open, onClose, onSent }: { enquiry:
 
   useEffect(() => {
     if (!open || agents) return;
-    fetch("/api/agents")
+    fetch(`/api/agents?org_id=${enquiry.company.id}`)
       .then((res) => (res.ok ? res.json() : { agents: [] }))
       .then((data) => setAgents(data.agents ?? []))
       .catch(() => setAgents([]));
-  }, [open, agents]);
+  }, [open, agents, enquiry.company.id]);
 
   // The first time the list is there, start with the agents that fit the mode and route.
   const [seeded, setSeeded] = useState(false);
@@ -60,7 +60,7 @@ export function SendToAgentDialog({ enquiry, open, onClose, onSent }: { enquiry:
   const alreadyAsked = new Set(enquiry.agent_requests.map((r) => r.agent));
   const suggestedIds = new Set(suggested.map((a) => a.id));
   const tokens = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
-  const matches = (a: Agent) => tokens.every((t) => [a.name, a.country, a.network, a.code, a.contact_person, ...a.modes].some((v) => v?.toLowerCase().includes(t)));
+  const matches = (a: Agent) => tokens.every((t) => [a.name, a.country, ...agentNetworks(a), a.contact_person, ...a.modes].some((v) => v?.toLowerCase().includes(t)));
   // With nothing typed: the suggestions first, then everyone else. Typing searches all agents.
   const visible = (agents ?? []).filter(matches);
   const shownSuggested = visible.filter((a) => suggestedIds.has(a.id));
@@ -160,7 +160,7 @@ export function SendToAgentDialog({ enquiry, open, onClose, onSent }: { enquiry:
               {alreadyAsked.has(a.name) && <span className="rounded-full bg-muted px-1.5 py-px text-[10px] font-medium text-muted-foreground">already asked</span>}
             </span>
             <span className="block truncate text-xs text-muted-foreground">
-              {[a.country, a.network, a.modes.map(titleCase).join(", ")].filter(Boolean).join(" · ") || a.email}
+              {[a.country, ...agentNetworks(a), a.modes.map(titleCase).join(", ")].filter(Boolean).join(" · ") || a.email}
             </span>
           </span>
         </label>
@@ -237,7 +237,7 @@ export function SendToAgentDialog({ enquiry, open, onClose, onSent }: { enquiry:
                 )}
                 {agents && agents.length === 0 ? (
                   <p className="rounded-control border border-dashed border-border p-4 text-center text-sm text-muted-foreground">
-                    No unlocked agents. A manager can add or unlock them on the Agents page.
+                    No unlocked agents for this company. A manager can add, link or unlock them on the Agents page.
                   </p>
                 ) : (
                   <>

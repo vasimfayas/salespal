@@ -55,14 +55,14 @@ export function AgentQuotes({
 
   useEffect(() => {
     let live = true;
-    fetch("/api/agents")
+    fetch(`/api/agents?org_id=${enquiry.company.id}`)
       .then((res) => (res.ok ? res.json() : { agents: [] }))
       .then((data) => live && setAgents(data.agents ?? []))
       .catch(() => live && setAgents([]));
     return () => {
       live = false;
     };
-  }, []);
+  }, [enquiry.company.id]);
 
   // An agent who replied to the rate request: their rate starts the first line's cost.
   const replyCost = (agentId: string) => enquiry.agent_requests.find((r) => String(r.agent_id) === agentId && r.cost !== null)?.cost ?? null;

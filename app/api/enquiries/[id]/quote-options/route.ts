@@ -9,7 +9,7 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
   const { id } = await context.params;
   const access = await quoteOptionAccess(request, Number(id));
   if ("error" in access) return NextResponse.json({ error: access.error }, { status: access.status });
-  const parsed = await parseQuoteOption(await request.json().catch(() => ({})));
+  const parsed = await parseQuoteOption(await request.json().catch(() => ({})), access.enquiry.org_id);
   if ("error" in parsed) return NextResponse.json({ error: parsed.error }, { status: 400 });
   const option = await prisma.enquiryQuoteOption.create({
     data: { ...parsed.data, enquiry_id: access.enquiry.id, created_by_id: getTokenUserId(access.token) },

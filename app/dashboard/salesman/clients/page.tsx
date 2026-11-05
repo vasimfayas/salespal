@@ -33,7 +33,7 @@ async function ClientsListSection({ params }: { params: SearchParams }) {
   ]);
 
   return (
-    <SalesmanClientsList initialClients={clients.rows} total={clients.total} page={clients.page} pageSize={clients.pageSize} companies={companies} />
+    <SalesmanClientsList initialClients={clients.rows} total={clients.total} page={clients.page} pageSize={clients.pageSize} counts={clients.counts} companies={companies} />
   );
 }
 

@@ -33,6 +33,7 @@ async function MyClientsSection({ params }: { params: SearchParams }) {
       total={clients.total}
       page={clients.page}
       pageSize={clients.pageSize}
+      counts={clients.counts}
       salesmen={[me]}
       companies={companies}
       clientHrefBase="/dashboard/admin/clients"
