@@ -59,11 +59,12 @@ export async function getSalesmenWithTargets(user: { id: number; role_id: number
   return salesmen.map((salesman) => {
     const history: SalesmanTargetView[] = salesman.salesmanTargets.map((target) => {
       const amount = num(target.amount);
-      const achieved = achievedByTarget.get(target.id) ?? 0;
+      const { achieved, actualProfit } = achievedByTarget.get(target.id) ?? { achieved: 0, actualProfit: 0 };
       return {
         id: target.id,
         amount,
         achieved,
+        actual_profit: actualProfit,
         percent: amount > 0 ? (achieved / amount) * 100 : 0,
         period_start: target.period_start.toISOString().slice(0, 10),
         period_end: target.period_end.toISOString().slice(0, 10),
@@ -85,21 +86,27 @@ export async function getSalesmenWithTargets(user: { id: number; role_id: number
   });
 }
 
-/** Achieved amount for every target of these salesmen in one query: their orders created inside the period that still count (not cancelled / sent back for revision). */
+/**
+ * Progress for every target of these salesmen in one query, over their orders created inside the period that still
+ * count (not cancelled / sent back for revision). Profit comes from the order's enquiry, as orders only hold cost + profit:
+ *   achieved     – provisional profit; what the target is measured against
+ *   actualProfit – actual profit accounts have entered so far on the same orders
+ */
 export async function getTargetAchievements(salesmanIds: number[]) {
-  if (salesmanIds.length === 0) return new Map<number, number>();
-  const rows = await prisma.$queryRaw<{ id: number; achieved: number }[]>(Prisma.sql`
-    SELECT t.id, COALESCE(SUM(o.amount), 0)::float8 AS achieved
+  if (salesmanIds.length === 0) return new Map<number, { achieved: number; actualProfit: number }>();
+  const rows = await prisma.$queryRaw<{ id: number; achieved: number; actual_profit: number }[]>(Prisma.sql`
+    SELECT t.id, COALESCE(SUM(e.provisional_profit), 0)::float8 AS achieved, COALESCE(SUM(e.actual_profit), 0)::float8 AS actual_profit
     FROM salesman_targets t
     LEFT JOIN orders o
       ON o.created_by_id = t.salesman_id
      AND o.status NOT IN ('cancelled', 'revision_requested')
      AND o.created_at >= t.period_start
      AND o.created_at < t.period_end + 1
+    LEFT JOIN enquiries e ON e.id = o.enquiry_id
     WHERE t.salesman_id IN (${Prisma.join(salesmanIds)})
     GROUP BY t.id
   `);
-  return new Map(rows.map((r) => [r.id, Number(r.achieved)]));
+  return new Map(rows.map((r) => [r.id, { achieved: Number(r.achieved), actualProfit: Number(r.actual_profit) }]));
 }
 
 /** Actual profit from each salesman's enquiries whose order accounts have marked completed (paid in full). */

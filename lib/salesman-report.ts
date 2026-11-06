@@ -1,6 +1,7 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { clientStatusCounts } from "@/lib/clients-list";
+import { getTargetAchievements } from "@/lib/salesman-targets";
 import { enquiryStatuses, isLostReason, lostReasonLabels, type EnquiryStatus } from "@/types/enquiry";
 
 /**
@@ -171,11 +172,8 @@ export async function getSalesmanMonthlyReport(salesmanId: number, monthKey: str
       WHERE o.created_by_id = ${salesmanId} AND p.paid_on >= ${S} AND p.paid_on < ${E}`),
 
     // The target running during this month (latest that overlaps it and wasn't replaced).
-    prisma.$queryRaw<{ amount: Num; period_start: Date; period_end: Date; achieved: Num }[]>(Prisma.sql`
-      SELECT t.amount::float8 AS amount, t.period_start, t.period_end,
-             (SELECT COALESCE(SUM(o.amount), 0) FROM orders o
-               WHERE o.created_by_id = t.salesman_id AND o.status NOT IN ('cancelled', 'revision_requested')
-                 AND o.created_at >= t.period_start AND o.created_at < t.period_end + 1)::float8 AS achieved
+    prisma.$queryRaw<{ id: number; amount: Num; period_start: Date; period_end: Date }[]>(Prisma.sql`
+      SELECT t.id, t.amount::float8 AS amount, t.period_start, t.period_end
       FROM salesman_targets t
       WHERE t.salesman_id = ${salesmanId} AND t.closed_at IS NULL
         AND t.period_start < ${E} AND t.period_end >= ${S}
@@ -247,6 +245,7 @@ export async function getSalesmanMonthlyReport(salesmanId: number, monthKey: str
   const tasks = Object.fromEntries(taskRows.map((r) => [r.status, n(r.count)])) as Record<string, number>;
   const taskTotal = Object.values(tasks).reduce((a, b) => a + b, 0);
   const t = target[0];
+  const progress = t ? (await getTargetAchievements([salesmanId])).get(t.id) : undefined;
 
   return {
     month: month.key,
@@ -283,7 +282,7 @@ export async function getSalesmanMonthlyReport(salesmanId: number, monthKey: str
     actualProfit: actual(true),
     actualProfitPrev: actual(false),
     collected: { amount: n(collected[0]?.amount ?? 0), count: n(collected[0]?.count ?? 0) },
-    target: t ? { amount: n(t.amount), achieved: n(t.achieved), periodStart: t.period_start, periodEnd: t.period_end } : null,
+    target: t ? { amount: n(t.amount), achieved: progress?.achieved ?? 0, actualProfit: progress?.actualProfit ?? 0, periodStart: t.period_start, periodEnd: t.period_end } : null,
     activity: {
       tasks: { total: taskTotal, achieved: tasks.achieved ?? 0, unsuccessful: tasks.unsuccessful ?? 0, open: (tasks.pending ?? 0) + (tasks.in_process ?? 0) },
       followUps,

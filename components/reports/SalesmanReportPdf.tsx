@@ -29,7 +29,7 @@ function summary(r: SalesmanMonthlyReport) {
   }
   if (r.target) {
     const p = r.target.amount > 0 ? (r.target.achieved / r.target.amount) * 100 : 0;
-    parts.push(`Target progress stands at ${pct(p)} of ${money(r.target.amount)}.`);
+    parts.push(`Provisional profit stands at ${pct(p)} of the ${money(r.target.amount)} target.`);
   }
   return parts.join(" ");
 }
@@ -89,7 +89,7 @@ export function SalesmanReportPdf({ report: r }: { report: NonNullable<SalesmanM
         {r.target ? (
           <View style={[s.card, { marginTop: 12 }]}>
             <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 6 }}>
-              <Text style={{ fontSize: 9, fontWeight: 700, color: C.ink }}>Sales target</Text>
+              <Text style={{ fontSize: 9, fontWeight: 700, color: C.ink }}>Target · Provisional profit</Text>
               <Text style={{ fontSize: 8, color: C.muted }}>
                 {date(r.target.periodStart)} – {date(r.target.periodEnd)}
               </Text>
@@ -97,10 +97,13 @@ export function SalesmanReportPdf({ report: r }: { report: NonNullable<SalesmanM
             <Bar value={Math.min(targetPct, 100)} max={100} color={targetPct >= 100 ? C.primary : C.info} height={8} />
             <View style={{ flexDirection: "row", justifyContent: "space-between", marginTop: 5 }}>
               <Text style={{ fontSize: 8, color: C.body }}>
-                <Text style={{ fontWeight: 700, color: C.ink }}>{money(r.target.achieved)}</Text> achieved of {money(r.target.amount)}
+                <Text style={{ fontWeight: 700, color: C.ink }}>{money(r.target.achieved)}</Text> provisional profit of {money(r.target.amount)}
               </Text>
               <Text style={{ fontSize: 8, fontWeight: 700, color: targetPct >= 100 ? C.primary : C.info }}>{pct(targetPct)}</Text>
             </View>
+            <Text style={{ fontSize: 8, color: C.body, marginTop: 3 }}>
+              <Text style={{ fontWeight: 700, color: C.ink }}>{money(r.target.actualProfit)}</Text> actual profit confirmed by accounts
+            </Text>
           </View>
         ) : null}
 

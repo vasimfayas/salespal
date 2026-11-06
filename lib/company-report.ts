@@ -198,8 +198,9 @@ export async function getCompanyReport(orgId: number, range: NonNullable<ReturnT
       const target = t
         ? (() => {
             const amount = Number(t.amount);
-            const done = achieved.get(t.id) ?? 0;
-            return { amount, achieved: done, percent: amount > 0 ? (done / amount) * 100 : 0, start: t.period_start, end: t.period_end, state: targetState(t, done, amount, today) };
+            const progress = achieved.get(t.id);
+            const done = progress?.achieved ?? 0;
+            return { amount, achieved: done, actualProfit: progress?.actualProfit ?? 0, percent: amount > 0 ? (done / amount) * 100 : 0, start: t.period_start, end: t.period_end, state: targetState(t, done, amount, today) };
           })()
         : null;
       return {

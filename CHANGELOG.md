@@ -2,6 +2,14 @@
 
 Newest first. Types: Added, Changed, Fixed. Tag each release `vX.Y.Z` (fix = patch, feature = minor, breaking = major).
 
+## 1.14.0 - 2026-11-06
+
+### Changed
+- Salesman targets now measure provisional profit, taken from each order's enquiry, instead of order value. This applies to the monthly performance report, company report, Salesmen and Team pages, and the salesman dashboard. Achieved / Missed status follows it, including for past targets.
+
+### Added
+- Actual profit confirmed by accounts shows next to provisional profit on the same screens. It is for information and does not affect target progress.
+
 ## 1.13.0 - 2026-11-05
 
 ### Added

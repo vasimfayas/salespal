@@ -30,11 +30,13 @@ function StateBadge({ state }: { state: TargetState }) {
   );
 }
 
-function ProgressBar({ target }: { target: SalesmanTargetView }) {
+/** `labelled` is for places without table headers: names the figure and adds the actual profit line. */
+function ProgressBar({ target, labelled }: { target: SalesmanTargetView; labelled?: boolean }) {
   const width = Math.min(100, target.percent);
   const done = target.percent >= 100;
   return (
     <div className="min-w-[160px]">
+      {labelled && <p className="text-[11px] text-muted-foreground">Provisional profit</p>}
       <div className="flex items-baseline justify-between text-xs">
         <span className="font-semibold text-foreground">{formatAmount(target.achieved)}</span>
         <span className="font-semibold text-muted-foreground">{target.percent.toFixed(0)}%</span>
@@ -49,6 +51,11 @@ function ProgressBar({ target }: { target: SalesmanTargetView }) {
       >
         <div className={cn("h-full rounded-full transition-all", done ? "bg-success" : "bg-primary")} style={{ width: `${width}%` }} />
       </div>
+      {labelled && (
+        <p className="mt-1.5 text-[11px] text-muted-foreground">
+          Actual profit <span className="font-semibold tabular-nums text-foreground">{formatAmount(target.actual_profit)}</span>
+        </p>
+      )}
     </div>
   );
 }
@@ -196,7 +203,7 @@ export function SalesmenTargetsClient({
                   <span className="font-semibold text-foreground">Target {formatAmount(row.current.amount)}</span>
                   <StateBadge state={row.current.state} />
                 </div>
-                <ProgressBar target={row.current} />
+                <ProgressBar target={row.current} labelled />
                 <p className="text-[11px] text-muted-foreground">{periodLabel(row.current)} · {period(row.current)}</p>
               </div>
             ) : (
@@ -218,7 +225,7 @@ export function SalesmenTargetsClient({
       </ul>
 
       <div className="hidden overflow-x-auto rounded-card border border-border bg-card shadow-card md:block">
-        <table className="w-full min-w-[980px] text-left text-sm">
+        <table className="w-full min-w-[1100px] text-left text-sm">
           <thead className="border-b border-border text-muted-foreground text-[13px]">
             <tr>
               <th className="px-5 py-3.5">Salesman</th>
@@ -227,7 +234,8 @@ export function SalesmenTargetsClient({
               <th className="px-5 py-3.5 text-right" title="Actual profit from enquiries whose order is fully paid">Completed profit</th>
               <th className="px-5 py-3.5">Target</th>
               <th className="px-5 py-3.5">Period</th>
-              <th className="px-5 py-3.5">Progress</th>
+              <th className="px-5 py-3.5" title="Provisional profit on their orders in the target period, measured against the target">Provisional profit</th>
+              <th className="px-5 py-3.5 text-right" title="Actual profit confirmed by accounts on those same orders">Actual profit</th>
               <th className="px-5 py-3.5">Status</th>
               <th className="px-5 py-3.5 text-right">Actions</th>
             </tr>
@@ -270,10 +278,13 @@ export function SalesmenTargetsClient({
                       <span className="block text-[11px] text-muted-foreground">{period(row.current)}</span>
                     </td>
                     <td className="px-5 py-4"><ProgressBar target={row.current} /></td>
+                    <td className={cn("whitespace-nowrap px-5 py-4 text-right font-semibold tabular-nums", row.current.actual_profit < 0 ? "text-danger-foreground" : "text-foreground")}>
+                      {formatAmount(row.current.actual_profit)}
+                    </td>
                     <td className="px-5 py-4"><StateBadge state={row.current.state} /></td>
                   </>
                 ) : (
-                  <td colSpan={4} className="px-5 py-4 text-xs italic text-muted-foreground/80">No active target</td>
+                  <td colSpan={5} className="px-5 py-4 text-xs italic text-muted-foreground/80">No active target</td>
                 )}
                 <td className="px-5 py-4">
                   <div className="flex justify-end gap-2">
@@ -317,7 +328,7 @@ export function SalesmenTargetsClient({
             </button>
           </div>
           {error && <p role="alert" className="rounded-md bg-danger-soft px-3 py-2 text-xs font-medium text-danger-foreground">{error}</p>}
-          <Input label="Target amount" type="number" min="1" step="0.01" required value={amount} onChange={(e) => setAmount(e.target.value)} />
+          <Input label="Target amount (provisional profit)" type="number" min="1" step="0.01" required value={amount} onChange={(e) => setAmount(e.target.value)} />
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <label className="block text-sm font-medium text-foreground/85" htmlFor="target-period">
               <span className="mb-1 block">Period</span>
@@ -351,7 +362,7 @@ export function SalesmenTargetsClient({
           <div className="flex items-start justify-between border-b border-border pb-3">
             <div>
               <h3 className="text-base font-semibold text-foreground">Target history · {historyFor?.name}</h3>
-              <p className="text-xs text-muted-foreground">Progress counts the salesman's orders (excluding cancelled or sent back for revision) created in each period.</p>
+              <p className="text-xs text-muted-foreground">Progress is the provisional profit on the salesman&apos;s orders (excluding cancelled or sent back for revision) created in each period. Actual profit is what accounts have confirmed on those orders.</p>
             </div>
             <button onClick={() => setHistoryFor(null)} aria-label="Close" className={buttonVariants({ variant: "ghost", size: "icon-sm" })}>
               <X size={16} />
@@ -368,7 +379,7 @@ export function SalesmenTargetsClient({
                     <StateBadge state={t.state} />
                   </div>
                   <p className="text-xs text-muted-foreground">{periodLabel(t)} · {period(t)} · set by {t.set_by} on {formatDate(t.created_at)}</p>
-                  <ProgressBar target={t} />
+                  <ProgressBar target={t} labelled />
                 </li>
               ))}
             </ul>

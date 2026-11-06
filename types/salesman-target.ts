@@ -3,8 +3,10 @@ export type TargetState = "active" | "upcoming" | "achieved" | "missed" | "repla
 export type SalesmanTargetView = {
   id: number;
   amount: number;
-  /** Sum of the salesman's non-cancelled order amounts created inside the period. */
+  /** Provisional profit on the salesman's counted orders created inside the period; measured against the target. */
   achieved: number;
+  /** Actual profit accounts have entered on those same orders. */
+  actual_profit: number;
   /** achieved / amount as a percentage (uncapped). */
   percent: number;
   period_start: string; // YYYY-MM-DD

@@ -140,7 +140,7 @@ const QUICK_ACTIONS = [
   { label: "Clients", href: "/dashboard/salesman/clients", icon: Users },
 ];
 
-/** The month at a glance: order value against target, open enquiries, payments due, and quick actions. */
+/** The month at a glance: order value, provisional profit against target, open enquiries, payments due, and quick actions. */
 async function MonthHeroSection({ userId }: { userId: number }) {
   const today = todayUtc();
   const [perfNow, perfPrev, target, enquiries, dues] = await Promise.all([
@@ -164,7 +164,8 @@ async function MonthHeroSection({ userId }: { userId: number }) {
   const pct = prevValue > 0 ? Math.round(((value - prevValue) / prevValue) * 100) : value > 0 ? 100 : 0;
   const targetAmount = target ? Number(target.amount) : 0;
   // Progress on the active target counts the same orders as the manager's Team page.
-  const achieved = target ? ((await getTargetAchievements([userId])).get(target.id) ?? 0) : 0;
+  const progress = target ? (await getTargetAchievements([userId])).get(target.id) : undefined;
+  const achieved = progress?.achieved ?? 0;
   const targetPct = targetAmount > 0 ? Math.min(100, Math.round((achieved / targetAmount) * 100)) : 0;
   const openEnquiries = enquiries.reduce((sum, g) => sum + g._count._all, 0);
   const withAgents = enquiries.find((g) => g.status === "with_agent")?._count._all ?? 0;
@@ -193,7 +194,7 @@ async function MonthHeroSection({ userId }: { userId: number }) {
           </span>
         </div>
         {target ? (
-          <div role="img" aria-label={`${targetPct}% of target ${formatAmount(targetAmount)}`} className="space-y-1.5">
+          <div role="img" aria-label={`Provisional profit ${formatAmount(achieved)}, ${targetPct}% of target ${formatAmount(targetAmount)}. Actual profit ${formatAmount(progress?.actualProfit ?? 0)}.`} className="space-y-1.5">
             <div className="h-2.5 overflow-hidden rounded-full bg-white/10">
               <div
                 className="h-full rounded-full bg-[repeating-linear-gradient(135deg,#a3ce5b_0_6px,#8dbb45_6px_12px)]"
@@ -203,6 +204,10 @@ async function MonthHeroSection({ userId }: { userId: number }) {
             <div className="flex justify-between text-xs text-white/70">
               <span>{targetPct}% of target</span>
               <span className="tabular-nums">{formatAmount(targetAmount)}</span>
+            </div>
+            <div className="flex flex-wrap justify-between gap-x-4 text-xs text-white/70">
+              <span>Provisional profit <span className="font-semibold tabular-nums text-white">{formatAmount(achieved)}</span></span>
+              <span>Actual profit <span className="font-semibold tabular-nums text-white">{formatAmount(progress?.actualProfit ?? 0)}</span></span>
             </div>
           </div>
         ) : (
@@ -395,7 +400,7 @@ export default async function SalesmanDashboardPage() {
         </div>
       </div>
 
-      {/* ─── 1. The month: order value vs target, enquiries, payments, quick actions ─── */}
+      {/* ─── 1. The month: order value, profit vs target, enquiries, payments, quick actions ─── */}
       <Suspense fallback={<HeroSkeleton />}>
         <MonthHeroSection userId={userId} />
       </Suspense>

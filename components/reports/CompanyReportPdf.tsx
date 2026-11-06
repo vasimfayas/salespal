@@ -131,10 +131,10 @@ export function CompanyReportPdf({ report: r, logo }: { report: CompanyReport; l
           />
         </Section>
 
-        <Section title="Target status" note="Order value against each person's target for the target period">
+        <Section title="Target status" note="Provisional profit against each person's target for the target period, with the actual profit confirmed by accounts">
           <View style={s.table}>
             <View style={s.th}>
-              {[["Staff", "24%"], ["Target period", "23%"], ["Progress", "21%"], ["Achieved / target", "20%"], ["Status", "12%"]].map(([label, width]) => (
+              {[["Staff", "19%"], ["Target period", "20%"], ["Progress", "17%"], ["Provisional profit / target", "21%"], ["Actual profit", "12%"], ["Status", "11%"]].map(([label, width]) => (
                 <Text key={label} style={[s.thText, { width }]}>
                   {label}
                 </Text>
@@ -149,25 +149,26 @@ export function CompanyReportPdf({ report: r, logo }: { report: CompanyReport; l
                 const state = tg ? TARGET_STATE[tg.state === "active" && tg.percent >= 100 ? "achieved" : tg.state] : null;
                 return (
                   <View key={x.id} style={[s.tr, { alignItems: "center" }]} wrap={false}>
-                    <Text style={[s.tdStrong, { width: "24%" }]}>{x.name}</Text>
+                    <Text style={[s.tdStrong, { width: "19%" }]}>{x.name}</Text>
                     {tg && state ? (
                       <>
-                        <Text style={[s.td, { width: "23%" }]}>
+                        <Text style={[s.td, { width: "20%" }]}>
                           {date(tg.start)} – {date(tg.end)}
                         </Text>
-                        <View style={{ width: "21%", paddingRight: 10, flexDirection: "row", alignItems: "center", gap: 5 }}>
+                        <View style={{ width: "17%", paddingRight: 10, flexDirection: "row", alignItems: "center", gap: 5 }}>
                           <View style={{ flex: 1 }}>
                             <Bar value={Math.min(tg.percent, 100)} max={100} color={state.color} />
                           </View>
                           <Text style={[s.td, { width: 30, textAlign: "right" }]}>{pct(tg.percent)}</Text>
                         </View>
-                        <Text style={[s.td, { width: "20%" }]}>
+                        <Text style={[s.td, { width: "21%" }]}>
                           {money(tg.achieved)} / {money(tg.amount)}
                         </Text>
-                        <Text style={[s.td, { width: "12%", fontWeight: 700, color: state.color }]}>{state.label}</Text>
+                        <Text style={[s.td, { width: "12%" }]}>{money(tg.actualProfit)}</Text>
+                        <Text style={[s.td, { width: "11%", fontWeight: 700, color: state.color }]}>{state.label}</Text>
                       </>
                     ) : (
-                      <Text style={[s.td, { width: "76%", color: C.muted }]}>No target set for this period</Text>
+                      <Text style={[s.td, { width: "81%", color: C.muted }]}>No target set for this period</Text>
                     )}
                   </View>
                 );
@@ -175,7 +176,7 @@ export function CompanyReportPdf({ report: r, logo }: { report: CompanyReport; l
           </View>
         </Section>
         <Text style={{ fontSize: 7, color: C.faint, marginTop: 10, lineHeight: 1.5 }}>
-          Figures are for this company in the report period. Target progress counts all of the salesman&apos;s orders across the whole target period, as on the
+          Figures are for this company in the report period. Target progress is the provisional profit on all of the salesman&apos;s orders across the whole target period, as on the
           Targets page.
         </Text>
         <Footer r={r} />
